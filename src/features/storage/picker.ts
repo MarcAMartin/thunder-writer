@@ -52,6 +52,10 @@ export interface PickerDocsView {
   setLabel(label: string): PickerDocsView
   /** Show Shared drives instead of My Drive. */
   setEnableDrives(enabled: boolean): PickerDocsView
+  /** Grid of thumbnails or a list with names and dates (google.picker.DocsViewMode). */
+  setMode?(mode: string): PickerDocsView
+  /** true = only files the writer owns; false = only files shared with them. */
+  setOwnedByMe?(me: boolean): PickerDocsView
 }
 
 export interface Picker {
@@ -77,6 +81,7 @@ export interface PickerNamespace {
   PickerBuilder: new () => PickerBuilder
   DocsView: new (viewId?: string) => PickerDocsView
   ViewId: { DOCS: string }
+  DocsViewMode?: { GRID: string; LIST: string }
   Action: { PICKED: string; CANCEL: string; ERROR?: string }
   Feature: { MULTISELECT_ENABLED: string; NAV_HIDDEN?: string }
 }
@@ -194,15 +199,24 @@ function toPicked(d: PickerDocument | undefined): PickedFile | null {
  */
 export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promise<PickedFile | null> {
   return new Promise<PickedFile | null>((resolve, reject) => {
-    const importView = (label: string) =>
-      new ns.DocsView(ns.ViewId.DOCS)
-        .setMimeTypes(IMPORTABLE_MIME_TYPES.join(','))
-        .setIncludeFolders(true)
+    const view = (label: string, mimeTypes: readonly string[], { folders }: { folders: boolean }) => {
+      const v = new ns.DocsView(ns.ViewId.DOCS)
+        .setMimeTypes(mimeTypes.join(','))
+        .setIncludeFolders(folders)
         .setSelectFolderEnabled(false)
         .setLabel(label)
-    const imports = importView('Manuscripts')
+      // A list shows each file's name and last-modified date, easier to scan than thumbnails.
+      if (!folders && ns.DocsViewMode) v.setMode?.(ns.DocsViewMode.LIST)
+      return v
+    }
+    // Every Google Doc and Word file, wherever it sits: no folders to click through first.
+    const docs = view('Google Docs & Word', IMPORTABLE_MIME_TYPES, { folders: false })
+    // Drafts that live in someone else's Drive (an editor's, a co-author's) and are shared with the writer.
+    const sharedWithMe = view('Shared with me', IMPORTABLE_MIME_TYPES, { folders: false })
+    sharedWithMe.setOwnedByMe?.(false)
+    const browse = view('Browse folders', IMPORTABLE_MIME_TYPES, { folders: true })
     // Books kept with co-authors, an agent or a publisher often live in a Shared drive.
-    const shared = importView('Shared drives').setEnableDrives(true)
+    const shared = view('Shared drives', IMPORTABLE_MIME_TYPES, { folders: true }).setEnableDrives(true)
 
     let picker: Picker | null = null
     let settled = false
@@ -218,7 +232,9 @@ export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promis
     }
 
     const builder = new ns.PickerBuilder()
-      .addView(imports)
+      .addView(docs)
+      .addView(sharedWithMe)
+      .addView(browse)
       .addView(shared)
       .setOAuthToken(opts.token)
       .setDeveloperKey(opts.developerKey)
@@ -233,26 +249,18 @@ export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promis
         } else if (data.action === ns.Action.CANCEL) {
           finish(() => resolve(null))
         } else if (ns.Action.ERROR && data.action === ns.Action.ERROR) {
-          finish(() =>
-            reject(
-              new DriveError(
-                'unknown',
-                'The Google Drive file picker failed to open. Check the Google API key in Settings (and that the Google Picker API is enabled).',
-              ),
-            ),
+          // A deployment problem, not the writer's: tell whoever runs this copy what to check.
+          console.error(
+            '[thunder-writer] The Google Picker reported an error. Check VITE_GOOGLE_API_KEY: the Google Picker API must be enabled for it, and its website restrictions must include this origin and https://docs.google.com/*.',
           )
+          finish(() => reject(new DriveError('unknown', 'The Google Drive file picker couldn’t open. Try again in a moment.')))
         }
         // Other actions (e.g. "loaded") are progress notifications.
       })
 
     if (opts.includeThunderFiles) {
-      // Existing Thunder Writer files anywhere in Drive (JSON; the importer keeps only .thunder.json ones).
-      const thunder = new ns.DocsView(ns.ViewId.DOCS)
-        .setMimeTypes(THUNDER_JSON_MIME)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(false)
-        .setLabel('Thunder Writer files')
-      builder.addView(thunder)
+      // Thunder Writer's own saves anywhere in Drive (JSON; the importer keeps only .thunder.json ones).
+      builder.addView(view('Thunder Writer saves', [THUNDER_JSON_MIME], { folders: true }))
     }
 
     try {

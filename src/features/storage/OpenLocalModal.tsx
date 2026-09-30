@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useDocuments } from '../../store/documents'
+import { safetyBackup, useBackups } from '../backups/backups'
 import { Modal } from './Modal'
 
 export const formatWhen = (t: number) =>
@@ -13,10 +14,15 @@ export function OpenLocalModal({ onClose }: { onClose: () => void }) {
   const deleteDoc = useDocuments((s) => s.deleteDoc)
   const docs = useMemo(() => Object.values(docsMap).sort((a, b) => b.updatedAt - a.updatedAt), [docsMap])
 
-  const remove = (id: string, title: string) => {
+  const remove = async (id: string, title: string) => {
     const onDrive = docsMap[id]?.driveFileId ? ' The copy in Google Drive is not affected.' : ''
-    if (!window.confirm(`Delete "${title}" from this browser? This cannot be undone.${onDrive}`)) return
+    const recoverable = useBackups.getState().error
+      ? ' This cannot be undone.'
+      : ' A backup is kept: you can open it again from Backups › All backups.'
+    if (!window.confirm(`Delete "${title}" from this browser?${recoverable}${onDrive}`)) return
     const wasCurrent = id === currentId
+    const kept = await safetyBackup(docsMap[id], 'before-delete')
+    if (!kept && !window.confirm(`This browser couldn’t keep a backup of "${title}". Delete it anyway? This cannot be undone.${onDrive}`)) return
     deleteDoc(id)
     if (wasCurrent) {
       const next = docs.find((d) => d.id !== id)

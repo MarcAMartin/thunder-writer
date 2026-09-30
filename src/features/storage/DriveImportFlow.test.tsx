@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EditorContext } from '../../shell/EditorContext'
 import { useDocuments } from '../../store/documents'
-import { useSettings } from '../../store/settings'
 import { DriveError } from './drive'
 import type { DriveImportOutcome } from './driveImport'
 import type { PickedFile } from './picker'
@@ -67,7 +66,6 @@ describe('Import from Google Drive', () => {
   beforeEach(() => {
     session.pickDriveFile.mockReset()
     session.importPickedDriveFile.mockReset()
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
     useDocuments.setState({ docs: { a: makeDoc({ id: 'a', title: 'Alpha' }) }, currentId: 'a', hydrated: true, dirtyForDrive: {} })
   })
 
@@ -182,7 +180,6 @@ describe('Import from Google Drive — after the import', () => {
   beforeEach(() => {
     session.pickDriveFile.mockReset()
     session.importPickedDriveFile.mockReset()
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
   })
 
   it('"Start writing" puts the cursor in the new manuscript, and a blank first manuscript is replaced', async () => {

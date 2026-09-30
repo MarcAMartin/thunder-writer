@@ -145,6 +145,18 @@
 .hm-cta-primary { font-weight: 600; box-shadow: var(--tw-shadow); }
 .hm-cta-arrow { transition: transform 160ms ease; }
 .hm-cta-primary:hover .hm-cta-arrow { transform: translateX(3px); }
+.hm-cta[aria-busy='true'] { cursor: progress; opacity: 0.8; }
+.hm-continue-note,
+.hm-continue-error {
+  margin: 12px 0 0;
+  max-width: 36em;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.hm-continue-note { color: var(--tw-text-muted); }
+.hm-continue-title { color: var(--tw-text); font-weight: 500; }
+.hm-continue-error { color: var(--tw-danger); }
 .hm-fineprint {
   margin: 18px 0 0;
   max-width: 36em;

@@ -16,6 +16,7 @@ own key. The owner's original design (UI boxes and behaviour notes) is in
 - [Routes](#routes)
 - [AI providers, models and cost](#ai-providers-models-and-cost)
 - [Google Cloud setup](#google-cloud-setup)
+- [Backups](#backups)
 - [Deploying to Vercel](#deploying-to-vercel)
 - [Privacy and security model](#privacy-and-security-model)
 - [Architecture](#architecture)
@@ -52,8 +53,10 @@ fallback to `index.html` so `/write` and `/settings` resolve (see
 
 The app works without any configuration: writing, import, Book Preview and
 saving to the computer need nothing. AI suggestions need a key (entered at
-runtime in Settings). Google Drive needs the
-[Google Cloud setup](#google-cloud-setup).
+runtime in Settings). Google Drive is switched on by the deployment, not the
+writer: build with your project's `VITE_GOOGLE_*` values
+([Google Cloud setup](#google-cloud-setup)) and every writer can connect their
+own Drive with nothing to enter. Without them the build simply leaves Drive out.
 
 Stack: React 19, TypeScript, Vite 8, TipTap 3 (ProseMirror) for the editor,
 zustand for state, zod for validating anything loaded from storage or the
@@ -66,32 +69,50 @@ import).
 ## Environment variables
 
 Copy `.env.example` to `.env.local` (git-ignored) and fill in what you need.
-Both values are baked into the bundle at build time (`import.meta.env`), and
-both can instead be entered on the Settings page, which overrides the env
-value for that browser.
+The values are baked into the bundle at build time (`import.meta.env`, read in
+`src/features/storage/googleConfig.ts`). They identify **your** Google Cloud
+project, the one every writer's Drive connection goes through, so they are the
+deployment's to set: the app has no fields for them, and a writer only ever sees
+Google's own consent popup.
 
 | Variable | Used for | Required? |
 | --- | --- | --- |
-| `VITE_GOOGLE_CLIENT_ID` | OAuth 2.0 **Web** client id for Google Drive (Google Identity Services token model). | Only for Drive. |
-| `VITE_GOOGLE_API_KEY` | Browser API key for the Google Picker ("Import from Google Drive…"). | Only for importing existing Drive files. |
+| `VITE_GOOGLE_CLIENT_ID` | OAuth 2.0 **Web** client id for Google Drive (Google Identity Services token model). | For Drive. Blank = the build has no Drive: its menu items, dialogs, the Home page's Drive fallback and the Settings section are left out. |
+| `VITE_GOOGLE_API_KEY` | Browser API key for the Google Picker ("Import from Google Drive…"). | For importing existing Drive files. Blank = no import from Drive. |
+| `VITE_GOOGLE_PROJECT_NUMBER` | The Picker's app id. | No. Defaults to the number at the start of the client id, which is almost always right. |
 
-Restart `npm run dev` after editing `.env.local`. There are no AI key
-variables on purpose: AI keys belong to the writer, not the deployment, and are
-entered in Settings.
+Restart `npm run dev` after editing `.env.local`, and redeploy after changing
+them on the host. Settings saved by versions before settings v4 could hold a
+client id, API key or project number entered in the browser; the v4 migration
+removes them (`RETIRED_GOOGLE_KEYS` in `src/store/settings.ts`). There are no
+AI key variables on purpose: AI keys belong to the writer, not the deployment,
+and are entered in Settings.
 
 ## Routes
 
-- `/`: home page with an animated demo (`demoScript.ts` is a pure timeline),
-  the **Start Writing** call to action, and **Import a manuscript** /
-  **Open from Google Drive** secondary actions.
+- `/`: home page with an animated demo (`demoScript.ts` is a pure timeline)
+  and two calls to action (`HeroActions.tsx`):
+  - **Start Writing** goes to `/write?new=1`, a fresh manuscript.
+  - **Continue Writing** reopens the manuscript last open in this browser
+    (from IndexedDB; a blank "Untitled Manuscript" nobody wrote in doesn't
+    count), and names it underneath. When this browser has none (a new
+    computer, cleared data), the button connects Google Drive straight from
+    the click, so the consent popup isn't blocked, then goes to
+    `/write?open=drive` to list the manuscripts saved there. In a build without
+    Drive it is left out.
+  Below them, text links to **Import a manuscript** and, when the Picker key is
+  set, **import it from Google Drive**.
 - `/write`: the writing app: toolbar, page sheets, suggestions pane, status bar.
+  - `/write?new=1` opens a fresh manuscript (once per navigation, replacing a
+    blank one left from an earlier visit), then drops the parameter.
   - `/write?open=drive` opens the "Open from Google Drive" dialog on arrival.
   - `/write?import=local` shows a "Choose a file to import" prompt.
   - `/write?open=picker` shows an "Import from Google Drive" prompt.
   Browsers only open a file chooser or the Google Picker from a click, so the
   last two show a button rather than opening the chooser themselves.
-- `/settings`: AI keys and models, suggestion cadence, Google Drive, theme,
-  and "Clear all local data". Sections can be deep-linked: `#ai`, `#claude`,
+- `/settings`: AI keys and models, suggestion cadence, Google Drive (only the
+  Drive autosave interval, and only in builds with Drive; nothing to set up),
+  theme, and "Clear all local data". Sections can be deep-linked: `#ai`, `#claude`,
   `#openai`, `#suggestions`, `#drive`, `#appearance`, `#data`.
 
 ## AI providers, models and cost
@@ -265,8 +286,10 @@ off web-searched trivia, or turn off **Suggest while I write**.
 
 Drive gives the writer a cloud copy and lets them open manuscripts on another
 machine. Importing Google Docs and other existing Drive files additionally
-uses the Google Picker. Everything below happens in **one** Google Cloud
-project.
+uses the Google Picker. Everything below is done **once, by whoever deploys
+the app**, in **one** Google Cloud project; the resulting values go into the
+build as env vars. Writers never see any of it, only Google's consent popup
+naming your app.
 
 ### 1. Project and APIs
 
@@ -310,9 +333,9 @@ Thunder Writer may open, and the app can't see anything else in their Drive.
      custom domain.
    No redirect URI is needed, because the app uses Google Identity Services'
    token popup.
-3. Give the client id to the app, either as `VITE_GOOGLE_CLIENT_ID` in
-   `.env.local` (restart the dev server) or in **Settings → Google Drive →
-   OAuth client ID** (overrides the env value for that browser).
+3. Give the client id to the build as `VITE_GOOGLE_CLIENT_ID`: in
+   `.env.local` for development (restart the dev server), and on the host for
+   deployments ([Deploying to Vercel](#deploying-to-vercel)).
 
 ### 4. API key for the Picker
 
@@ -328,18 +351,17 @@ client.
      docs.google.com, and Google rejects the key with "The API developer key is
      invalid" without that entry.
    - **API restrictions:** restrict the key to the **Google Picker API** only.
-3. Give the key to the app as `VITE_GOOGLE_API_KEY` in `.env.local`, or paste
-   it into **Settings → Google Drive → Google API key**.
+3. Give the key to the build as `VITE_GOOGLE_API_KEY`, the same way.
 4. The Picker also needs the project **number** as its app id. Thunder Writer
    reads it from the start of the client id
-   (`698829428298-….apps.googleusercontent.com` → `698829428298`), and
-   **Settings → Google Drive** lets you override it. It must match the project
-   that owns the client id, or picked files can't be read.
+   (`698829428298-….apps.googleusercontent.com` → `698829428298`);
+   `VITE_GOOGLE_PROJECT_NUMBER` overrides it. It must match the project that
+   owns the client id, or picked files can't be read.
 
 This API key identifies the app to Google but doesn't unlock anyone's files.
 Access to files still needs the writer's own OAuth consent, so the key isn't a
-secret in the way AI keys are. Even so, it is kept out of the Drive settings
-sync, together with the project number override.
+secret in the way AI keys are. It is part of the build, not a setting, so it is
+never stored in the browser or synced to Drive.
 
 ### Common errors
 
@@ -347,9 +369,9 @@ sync, together with the project number override.
 | --- | --- | --- |
 | `Error 400: origin_mismatch` (or `redirect_uri_mismatch`) in the Google popup | The page's origin isn't in the client's **Authorized JavaScript origins**. | Add the exact origin (scheme, host, port), then wait a few minutes for it to take effect. |
 | `Error 403: access_denied` / "Access blocked" | The app is in **Testing** and the account isn't a test user, or the writer declined consent. | Add the account under **Audience → Test users**, or publish the app. |
-| "The API developer key is invalid" in the Picker | The key's website restrictions lack `https://docs.google.com/*` or the current origin, or the Picker API isn't enabled or allowed for the key. | Fix the key's restrictions, and enable the Picker API. |
-| Picked file can't be read | The project number (app id) doesn't match the client id's project. | Clear the override in Settings, or correct it. |
-| Popup blocked / "The Google window did not finish" | The sign-in popup must come from a click. | Click **Connect** (File menu) again. |
+| The Picker says it "couldn't open" (the console logs a `VITE_GOOGLE_API_KEY` hint), or "The API developer key is invalid" | The key's website restrictions lack `https://docs.google.com/*` or the current origin, or the Picker API isn't enabled or allowed for the key. | Fix the key's restrictions, and enable the Picker API. |
+| Picked file can't be read | The project number (app id) doesn't match the client id's project. | Remove or correct `VITE_GOOGLE_PROJECT_NUMBER` and rebuild. |
+| Popup blocked / "The Google window did not finish" | The sign-in popup must come from a click. | Click **Connect** (File menu), or **Continue Writing** on the Home page, again. |
 
 ### Drive behaviour
 
@@ -357,13 +379,15 @@ sync, together with the project number override.
   those Thunder Writer created, and those picked in the Google Picker to
   import. The app can't see anything else in the Drive.
 - Manuscripts are saved as `<title>.thunder.json` in a **Thunder Writer**
-  folder. Non-secret preferences (including the trivia toggle and cooldown) can
-  be synced as `thunder-writer.config.json`. AI keys, the client id, the Google
-  API key and the project number are never uploaded.
+  folder, and that is all Drive is used for: settings stay in the browser
+  (earlier versions could sync preferences as `thunder-writer.config.json`; the
+  app no longer reads or writes it). AI keys are never uploaded, and the Google
+  values aren't settings at all (they are part of the build).
 - An imported file is read once and never written to. The manuscript made from
   it is saved as a new `.thunder.json` file in the **Thunder Writer** folder.
 - The access token is kept in memory only. After a reload, press **Connect** in
-  the File menu again. Tokens last about an hour; if the browser blocks the
+  the File menu again (or, in a browser with no manuscripts yet, **Continue
+  Writing** on the Home page, which connects and lists the Drive manuscripts). Tokens last about an hour; if the browser blocks the
   renewal popup during autosave, the status shows "Drive error — retry", and
   clicking it renews the token.
 - Autosave to Drive runs about 5 s after a pause, and at most once per
@@ -372,9 +396,75 @@ sync, together with the project number override.
   (`src/features/storage/autosave.ts`).
 - If autosave finds the Drive file changed elsewhere, it fetches Drive's
   version and asks the writer which to keep (`ResolveConflictModal.tsx`).
+  Both versions are always kept somewhere: see [Backups](#backups).
+- **Open from Drive** lists the manuscripts in every **Thunder Writer** folder
+  the app created (two tabs connecting for the first time at once can each
+  make one; new saves go to the oldest). It lists only those folders, so a
+  `.thunder.json` picked elsewhere to import (maybe a co-author's) is never
+  listed, linked and then autosaved into.
 - Nothing is uploaded when the page closes, because the browser can't reliably
   finish an upload then. Local saving is always flushed, and Drive catches up
   on the next connect.
+- A manuscript imported from a Google Doc is a copy. Nothing is ever written to
+  the Google Doc, and later edits made in Google Docs don't come in.
+
+## Backups
+
+Two layers, so a version is never lost to an overwrite
+(`src/features/backups/`, and `backupDocFile` in `src/features/storage/drive.ts`).
+
+**In this browser (IndexedDB, database `thunder-writer-backups`).** Each
+backup is a `meta:<id>` record (listed in the menu) and a `data:<id>` record
+(the whole manuscript, read only when opened). The manuscripts database isn't
+touched, so startup never reads backups.
+
+- *Automatic:* the first edit to a manuscript in each session backs up the
+  version from before it; after that, at most one every 10 minutes while
+  editing (`createAutoBackup`, driven from `StorageProvider`). A backup that
+  would hold the same version as the latest is skipped.
+- *Safety copies*, taken just before something replaces or removes a
+  manuscript: opening the Drive version over this browser's, importing a file
+  over it, deleting it (Open manuscript › delete), and the Drive version that
+  "Keep this browser's version" overwrites. `safetyBackup` gives up after 4 s
+  and reports whether the copy was kept. Delete and import-over ask a second
+  time, with "This cannot be undone", when it wasn't. Opening the Drive
+  version goes ahead either way: the version it replaces is in the conflict
+  dialog's other choices and in Drive.
+- *Retention* (`backupsToPrune`), per manuscript: the 10 newest; then, for
+  each of the last 30 days, the backup holding that day's latest text (by the
+  text's own time, `docUpdatedAt`, since an automatic backup holds the version
+  from before an edit and so saves the evening's text the next morning); and
+  backups the writer made (**Back up now**) and safety copies for 90 days (up
+  to 30).
+- *Failures:* a backup that couldn't be saved (storage full) shows a line in
+  the menu and dialog until one succeeds. Automatic backups retry at the usual
+  interval, not on every keystroke. One stuck write doesn't hold up later ones
+  for more than 15 s.
+- *Where:* the **Backups ▾** menu in the writer header lists the open
+  manuscript's backups (words, time, why it was kept) with **Back up now**.
+  **All backups…** lists every manuscript's, including deleted ones, with
+  **Open copy** and **Download** (a `.thunder.json`). Opening a backup always
+  makes a new manuscript, "<title> (backup <when>)"; nothing is overwritten.
+  The copy isn't uploaded to Drive until it's edited (`isUntouchedCopy`, which
+  Drive autosave skips), and the confirmation offers **Undo**, which closes it
+  and goes back while it's untouched. **File › Import .thunder.json…** on a
+  downloaded backup or `.bak` replaces this browser's copy of that same
+  manuscript, after asking and after a safety backup.
+- **Clear all local data** removes them with everything else.
+
+**In Google Drive (`<title>.thunder.json.bak`).** Before Thunder Writer writes
+over a manuscript's Drive file for the first time in a session, and always
+before "Keep this browser's version", Drive's current copy is saved as a
+`.bak` in the (oldest) **Thunder Writer** folder. It always goes there, even
+if the writer moved the manuscript: `drive.file` can't add files to a folder
+the app didn't create. There is one per manuscript, found again through
+its `appProperties.thunderBackupOf` (the manuscript's file id), so a renamed
+manuscript doesn't leave an old one behind. If the `.bak` can't be written,
+the save fails and autosave retries: nothing is overwritten without it.
+"Open from Drive" doesn't list `.bak` files. **File › Import from Google
+Drive… › Thunder Writer saves** imports one as a new manuscript. **File ›
+Import .thunder.json…** replaces this browser's copy, as above. Drive's own version history (kept for about 30
+days for files like these) is a third layer.
 
 ## Deploying to Vercel
 
@@ -412,7 +502,9 @@ Steps:
 
 1. Link the project: `vercel link` (the `.vercel/` folder is git-ignored).
 2. Add the Google values for each environment you deploy (production,
-   preview), for example:
+   preview). They are the only way Drive gets switched on: writers have
+   nowhere to enter them, so a deployment built without them has no Google
+   Drive at all. For example:
 
    ```bash
    vercel env add VITE_GOOGLE_CLIENT_ID production --type config
@@ -585,12 +677,16 @@ Entry points:
 - **From the computer:** **File › Import manuscript…**, dropping a file
   anywhere on the writer page, or **Import a manuscript** on the home page. If
   several files are dropped, only the first is imported (the result says so).
-- **From Google Drive:** **File › Import from Google Drive…**, the **Import it
-  straight from Google Drive** link on the home page, or the Google Drive
-  button in the import prompt. Google Docs need no download first. My Drive
-  and Shared drives each have a tab. This needs the Picker setup above. A
-  Google Drive for desktop `.gdoc` file on the computer is only a shortcut; it
-  is refused with a pointer to this route.
+- **From Google Drive:** **File › Import from Google Drive…**, the **import it
+  from Google Drive** link on the home page, or the Google Drive button in the
+  import prompt. Google Docs need no download first. The Picker opens on
+  **Google Docs & Word**, a flat list of every importable file wherever it is,
+  then **Shared with me**, **Browse folders**, **Shared drives** and
+  **Thunder Writer saves**. All of these appear only when the build has the Picker key
+  (`VITE_GOOGLE_API_KEY`); without it the import prompt and errors point
+  Google Docs writers to **File › Download › Microsoft Word (.docx)** instead.
+  A Google Drive for desktop `.gdoc` file on the computer is only a shortcut;
+  it is refused with a pointer to this route.
 
 | Format | What comes across |
 | ------ | ----------------- |

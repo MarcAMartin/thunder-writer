@@ -1,13 +1,23 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocuments } from '../../store/documents'
-import { useSettings } from '../../store/settings'
 import { FileMenu } from './FileMenu'
 import { makeDoc } from './testDocs'
 
 // Owned by features/import; FileMenu only reaches it through the Drive import flow.
+const kept = vi.hoisted(() => [] as { id: string; reason: string }[])
+/** Whether the mocked safety backup succeeds. */
+const backup = vi.hoisted(() => ({ ok: true }))
+vi.mock('../backups/backups', () => ({
+  safetyBackup: vi.fn(async (doc: { id: string } | undefined, reason: string) => {
+    if (doc && backup.ok) kept.push({ id: doc.id, reason })
+    return backup.ok
+  }),
+  useBackups: { getState: () => ({ error: null }) },
+}))
+
 vi.mock('../import/importManuscript', () => ({
   importManuscript: vi.fn(async () => {
     throw new Error('not used here')
@@ -21,6 +31,16 @@ function Where() {
   return <div data-testid="where">{l.pathname + l.search + l.hash}</div>
 }
 
+/** Drive comes from the build (VITE_GOOGLE_*), never from anything the writer enters. */
+const CLIENT_ID = '698829428298-abc.apps.googleusercontent.com'
+const withDrive = ({ picker = false } = {}) => {
+  vi.stubEnv('VITE_GOOGLE_CLIENT_ID', CLIENT_ID)
+  vi.stubEnv('VITE_GOOGLE_API_KEY', picker ? 'AIza-test' : '')
+}
+
+/** Nothing about Google Cloud setup may reach the writer. */
+const SETUP_WORDING = /client id|api key|project number|set up in settings|open settings|\(set up\)/i
+
 const renderAt = (url = '/write') =>
   render(
     <MemoryRouter initialEntries={[url]}>
@@ -31,10 +51,12 @@ const renderAt = (url = '/write') =>
 
 describe('FileMenu', () => {
   beforeEach(() => {
-    // A developer's .env.local may set a client id; these tests control it explicitly.
+    // A developer's .env.local may set these; each test decides whether this build has Drive.
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
     vi.stubEnv('VITE_GOOGLE_API_KEY', '')
-    useSettings.setState({ googleClientId: '', googleApiKey: '', googleProjectNumber: '' })
+    vi.stubEnv('VITE_GOOGLE_PROJECT_NUMBER', '')
+    kept.length = 0
+    backup.ok = true
     const doc = makeDoc({ id: 'a', title: 'Alpha', updatedAt: 10 })
     useDocuments.setState({
       docs: { a: doc, b: makeDoc({ id: 'b', title: 'Beta', updatedAt: 5 }) },
@@ -42,6 +64,10 @@ describe('FileMenu', () => {
       hydrated: true,
       dirtyForDrive: {},
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('shows the local save status', () => {
@@ -114,33 +140,53 @@ describe('FileMenu', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('links Drive setup to Settings when no client id is configured', async () => {
-    const user = userEvent.setup()
+  it('reports only this browser’s save status in a build without Drive, even for a manuscript once saved to Drive', () => {
+    useDocuments.setState((s) => ({ docs: { ...s.docs, a: { ...s.docs.a, driveFileId: 'F', driveSyncedAt: 1 } } }))
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
-    const link = screen.getByRole('menuitem', { name: /set up in settings/i })
-    expect(link).toHaveAttribute('href', '/settings#drive')
-    expect(screen.queryByRole('menuitem', { name: 'Save to Drive' })).not.toBeInTheDocument()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/^Saved locally$/)
+    expect(within(status).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('shows Drive actions when a client id is configured', async () => {
-    useSettings.setState({ googleClientId: 'abc.apps.googleusercontent.com' })
+  it('leaves Google Drive out entirely in a build without it, with no setup instructions', async () => {
     const user = userEvent.setup()
     renderAt()
     await user.click(screen.getByRole('button', { name: /file/i }))
-    for (const name of ['Connect Google Drive', 'Save to Drive', 'Open from Drive…', 'Load settings from Drive', 'Save settings to Drive'])
-      expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
+    const menu = screen.getByRole('menu', { name: 'File' })
+    expect(within(menu).queryByText(/google drive/i)).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /drive/i })).not.toBeInTheDocument()
+    expect(menu.textContent).not.toMatch(SETUP_WORDING)
+  })
+
+  it('offers only manuscript actions for Google Drive', async () => {
+    withDrive()
+    const user = userEvent.setup()
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    const menu = screen.getByRole('menu', { name: 'File' })
+    for (const name of ['Connect Google Drive', 'Save to Drive', 'Open from Drive…'])
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /settings/i })).not.toBeInTheDocument()
+    expect(menu.textContent).not.toMatch(SETUP_WORDING)
   })
 
   it('opens the Drive dialog from ?open=drive and clears the param', async () => {
+    withDrive()
     renderAt('/write?open=drive&x=1')
-    const dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
-    expect(within(dialog).getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings#drive')
+    await screen.findByRole('dialog', { name: 'Open from Google Drive' })
     expect(screen.getByTestId('where')).toHaveTextContent('/write?x=1')
   })
 
+  it('a stale ?open=drive link in a build without Drive just says it isn’t available', async () => {
+    renderAt('/write?open=drive')
+    const dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
+    expect(dialog).toHaveTextContent('Google Drive isn’t available in this copy of Thunder Writer.')
+    expect(dialog.textContent).not.toMatch(SETUP_WORDING)
+    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument()
+  })
+
   it('asks to connect before listing Drive files when configured', async () => {
-    useSettings.setState({ googleClientId: 'abc.apps.googleusercontent.com' })
+    withDrive()
     renderAt('/write?open=drive')
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Connect Google Drive' })).toBeInTheDocument()
@@ -165,7 +211,9 @@ describe('FileMenu', () => {
 
     confirm.mockReturnValueOnce(true)
     await user.click(within(dialog).getByRole('button', { name: /delete alpha/i }))
-    expect(useDocuments.getState().docs.a).toBeUndefined()
+    await vi.waitFor(() => expect(useDocuments.getState().docs.a).toBeUndefined())
+    expect(kept).toEqual([{ id: 'a', reason: 'before-delete' }]) // still in Backups › All backups
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('Backups › All backups'))
     expect(useDocuments.getState().currentId).toBe('b')
 
     await user.click(within(dialog).getByRole("button", { name: /^Beta/ }))
@@ -173,8 +221,8 @@ describe('FileMenu', () => {
     confirm.mockRestore()
   })
 
-  it('offers "Import from Google Drive…" separately from "Open from Drive…" when the Picker is set up', async () => {
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
+  it('offers "Import from Google Drive…" separately from "Open from Drive…" when the Picker is available', async () => {
+    withDrive({ picker: true })
     const user = userEvent.setup()
     renderAt()
     await user.click(screen.getByRole('button', { name: /file/i }))
@@ -182,42 +230,52 @@ describe('FileMenu', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Open from Drive…' })).toBeInTheDocument()
     const item = within(menu).getByRole('menuitem', { name: 'Import from Google Drive…' })
     expect(item.tagName).toBe('BUTTON')
-    expect(within(menu).queryByText(/needs a Google API key/)).not.toBeInTheDocument()
+    expect(menu.textContent).not.toMatch(SETUP_WORDING)
   })
 
-  it('explains the missing Google API key and links the import item to Settings', async () => {
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: '' })
+  it('leaves out "Import from Google Drive…" when this build has no Picker key', async () => {
+    withDrive()
     const user = userEvent.setup()
     renderAt()
     await user.click(screen.getByRole('button', { name: /file/i }))
-    const item = screen.getByRole('menuitem', { name: 'Import from Google Drive…' })
-    expect(item).toHaveAttribute('href', '/settings#drive')
-    expect(item).toHaveAccessibleDescription(/needs a Google API key/)
-    expect(screen.getByText(/Importing Google Docs and Word files needs a Google API key/)).toBeInTheDocument()
+    const menu = screen.getByRole('menu', { name: 'File' })
+    expect(within(menu).getByRole('menuitem', { name: 'Open from Drive…' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Import from Google Drive…' })).not.toBeInTheDocument()
+    expect(menu.textContent).not.toMatch(SETUP_WORDING)
   })
 
   it('opens the import prompt from ?open=picker without opening the Picker, and clears the param', async () => {
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
+    withDrive({ picker: true })
     renderAt('/write?open=picker')
     const dialog = await screen.findByRole('dialog', { name: 'Import from Google Drive' })
     expect(within(dialog).getByRole('button', { name: 'Choose a file from Google Drive…' })).toBeInTheDocument()
     expect(screen.getByTestId('where')).toHaveTextContent(/^\/write$/)
   })
 
-  it('?open=picker without a Google API key points to Settings', async () => {
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
+  it('?open=picker in a build without the Picker says importing isn’t available, with no setup steps', async () => {
+    withDrive()
     renderAt('/write?open=picker')
     const dialog = await screen.findByRole('dialog', { name: 'Import from Google Drive' })
-    expect(within(dialog).getByText(/needs a Google API key/)).toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings#drive')
+    expect(dialog).toHaveTextContent('Importing from Google Drive isn’t available in this copy of Thunder Writer.')
+    expect(dialog.textContent).not.toMatch(SETUP_WORDING)
+    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'OK' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('shows the Drive import action in the Open from Drive dialog', async () => {
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
+  it('shows the Drive import action in the Open from Drive dialog only when the Picker is available', async () => {
+    withDrive({ picker: true })
+    const { unmount } = renderAt('/write?open=drive')
+    let dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
+    expect(within(dialog).getByRole('button', { name: 'Import from Google Drive…' })).toBeInTheDocument()
+    unmount()
+
+    withDrive()
     renderAt('/write?open=drive')
-    const dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
-    // No API key yet: the action leads to Settings.
-    expect(within(dialog).getByRole('link', { name: /Import from Google Drive…/ })).toHaveAttribute('href', '/settings#drive')
+    dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
+    expect(within(dialog).queryByRole('button', { name: /Import from Google Drive/ })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument()
+    expect(dialog.textContent).not.toMatch(SETUP_WORDING)
   })
 
   it('imports a backup without its Drive link, so it can never autosave over the Drive file', async () => {
@@ -236,5 +294,33 @@ describe('FileMenu', () => {
     expect(d.title).toBe('Old backup')
     expect(d.driveFileId).toBeUndefined()
     expect(d.driveSyncedAt).toBeUndefined()
+  })
+
+  it('if no backup could be kept, delete asks again and can be called off', async () => {
+    backup.ok = false
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(true).mockReturnValueOnce(false)
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open manuscript…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Open manuscript' })
+    await user.click(within(dialog).getByRole('button', { name: /delete alpha/i }))
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/couldn’t keep a backup of "Alpha"\. Delete it anyway\? This cannot be undone/))
+    expect(useDocuments.getState().docs.a).toBeDefined()
+    confirm.mockRestore()
+  })
+
+  it('keeps a backup of the manuscript an imported file replaces, and accepts Drive .bak files', async () => {
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderAt()
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+    expect(input.accept.split(',')).toEqual(expect.arrayContaining(['.json', '.bak']))
+    const envelope = { app: 'thunder-writer', version: 1, savedAt: 1, doc: makeDoc({ id: 'a', title: 'Alpha, older' }) }
+    await user.upload(input, new File([JSON.stringify(envelope)], 'Alpha.thunder.json.bak', { type: 'application/json' }))
+    await vi.waitFor(() => expect(useDocuments.getState().docs.a.title).toBe('Alpha, older'))
+    expect(kept).toEqual([{ id: 'a', reason: 'before-import' }])
+    confirm.mockRestore()
   })
 })

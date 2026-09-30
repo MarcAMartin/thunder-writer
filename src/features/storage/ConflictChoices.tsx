@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ThunderDoc } from '../../types'
 import { driveErrorMessage } from './drive'
-import { keepBothVersions, openDownloadedDoc, saveDocToDrive } from './driveSession'
+import { keepBothVersions, keepThisBrowsersVersion, openDownloadedDoc } from './driveSession'
 import { formatWhen } from './OpenLocalModal'
 
 export type ConflictMode =
@@ -79,7 +79,7 @@ export function ConflictChoices({ mode, local, remote, onDone, onCancel }: Props
             type="button"
             className="tw-btn"
             disabled={busy}
-            onClick={() => run(() => saveDocToDrive(local.id, { force: true }))}
+            onClick={() => run(() => keepThisBrowsersVersion(local.id, remote))}
           >
             Keep this browser’s version
           </button>

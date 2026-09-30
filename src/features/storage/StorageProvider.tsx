@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { useDocuments, type DocumentsState } from '../../store/documents'
 import { flushPendingEdits, registerBrowserPersister } from '../../store/pendingEdits'
 import { useSettings } from '../../store/settings'
+import { createAutoBackup, isUntouchedCopy } from '../backups/backups'
 import { createAutosaveScheduler, pendingDriveDocs } from './autosave'
 import { applyRemoteDocs, openCrossTab, remoteOwned, type CrossTab } from './crossTab'
 import { autosaveDocs, useStorageStatus } from './driveSession'
@@ -11,7 +12,7 @@ import { createLocalSync, mergeHydration } from './localSync'
 /**
  * Owns persistence: hydrates documents from IndexedDB, writes changes back
  * (debounced, flushed when the tab is hidden), keeps other open tabs in sync,
- * and runs the Drive autosave loop.
+ * takes automatic backups (features/backups), and runs the Drive autosave loop.
  * Children render immediately; the writer view waits for `hydrated`.
  */
 export function StorageProvider({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ function useLocalPersistence() {
     /** True while applying another tab's docs, which that tab already wrote to IndexedDB. */
     let applyingRemote = false
     const status = () => useStorageStatus.getState()
+    const autoBackup = createAutoBackup()
 
     const sync = createLocalSync({
       saveDoc: local.saveDoc,
@@ -81,6 +83,8 @@ function useLocalPersistence() {
         // Edited here again: this tab owns the doc's next Drive upload.
         for (const id of remoteOwned) if (next.dirtyForDrive[id] && next.docs[id] !== prev.docs[id]) remoteOwned.delete(id)
         sync.observe(prev, next)
+        // Edits made in this tab; another tab backs up its own.
+        autoBackup.observe(prev, next)
       })
       tabs = openCrossTab((msg) => {
         const applied = applyRemoteDocs(useDocuments.getState(), msg)
@@ -116,7 +120,8 @@ function useDriveAutosave() {
       pendingDriveDocs(s, {
         includeUnlinked: true,
         currentId: s.currentId,
-        skip: (id) => useStorageStatus.getState().driveConflicts[id] === true || remoteOwned.has(id),
+        // A backup opened as a copy reaches Drive once it's edited, not just for being looked at.
+        skip: (id) => useStorageStatus.getState().driveConflicts[id] === true || remoteOwned.has(id) || isUntouchedCopy(id),
       })
     const pendingIds = () => pending(useDocuments.getState()).map((d) => d.id)
     const scheduler = createAutosaveScheduler({

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
 import type { ThunderDoc } from '../../types'
@@ -8,6 +7,7 @@ import { titleFromFileName, driveErrorMessage, isDriveError, type DriveFileInfo 
 import {
   auth,
   connectDrive,
+  DRIVE_UNAVAILABLE,
   downloadDriveDoc,
   isDriveConfigured,
   isPickerConfigured,
@@ -80,7 +80,7 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
         setView({ kind: 'conflict', files, local: existing, remote: doc })
         return
       }
-      openDownloadedDoc(doc)
+      await openDownloadedDoc(doc)
       onClose()
     } catch (e) {
       setRowError(`${titleFromFileName(file.name)}: ${driveErrorMessage(e)}`)
@@ -92,10 +92,10 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
   if (!configured) {
     body = (
       <div className="fm-callout">
-        <p>Google Drive needs a one-time setup: add your Google OAuth client ID in Settings.</p>
-        <Link to="/settings#drive" className="tw-btn tw-btn-primary" onClick={onClose} data-autofocus="">
-          Open Settings
-        </Link>
+        <p>{DRIVE_UNAVAILABLE}</p>
+        <button type="button" className="tw-btn tw-btn-primary" onClick={onClose} data-autofocus="">
+          OK
+        </button>
       </div>
     )
   } else if (view.kind === 'connect') {
@@ -103,8 +103,13 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
       <div className="fm-callout">
         <p>
           Connect Google Drive to see your manuscripts. This list shows the files Thunder Writer saved, kept in a
-          “Thunder Writer” folder. To bring in an existing Google Doc or Word file, use{' '}
-          <strong>Import from Google Drive…</strong> below.
+          “Thunder Writer” folder.
+          {pickerReady && (
+            <>
+              {' '}
+              To bring in an existing Google Doc or Word file, use <strong>Import from Google Drive…</strong> below.
+            </>
+          )}
         </p>
         <button type="button" className="tw-btn tw-btn-primary" onClick={connect} data-autofocus="">
           Connect Google Drive
@@ -139,8 +144,14 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
   } else if (view.files.length === 0) {
     body = (
       <p className="fm-empty">
-        No manuscripts in the “Thunder Writer” Drive folder yet. Use “Save to Drive” to add the one you’re writing, or{' '}
-        <strong>Import from Google Drive…</strong> below to open an existing Google Doc or Word file.
+        No manuscripts in the “Thunder Writer” Drive folder yet. Use “Save to Drive” to add the one you’re writing
+        {pickerReady ? (
+          <>
+            , or <strong>Import from Google Drive…</strong> below to open an existing Google Doc or Word file.
+          </>
+        ) : (
+          '.'
+        )}
       </p>
     )
   } else {
@@ -178,19 +189,10 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
   }
 
   const importAction =
-    !configured || !onImport || view.kind === 'conflict' ? null : pickerReady ? (
+    !pickerReady || !onImport || view.kind === 'conflict' ? null : (
       <button type="button" className="tw-btn" onClick={onImport}>
         Import from Google Drive…
       </button>
-    ) : (
-      <Link
-        to="/settings#drive"
-        className="tw-btn"
-        onClick={onClose}
-        title="Importing Google Docs and Word files needs a Google API key. Add it in Settings."
-      >
-        Import from Google Drive… (set up)
-      </Link>
     )
 
   const footer =

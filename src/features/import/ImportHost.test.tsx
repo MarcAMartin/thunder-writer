@@ -156,6 +156,8 @@ describe('import feedback', () => {
   })
 
   it('offers Google Drive in the ?import=local prompt instead of telling Google Docs writers to download a .docx', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '698829428298-abc.apps.googleusercontent.com')
+    vi.stubEnv('VITE_GOOGLE_API_KEY', 'AIza-build')
     render(
       <MemoryRouter initialEntries={['/write?import=local']}>
         <ImportHost />
@@ -168,6 +170,21 @@ describe('import feedback', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Import from Google Drive…' }))
     expect(screen.getByTestId('location')).toHaveTextContent('open=picker')
     expect(screen.queryByRole('dialog', { name: 'Import a manuscript' })).toBeNull()
+    vi.unstubAllEnvs()
+  })
+
+  it('in a build without the Drive import, the ?import=local prompt explains the .docx download instead', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '698829428298-abc.apps.googleusercontent.com')
+    vi.stubEnv('VITE_GOOGLE_API_KEY', '')
+    render(
+      <MemoryRouter initialEntries={['/write?import=local']}>
+        <ImportHost />
+      </MemoryRouter>,
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Import a manuscript' })
+    expect(screen.queryByRole('button', { name: /Import from Google Drive/ })).not.toBeInTheDocument()
+    expect(dialog).toHaveTextContent(/Google Docs\? Choose File › Download › Microsoft Word \(\.docx\) there/)
+    vi.unstubAllEnvs()
   })
 
   it('"Start writing" puts the cursor in the new manuscript', async () => {

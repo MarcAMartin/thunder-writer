@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useEditorContext } from '../../shell/EditorContext'
 import { formatCount } from '../editor/format'
+import { hasGooglePicker } from '../storage/googleConfig'
 import { Modal } from '../storage/Modal'
 import { dismissImport, openImportPicker, setImportNotice, setImportPrompt, useImportFlow } from './importFlow'
 import '../storage/storage.css'
@@ -142,12 +143,17 @@ export function ImportHost({ dragging = false }: { dragging?: boolean }) {
             <button type="button" className="tw-btn tw-btn-primary im-choose" data-autofocus onClick={() => openImportPicker()}>
               Choose a file to import
             </button>
-            <button type="button" className="tw-btn im-choose" onClick={importFromDrive}>
-              Import from Google Drive…
-            </button>
+            {hasGooglePicker() && (
+              <button type="button" className="tw-btn im-choose" onClick={importFromDrive}>
+                Import from Google Drive…
+              </button>
+            )}
           </div>
           <p className="im-hint">
-            {SUPPORTED} Draft in Google Docs? Import it straight from Google Drive; there’s no need to download it first.
+            {SUPPORTED}{' '}
+            {hasGooglePicker()
+              ? 'Draft in Google Docs? Import it straight from Google Drive; there’s no need to download it first.'
+              : 'Draft in Google Docs? Choose File › Download › Microsoft Word (.docx) there, then import that.'}
           </p>
         </Modal>
       )}

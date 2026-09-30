@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG_KEYS, makeConfigEnvelope, makeEnvelope, parseConfig, parseDoc, parseEnvelope, pickConfig } from './schema'
+import { makeEnvelope, parseDoc, parseEnvelope } from './schema'
 import { makeDoc } from './testDocs'
 import { useDocuments } from '../../store/documents'
 import { normalizeBookLayout, normalizeHeaderFooter, DEFAULT_BOOK_LAYOUT, DEFAULT_HEADER_FOOTER } from '../preview/headerFooter'
@@ -107,83 +107,5 @@ describe('printed-book settings in the format', () => {
     expect(s.docs[d.id].format.bookLayout).toEqual(bookLayout)
     expect(s.docs[d.id].format.presetId).toBe('trade-6x9')
     expect(s.dirtyForDrive[d.id]).toBe(true)
-  })
-})
-
-describe('config sync', () => {
-  const settings = {
-    theme: 'dark' as const,
-    provider: 'openai' as const,
-    claudeApiKey: 'sk-ant-SECRET',
-    openaiApiKey: 'sk-SECRET',
-    googleClientId: 'client.apps.googleusercontent.com',
-    claudeModel: 'claude-haiku-4-5',
-    maxOpenSuggestions: 2,
-    suggestionsCollapsed: true,
-  }
-
-  it('never includes API keys or the client id', () => {
-    const cfg = pickConfig(settings)
-    const json = JSON.stringify(makeConfigEnvelope(settings))
-    expect(cfg).toEqual({ theme: 'dark', provider: 'openai', claudeModel: 'claude-haiku-4-5', maxOpenSuggestions: 2 })
-    expect(json).not.toContain('SECRET')
-    expect(json).not.toContain('googleusercontent')
-  })
-
-  it('drops secrets and invalid values when loading', () => {
-    const cfg = parseConfig({
-      app: 'thunder-writer',
-      kind: 'config',
-      version: 1,
-      settings: { theme: 'purple', provider: 'claude', claudeApiKey: 'sneaky', maxOpenSuggestions: 3, suggestionIdleSec: -5 },
-    })
-    expect(cfg).toEqual({ provider: 'claude', maxOpenSuggestions: 3 })
-  })
-
-  it('rejects cooldown/idle values below the Settings UI floors', () => {
-    const cfg = parseConfig({
-      app: 'thunder-writer',
-      kind: 'config',
-      version: 1,
-      settings: { suggestionCooldownSec: 0, suggestionIdleSec: 0, driveAutosaveSec: 0, maxOpenSuggestions: 9 },
-    })
-    expect(cfg).toEqual({ driveAutosaveSec: 0 })
-    const ok = parseConfig({
-      app: 'thunder-writer',
-      kind: 'config',
-      version: 1,
-      settings: { suggestionCooldownSec: 5, suggestionIdleSec: 1 },
-    })
-    expect(ok).toEqual({ suggestionCooldownSec: 5, suggestionIdleSec: 1 })
-  })
-
-  it('syncs the web-searched trivia settings within their bounds', () => {
-    expect(pickConfig({ triviaWebSearch: false, triviaCooldownSec: 900 })).toEqual({ triviaWebSearch: false, triviaCooldownSec: 900 })
-    const env = (settings: Record<string, unknown>) => ({ app: 'thunder-writer', kind: 'config', version: 1, settings })
-    expect(parseConfig(env({ triviaWebSearch: true, triviaCooldownSec: 600 }))).toEqual({ triviaWebSearch: true, triviaCooldownSec: 600 })
-    // Below the floor (searches are billed) or the wrong type: dropped individually.
-    expect(parseConfig(env({ triviaWebSearch: 'yes', triviaCooldownSec: 10, theme: 'dark' }))).toEqual({ theme: 'dark' })
-    expect(parseConfig(env({ triviaCooldownSec: 999_999 }))).toEqual({})
-  })
-
-  it('never syncs the Google Picker API key or project number', () => {
-    expect(CONFIG_KEYS).not.toContain('googleApiKey' as never)
-    expect(CONFIG_KEYS).not.toContain('googleProjectNumber' as never)
-    const settings = {
-      theme: 'dark' as const,
-      googleApiKey: 'AIzaSECRETKEY',
-      googleProjectNumber: '698829428298',
-      googleClientId: '698829428298-x.apps.googleusercontent.com',
-    }
-    const json = JSON.stringify(makeConfigEnvelope(settings))
-    expect(json).not.toContain('AIzaSECRETKEY')
-    expect(json).not.toContain('698829428298')
-    expect(
-      parseConfig({ app: 'thunder-writer', kind: 'config', version: 1, settings: { theme: 'light', googleApiKey: 'AIza-evil' } }),
-    ).toEqual({ theme: 'light' })
-  })
-
-  it('returns null for non-config files', () => {
-    expect(parseConfig(makeEnvelope(makeDoc()))).toBeNull()
   })
 })

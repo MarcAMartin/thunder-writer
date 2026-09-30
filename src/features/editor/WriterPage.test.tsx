@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TiptapEditorHTMLElement } from '@tiptap/core'
-import { useDocuments } from '../../store/documents'
+import { DEFAULT_FORMAT, useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import { useImportFlow } from '../import/importFlow'
 import { useExportUi } from '../export'
@@ -34,6 +34,21 @@ function renderPage(url = '/write') {
   return render(
     <MemoryRouter initialEntries={[url]}>
       <WriterPage />
+    </MemoryRouter>,
+  )
+}
+
+function Where() {
+  const l = useLocation()
+  return <div data-testid="where">{l.pathname + l.search}</div>
+}
+
+/** Home › Start Writing. */
+function renderNew(url = '/write?new=1') {
+  return render(
+    <MemoryRouter initialEntries={[url]}>
+      <WriterPage />
+      <Where />
     </MemoryRouter>,
   )
 }
@@ -83,6 +98,46 @@ describe('WriterPage', () => {
     await waitFor(() => expect(useDocuments.getState().currentId).toBe('doc-1'))
     expect(Object.keys(useDocuments.getState().docs)).toHaveLength(1)
     await waitFor(() => expect(getEditor().getText()).toContain('Once upon a time.'))
+  })
+
+  it('?new=1 (Start Writing) opens a fresh manuscript and keeps the existing one', async () => {
+    useDocuments.getState().hydrate([docWith('Once upon a time.')], 'doc-1')
+    renderNew('/write?new=1&x=1')
+    await waitFor(() => expect(Object.keys(useDocuments.getState().docs)).toHaveLength(2))
+    const { currentId, docs } = useDocuments.getState()
+    expect(currentId).not.toBe('doc-1')
+    expect(docs[currentId!].title).toBe('Untitled Manuscript')
+    expect(docs['doc-1'].title).toBe('The Storm')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/write\?x=1$/))
+    await waitFor(() => expect(getEditor().getText()).toBe(''))
+    // The previous manuscript never loaded into the editor on the way.
+    expect(Object.keys(useDocuments.getState().docs)).toHaveLength(2)
+  })
+
+  it('?new=1 replaces a blank manuscript left from an earlier Start Writing', async () => {
+    const old: ThunderDoc = { ...docWith(''), id: 'blank', title: 'Untitled Manuscript', content: null, format: DEFAULT_FORMAT }
+    useDocuments.getState().hydrate([old], 'blank')
+    renderNew()
+    await waitFor(() => expect(useDocuments.getState().currentId).not.toBe('blank'))
+    expect(useDocuments.getState().docs.blank).toBeUndefined()
+    expect(Object.keys(useDocuments.getState().docs)).toHaveLength(1)
+  })
+
+  it('?new=1 keeps a manuscript with no text yet whose book format the writer already chose', async () => {
+    const setUp: ThunderDoc = { ...docWith(''), id: 'set-up', title: 'Untitled Manuscript', content: null }
+    useDocuments.getState().hydrate([setUp], 'set-up')
+    renderNew()
+    await waitFor(() => expect(useDocuments.getState().currentId).not.toBe('set-up'))
+    expect(useDocuments.getState().docs['set-up']).toBeDefined()
+    expect(Object.keys(useDocuments.getState().docs)).toHaveLength(2)
+  })
+
+  it('?new=1 waits for storage and makes exactly one manuscript when there are none', async () => {
+    renderNew()
+    expect(screen.getByText(/Opening your manuscript/)).toBeInTheDocument()
+    act(() => useDocuments.getState().hydrate([], null))
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/write$/))
+    expect(Object.keys(useDocuments.getState().docs)).toHaveLength(1)
   })
 
   it('loads content without dirtying, then debounces edits into the store', async () => {

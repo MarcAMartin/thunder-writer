@@ -52,6 +52,9 @@ describe('downloadKind', () => {
     expect(downloadKind({ name: 'a.txt', mimeType: 'text/plain' })).toBe('text')
     expect(downloadKind({ name: 'a.html', mimeType: 'text/html' })).toBe('text')
     expect(downloadKind({ name: 'Book.thunder.json', mimeType: 'application/json' })).toBe('thunder')
+    // The .bak Thunder Writer keeps in Drive before overwriting a manuscript imports like the manuscript itself.
+    expect(downloadKind({ name: 'Book.thunder.json.bak', mimeType: 'application/json' })).toBe('thunder')
+    expect(downloadKind({ name: 'notes.json.bak', mimeType: 'application/json' })).toBeNull()
     expect(downloadKind({ name: 'Budget', mimeType: 'application/vnd.google-apps.spreadsheet' })).toBeNull()
     expect(downloadKind({ name: 'photo.png', mimeType: 'image/png' })).toBeNull()
   })

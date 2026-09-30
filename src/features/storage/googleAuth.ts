@@ -149,7 +149,7 @@ export class GoogleAuth {
     if (this.pending) return this.pending.promise
     const clientId = this.getClientId().trim()
     if (!clientId) {
-      throw new DriveError('not_configured', 'Add a Google OAuth client ID in Settings to use Google Drive.')
+      throw new DriveError('not_configured', 'Google Drive isn’t available in this copy of Thunder Writer.')
     }
     let resolve!: (t: string) => void
     let reject!: (e: DriveError) => void

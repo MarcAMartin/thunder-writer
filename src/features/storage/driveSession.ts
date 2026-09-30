@@ -1,15 +1,16 @@
 import { create } from 'zustand'
 import { useDocuments } from '../../store/documents'
-import { googleApiKey, googleClientId, googleProjectNumber, useSettings } from '../../store/settings'
 import type { ThunderDoc } from '../../types'
+import { safetyBackup } from '../backups/backups'
 import { discardUntouchedCurrentDoc } from '../import/importFlow'
 import { importManuscript } from '../import/importManuscript'
 import type { DriveStatus, LocalStatus } from './autosave'
 import { DriveClient, DriveError, driveErrorMessage, isDriveError, type DriveFileInfo } from './drive'
 import { importPickedFile, type DriveImportOutcome } from './driveImport'
 import { GoogleAuth } from './googleAuth'
+import { googleApiKey, googleClientId, googleProjectNumber, hasGoogleDrive, hasGooglePicker } from './googleConfig'
 import { loadPickerApi, openPicker, type PickedFile } from './picker'
-import { withoutDriveLink, type SyncedConfig } from './schema'
+import { withoutDriveLink } from './schema'
 
 /** Save/connection status shown in the header. In-memory only. */
 export interface StorageStatusState {
@@ -50,7 +51,7 @@ function setConflict(id: string, on: boolean) {
 
 export const hasDriveConflict = (id: string) => useStorageStatus.getState().driveConflicts[id] === true
 
-export const auth = new GoogleAuth(() => googleClientId(useSettings.getState()))
+export const auth = new GoogleAuth(googleClientId)
 
 /** When set, token requests may open Google's popup (only right after a click). */
 let interactiveDepth = 0
@@ -65,7 +66,11 @@ auth.onChange((connected) => {
   useStorageStatus.getState().patch({ driveConnected: connected })
 })
 
-export const isDriveConfigured = () => googleClientId(useSettings.getState()).length > 0
+/** False only in a build made without the Google Cloud values; Drive is then left out of the UI. */
+export const isDriveConfigured = hasGoogleDrive
+
+/** Shown if a Drive action is reached in a build without Google Drive (e.g. an old deep link). */
+export const DRIVE_UNAVAILABLE = 'Google Drive isn’t available in this copy of Thunder Writer.'
 
 /** Wraps a user-initiated Drive action so it may show the consent popup. */
 async function interactive<T>(fn: () => Promise<T>): Promise<T> {
@@ -98,6 +103,9 @@ function serialized<T>(fn: () => Promise<T>): Promise<T> {
   return next
 }
 
+/** Drive files whose previous copy was kept as a .bak this session (the first overwrite of each). */
+const backedUpThisSession = new Set<string>()
+
 /** Uploads one doc snapshot and marks it synced. Returns the Drive file id. */
 async function uploadDoc(id: string, opts: { force?: boolean } = {}): Promise<string> {
   const snapshot: ThunderDoc | undefined = useDocuments.getState().docs[id]
@@ -105,6 +113,13 @@ async function uploadDoc(id: string, opts: { force?: boolean } = {}): Promise<st
   const status = useStorageStatus.getState()
   status.patch({ drive: 'saving' })
   try {
+    // Before the first overwrite each session, and before replacing a version saved
+    // elsewhere ("keep this browser's"), Drive's copy is kept as "<title>.thunder.json.bak".
+    const fileId = snapshot.driveFileId
+    if (fileId && (opts.force || !backedUpThisSession.has(fileId))) {
+      await driveClient.backupDocFile(fileId)
+      backedUpThisSession.add(fileId)
+    }
     const res = await driveClient.saveDoc(snapshot, opts)
     // Only clears dirty if no edits landed after this snapshot (see markDriveSynced).
     useDocuments.getState().markDriveSynced(id, res.id, snapshot.updatedAt, res.revisionId)
@@ -142,6 +157,19 @@ export function saveDocToDrive(id: string, opts: { force?: boolean } = {}): Prom
 }
 
 /**
+ * "Keep this browser's version" after a conflict: the Drive version (saved on
+ * another computer or tab) is kept as a backup in this browser and as a .bak
+ * in Drive, then this browser's version is written over it.
+ */
+export async function keepThisBrowsersVersion(localId: string, remote: ThunderDoc): Promise<string> {
+  // Start the Drive write from the click (it may need Google's popup); the local backup runs alongside.
+  const save = saveDocToDrive(localId, { force: true })
+  save.catch(() => undefined) // Reported by the caller, once the local backup has been kept.
+  await safetyBackup({ ...remote, id: localId }, 'drive-version-replaced')
+  return save
+}
+
+/**
  * Background autosave of every pending doc; never opens a popup. Docs in
  * conflict are skipped; one failing doc doesn't stop the others. Rejects with
  * the first error once all were tried.
@@ -172,8 +200,16 @@ export function downloadDriveDoc(fileId: string): Promise<ThunderDoc> {
   return interactive(() => driveClient.downloadDoc(fileId))
 }
 
-/** Puts a downloaded doc into the store (replacing the local copy) and opens it; clears its dirty flag. */
-export function openDownloadedDoc(doc: ThunderDoc) {
+/**
+ * Puts a downloaded doc into the store (replacing the local copy) and opens it;
+ * clears its dirty flag. A local copy that differs is kept as a backup first
+ * (Backups menu). The blank manuscript the writer page made on arrival (e.g.
+ * from Home › Continue Writing) is dropped rather than left behind.
+ */
+export async function openDownloadedDoc(doc: ThunderDoc): Promise<void> {
+  const existing = useDocuments.getState().docs[doc.id]
+  if (existing && existing.updatedAt !== doc.updatedAt) await safetyBackup(existing, 'before-drive-version')
+  discardUntouchedCurrentDoc()
   const docs = useDocuments.getState()
   docs.upsertDoc({ ...doc, driveSyncedAt: doc.updatedAt })
   if (doc.driveFileId) docs.markDriveSynced(doc.id, doc.driveFileId, doc.updatedAt, doc.driveRevisionId)
@@ -209,28 +245,12 @@ export function keepBothVersions(localId: string, remote: ThunderDoc, open: 'loc
   return target
 }
 
-export function saveConfigToDrive(): Promise<string> {
-  return interactive(() => serialized(() => driveClient.saveConfig(useSettings.getState())))
-}
-
-/** Loads non-secret preferences from Drive and applies them. Returns null if none saved. */
-export function loadConfigFromDrive(): Promise<SyncedConfig | null> {
-  return interactive(async () => {
-    const cfg = await driveClient.loadConfig()
-    if (cfg && Object.keys(cfg).length > 0) useSettings.getState().set(cfg)
-    return cfg
-  })
-}
-
 // ---------------------------------------------------------------------------
 // Importing an existing Drive file (Google Picker). Read-only against the
 // picked file; the result is a brand-new manuscript.
 
 /** The Picker needs a browser API key and the Cloud project number, on top of the OAuth client id. */
-export const isPickerConfigured = () => {
-  const s = useSettings.getState()
-  return isDriveConfigured() && googleApiKey(s).length > 0 && googleProjectNumber(s).length > 0
-}
+export const isPickerConfigured = hasGooglePicker
 
 /**
  * Opens the Google Picker. Call from a click: it may first show Google's
@@ -238,19 +258,10 @@ export const isPickerConfigured = () => {
  */
 export function pickDriveFile(opts: { includeThunderFiles?: boolean } = {}): Promise<PickedFile | null> {
   return interactive(async () => {
-    const s = useSettings.getState()
-    if (!isDriveConfigured()) {
-      throw new DriveError('not_configured', 'Add a Google OAuth client ID in Settings to use Google Drive.')
-    }
-    const developerKey = googleApiKey(s)
-    const appId = googleProjectNumber(s)
-    if (!developerKey || !appId) {
-      throw new DriveError(
-        'not_configured',
-        developerKey
-          ? 'Add your Google Cloud project number in Settings → Google Drive to import from Drive.'
-          : 'Add a Google API key in Settings → Google Drive to import from Drive.',
-      )
+    const developerKey = googleApiKey()
+    const appId = googleProjectNumber()
+    if (!isDriveConfigured() || !developerKey || !appId) {
+      throw new DriveError('not_configured', 'Importing from Google Drive isn’t available in this copy of Thunder Writer.')
     }
     // Token first: the consent popup (if needed) must open straight from the click.
     const [token, ns] = await Promise.all([auth.getToken({ interactive: true }), loadPickerApi()])

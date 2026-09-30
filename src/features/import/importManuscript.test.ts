@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
 import JSZip from 'jszip'
 import { checkContent } from '../editor/contentCheck'
@@ -322,15 +323,26 @@ describe('importManuscript — odd inputs', () => {
   })
 
   it('refuses a Google Drive for desktop ".gdoc" shortcut and points to the Drive import', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '698829428298-abc.apps.googleusercontent.com')
+    vi.stubEnv('VITE_GOOGLE_API_KEY', 'AIza-build')
     const shortcut = '{"doc_id":"1AbC","email":"a@b.com","resource_key":""}'
-    for (const src of [
+    const sources = [
       { name: 'My Novel.gdoc', data: shortcut },
       { name: 'My Novel', mimeType: 'application/vnd.google-apps.document', data: new TextEncoder().encode(shortcut).buffer },
-    ]) {
+    ]
+    for (const src of sources) {
       const e = await importError(importManuscript(src))
       expect(e.code).toBe('unsupported')
       expect(e.message).toMatch(/shortcut to a Google Doc.*Import from Google Drive/)
     }
+    // A build without the Drive import only gives the download route.
+    vi.stubEnv('VITE_GOOGLE_API_KEY', '')
+    for (const src of sources) {
+      const e = await importError(importManuscript(src))
+      expect(e.message).toMatch(/shortcut to a Google Doc.*File › Download › Microsoft Word/)
+      expect(e.message).not.toMatch(/Import from Google Drive/)
+    }
+    vi.unstubAllEnvs()
   })
 
   it('never says a file over the limit is the size of the limit', () => {

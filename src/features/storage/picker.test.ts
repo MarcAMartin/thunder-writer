@@ -47,6 +47,14 @@ function fakePicker() {
       this.calls.push(['setEnableDrives', v])
       return this
     }
+    setMode(v: string) {
+      this.calls.push(['setMode', v])
+      return this
+    }
+    setOwnedByMe(v: boolean) {
+      this.calls.push(['setOwnedByMe', v])
+      return this
+    }
   }
   class FakeBuilder {
     constructor() {
@@ -69,6 +77,7 @@ function fakePicker() {
     PickerBuilder: FakeBuilder,
     DocsView: FakeView,
     ViewId: { DOCS: 'all' },
+    DocsViewMode: { GRID: 'grid', LIST: 'list' },
     Action: { PICKED: 'picked', CANCEL: 'cancel', ERROR: 'error' },
     Feature: { MULTISELECT_ENABLED: 'multiselectEnabled' },
   } as unknown as PickerNamespace
@@ -155,21 +164,30 @@ describe('openPicker', () => {
       ]),
     )
     expect(f.calls.some(([m, a]) => m === 'enableFeature' && a === 'multiselectEnabled')).toBe(false)
-    // "Manuscripts" (My Drive) and "Shared drives", each labelled so the tabs can be told apart.
-    expect(f.views).toHaveLength(2)
-    expect(f.views[0].calls).toContainEqual(['setLabel', 'Manuscripts'])
-    expect(f.views[0].calls.some((c) => c[0] === 'setEnableDrives')).toBe(false)
-    expect(f.views[1].calls).toEqual(expect.arrayContaining([['setLabel', 'Shared drives'], ['setEnableDrives', true]]))
-    expect(f.views[1].calls.find((c) => c[0] === 'setMimeTypes')).toEqual(f.views[0].calls.find((c) => c[0] === 'setMimeTypes'))
-    const mimes = String(f.views[0].calls.find((c) => c[0] === 'setMimeTypes')?.[1]).split(',')
+    // Labelled tabs, the flat list of Google Docs and Word files first (it opens on that tab).
+    expect(f.views).toHaveLength(4)
+    const label = (i: number) => f.views[i].calls.find((c) => c[0] === 'setLabel')?.[1]
+    expect(f.views.map((_, i) => label(i))).toEqual(['Google Docs & Word', 'Shared with me', 'Browse folders', 'Shared drives'])
+    const [docs, sharedWithMe, browse, drives] = f.views
+    // Flat lists: every matching file wherever it sits, shown as a list with dates.
+    for (const v of [docs, sharedWithMe]) {
+      expect(v.calls).toEqual(expect.arrayContaining([['setIncludeFolders', false], ['setMode', 'list']]))
+    }
+    expect(docs.calls.some((c) => c[0] === 'setOwnedByMe')).toBe(false)
+    expect(sharedWithMe.calls).toContainEqual(['setOwnedByMe', false])
+    // Folder tabs keep the grid for browsing; only Shared drives shows shared drives.
+    for (const v of [browse, drives]) expect(v.calls).toEqual(expect.arrayContaining([['setIncludeFolders', true]]))
+    expect(browse.calls.some((c) => c[0] === 'setMode')).toBe(false)
+    expect(drives.calls).toContainEqual(['setEnableDrives', true])
+    expect(f.views.filter((v) => v.calls.some((c) => c[0] === 'setEnableDrives'))).toEqual([drives])
+    // Every tab: the importable types, and folders can't be picked.
+    const mimes = String(docs.calls.find((c) => c[0] === 'setMimeTypes')?.[1]).split(',')
     expect(mimes).toEqual([...IMPORTABLE_MIME_TYPES])
     expect(mimes).toEqual(expect.arrayContaining([GDOC_MIME, DOCX_MIME, 'text/plain', 'text/markdown', 'text/html']))
-    expect(f.views[0].calls).toEqual(
-      expect.arrayContaining([
-        ['setIncludeFolders', true],
-        ['setSelectFolderEnabled', false],
-      ]),
-    )
+    for (const v of f.views) {
+      expect(v.calls.find((c) => c[0] === 'setMimeTypes')?.[1]).toBe(mimes.join(','))
+      expect(v.calls).toContainEqual(['setSelectFolderEnabled', false])
+    }
     expect(f.picker.setVisible).toHaveBeenCalledWith(true)
 
     f.respond({ action: 'loaded' })
@@ -184,10 +202,10 @@ describe('openPicker', () => {
   it('adds a labelled view for Thunder Writer files when asked', () => {
     const f = fakePicker()
     void openPicker(f.ns, { ...OPTS, includeThunderFiles: true })
-    expect(f.views).toHaveLength(3)
-    expect(f.views[2].calls).toContainEqual(['setMimeTypes', 'application/json'])
-    expect(f.views[2].calls).toContainEqual(['setLabel', 'Thunder Writer files'])
-    expect(f.calls.filter(([m]) => m === 'addView')).toHaveLength(3)
+    expect(f.views).toHaveLength(5)
+    expect(f.views[4].calls).toContainEqual(['setMimeTypes', 'application/json'])
+    expect(f.views[4].calls).toContainEqual(['setLabel', 'Thunder Writer saves'])
+    expect(f.calls.filter(([m]) => m === 'addView')).toHaveLength(5)
   })
 
   it('resolves null on cancel and rejects on a Picker error', async () => {
@@ -198,8 +216,13 @@ describe('openPicker', () => {
 
     const g = fakePicker()
     const q = openPicker(g.ns, OPTS)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     g.respond({ action: 'error' })
     const err = await q.catch((e: unknown) => e)
-    expect((err as DriveError).message).toMatch(/API key/)
+    // The writer never sees Google Cloud details; the deployment hint goes to the console.
+    expect((err as DriveError).message).toBe('The Google Drive file picker couldn’t open. Try again in a moment.')
+    expect((err as DriveError).message).not.toMatch(/API key|Settings/)
+    expect(logged).toHaveBeenCalledWith(expect.stringMatching(/VITE_GOOGLE_API_KEY/))
+    logged.mockRestore()
   })
 })

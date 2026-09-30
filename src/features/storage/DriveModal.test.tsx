@@ -65,6 +65,15 @@ describe('DriveModal', () => {
     expect(docs.map((d) => d.content)).toEqual(expect.arrayContaining([words('Laptop edits'), words('Desktop edits')]))
   })
 
+  it('drops the blank manuscript the writer page made on arrival (e.g. Home › Continue Writing)', async () => {
+    const blank = makeDoc({ id: 'blank', title: 'Untitled Manuscript', content: null })
+    useDocuments.setState({ docs: { blank }, currentId: 'blank', hydrated: true, dirtyForDrive: {} })
+    const onClose = await open()
+    expect(onClose).toHaveBeenCalled()
+    expect(Object.keys(useDocuments.getState().docs)).toEqual(['a'])
+    expect(useDocuments.getState().currentId).toBe('a')
+  })
+
   it('opens straight away when the local copy has nothing unsynced', async () => {
     useDocuments.setState((s) => ({ docs: { a: { ...s.docs.a, driveSyncedAt: 1000 } } }))
     const onClose = await open()

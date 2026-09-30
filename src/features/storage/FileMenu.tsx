@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { currentDoc, useDocuments } from '../../store/documents'
 import { describeSaveStatus } from './autosave'
 import { driveErrorMessage } from './drive'
@@ -8,12 +8,11 @@ import {
   disconnectDrive,
   isDriveConfigured,
   isPickerConfigured,
-  loadConfigFromDrive,
   pickDriveFile,
-  saveConfigToDrive,
   saveDocToDrive,
   useStorageStatus,
 } from './driveSession'
+import { safetyBackup } from '../backups/backups'
 import { ImportButton } from '../import/ImportButton'
 import { DriveImportFlow } from './DriveImportFlow'
 import { DriveModal } from './DriveModal'
@@ -36,7 +35,11 @@ export interface FileMenuProps {
   onSaveToComputer?: () => void
 }
 
-/** File actions for the writer header: new/open/import/export, Google Drive, save status. */
+/**
+ * File actions for the writer header: new/open/import/export, Google Drive, save status.
+ * The Google Drive items are about the manuscript only (connect, save, open, import);
+ * a build without Drive simply leaves them out.
+ */
 export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [modal, setModal] = useState<ModalKind>(null)
@@ -65,7 +68,7 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
     if (noteTimer.current) clearTimeout(noteTimer.current)
   }, [])
 
-  // Deep links: /write?open=drive (home page "Load File") and /write?open=picker (import from Drive).
+  // Deep links: /write?open=drive (Home › Continue Writing with nothing in this browser) and /write?open=picker (import from Drive).
   // The Picker needs a click to open, so ?open=picker shows a prompt button rather than the Picker itself.
   useEffect(() => {
     const open = searchParams.get('open')
@@ -180,6 +183,11 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
       ? `Replace the copy of “${existing.title}” in this browser with the imported file? The Google Drive copy is left as it is; the imported version is saved to Drive as a separate file.`
       : `Replace the copy of “${existing?.title ?? ''}” in this browser with the imported file?`
     if (existing && !window.confirm(question)) return
+    if (
+      !(await safetyBackup(existing, 'before-import')) &&
+      !window.confirm(`This browser couldn’t keep a backup of “${existing?.title ?? ''}” first. Replace it anyway? This cannot be undone.`)
+    )
+      return
     // A file never carries a Drive link: an old backup must not autosave over the (newer) Drive file.
     store.upsertDoc(withoutDriveLink(parsed.doc))
     store.openDoc(parsed.doc.id)
@@ -229,20 +237,12 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
               Download backup
             </MenuItem>
 
-            <div className="fm-sep" role="separator" />
-            <div className="fm-group-label" aria-hidden="true">
-              Google Drive {connected && <span className="fm-dot" title="Connected" />}
-            </div>
-
-            {!configured ? (
+            {configured && (
               <>
-                <p className="fm-menu-hint">Drive needs a Google OAuth client ID first.</p>
-                <Link to="/settings#drive" role="menuitem" className="fm-item" onClick={() => setMenuOpen(false)}>
-                  Set up in Settings →
-                </Link>
-              </>
-            ) : (
-              <>
+                <div className="fm-sep" role="separator" />
+                <div className="fm-group-label" aria-hidden="true">
+                  Google Drive {connected && <span className="fm-dot" title="Connected" />}
+                </div>
                 {!connected && (
                   <MenuItem
                     onClick={act(async () => {
@@ -257,41 +257,7 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
                   {doc?.driveFileId ? 'Save to Drive now' : 'Save to Drive'}
                 </MenuItem>
                 <MenuItem onClick={act(() => setModal('drive'))}>Open from Drive…</MenuItem>
-                {pickerReady ? (
-                  <MenuItem onClick={act(startDriveImport)}>Import from Google Drive…</MenuItem>
-                ) : (
-                  <>
-                    <Link
-                      to="/settings#drive"
-                      role="menuitem"
-                      className="fm-item"
-                      tabIndex={-1}
-                      aria-describedby="fm-import-hint"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Import from Google Drive…
-                    </Link>
-                    <p id="fm-import-hint" className="fm-menu-hint">
-                      Importing Google Docs and Word files needs a Google API key. Add it in Settings.
-                    </p>
-                  </>
-                )}
-                <MenuItem
-                  onClick={act(async () => {
-                    const cfg = await loadConfigFromDrive()
-                    flash(cfg ? 'Settings loaded from Drive.' : 'No saved settings in Drive yet.', cfg ? 'ok' : 'error')
-                  })}
-                >
-                  Load settings from Drive
-                </MenuItem>
-                <MenuItem
-                  onClick={act(async () => {
-                    await saveConfigToDrive()
-                    flash('Settings saved to Drive (API keys are never uploaded).')
-                  })}
-                >
-                  Save settings to Drive
-                </MenuItem>
+                {pickerReady && <MenuItem onClick={act(startDriveImport)}>Import from Google Drive…</MenuItem>}
                 {connected && (
                   <MenuItem
                     onClick={act(() => {
@@ -321,7 +287,7 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
       <input
         ref={fileInput}
         type="file"
-        accept=".json,application/json"
+        accept=".json,.bak,application/json"
         hidden
         aria-hidden="true"
         tabIndex={-1}
@@ -368,20 +334,24 @@ function SaveStatus({ onError, onResolve }: { onError: (msg: string) => void; on
   const doc = useDocuments(currentDoc)
   const dirty = useDocuments((s) => (s.currentId ? s.dirtyForDrive[s.currentId] === true : false))
   const st = useStorageStatus()
-  const docConflict = !!doc && st.driveConflicts[doc.id] === true
-  const view = describeSaveStatus({
-    local: st.local,
-    drive: st.drive,
-    driveConnected: st.driveConnected,
-    driveNeedsReconnect: st.driveNeedsReconnect,
-    driveSavedAt: doc ? st.driveSavedAt[doc.id] : undefined,
-    doc,
-    docDirtyForDrive: dirty || (!!doc?.driveFileId && (doc.driveSyncedAt ?? 0) < doc.updatedAt),
-    docConflict,
-  })
+  const drive = isDriveConfigured()
+  const docConflict = drive && !!doc && st.driveConflicts[doc.id] === true
+  const view = drive
+    ? describeSaveStatus({
+        local: st.local,
+        drive: st.drive,
+        driveConnected: st.driveConnected,
+        driveNeedsReconnect: st.driveNeedsReconnect,
+        driveSavedAt: doc ? st.driveSavedAt[doc.id] : undefined,
+        doc,
+        docDirtyForDrive: dirty || (!!doc?.driveFileId && (doc.driveSyncedAt ?? 0) < doc.updatedAt),
+        docConflict,
+      })
+    : // A build without Drive only reports this browser, even for a manuscript once saved to Drive.
+      describeSaveStatus({ local: st.local, drive: 'idle', driveConnected: false, doc: null, docDirtyForDrive: false })
   const detail = docConflict
     ? 'This manuscript changed in Google Drive since this browser last synced it. Autosave to Drive is paused for it until you choose which version to keep.'
-    : st.drive === 'error'
+    : drive && st.drive === 'error'
       ? st.driveError
       : st.local === 'error'
         ? st.localError

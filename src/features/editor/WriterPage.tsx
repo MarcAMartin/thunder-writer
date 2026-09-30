@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
 import { ThemeToggle } from '../../shell/ThemeToggle'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
 import { SuggestionsPane } from '../suggestions/SuggestionsPane'
+import { BackupsMenu } from '../backups/BackupsMenu'
 import { FileMenu } from '../storage/FileMenu'
 import { ImportHost } from '../import/ImportHost'
+import { discardUntouchedCurrentDoc } from '../import/importFlow'
 import { useManuscriptDrop } from '../import/useManuscriptDrop'
 import { DesktopCopyBadge, ExportHost, SaveToComputerMenu, useExportUi } from '../export'
 import { createEditorBridge } from './bridge'
@@ -29,20 +31,40 @@ function Bolt() {
   )
 }
 
-/** Once storage has hydrated, make sure there is a document to write in. */
+/**
+ * Once storage has hydrated, make sure there is a document to write in: the
+ * last one open, or a fresh one for /write?new=1 (Home › Start Writing).
+ */
 function useEnsureCurrentDoc() {
   const hydrated = useDocuments((s) => s.hydrated)
   const currentId = useDocuments((s) => s.currentId)
+  const [params, setParams] = useSearchParams()
+  const { key } = useLocation()
+  const wantsNew = params.has('new')
+  /** The navigation whose ?new=1 was handled: StrictMode replays effects before the param is gone. */
+  const startedFor = useRef<string | null>(null)
   useEffect(() => {
     if (!hydrated) return
+    if (wantsNew) {
+      if (startedFor.current === key) return
+      startedFor.current = key
+      // A blank manuscript left from an earlier Start Writing is replaced, not piled up.
+      discardUntouchedCurrentDoc()
+      useDocuments.getState().createDoc()
+      const next = new URLSearchParams(params)
+      next.delete('new')
+      setParams(next, { replace: true })
+      return
+    }
     // Read live state (not the render closure) so StrictMode's double effect can't create two docs.
     const s = useDocuments.getState()
     if (s.currentId && s.docs[s.currentId]) return
     const latest = Object.values(s.docs).sort((a, b) => b.updatedAt - a.updatedAt)[0]
     if (latest) s.openDoc(latest.id)
     else s.createDoc()
-  }, [hydrated, currentId])
-  return { hydrated, currentId }
+  }, [hydrated, currentId, wantsNew, key, params, setParams])
+  // Until the new manuscript exists, don't load the previous one into the editor.
+  return { hydrated: hydrated && !wantsNew, currentId }
 }
 
 export function WriterPage() {
@@ -103,7 +125,12 @@ export function WriterPage() {
             <DocTitle />
             <div className="ed-filemenu">
               <FileMenu
-                afterMenu={<SaveToComputerMenu />}
+                afterMenu={
+                  <>
+                    <SaveToComputerMenu />
+                    <BackupsMenu />
+                  </>
+                }
                 afterStatus={<DesktopCopyBadge />}
                 onSaveToComputer={openSaveToComputer}
               />

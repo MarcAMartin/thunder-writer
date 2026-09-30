@@ -1,6 +1,8 @@
-/** Route target for the primary "Start Writing" CTA. */
+/** The writer page; with no query it opens the manuscript last open in this browser ("Continue Writing"). */
 export const WRITE_PATH = '/write'
-/** The storage FileMenu reads `?open=drive` to open its Google Drive picker on arrival. */
+/** "Start Writing": the writer page reads `?new=1` and opens a fresh manuscript. */
+export const NEW_MANUSCRIPT_PATH = '/write?new=1'
+/** The storage FileMenu reads `?open=drive` to open its "Open from Google Drive" list on arrival. */
 export const OPEN_FROM_DRIVE_PATH = '/write?open=drive'
 export const SETTINGS_PATH = '/settings'
 /** The writer's ImportHost reads `?import=local` and shows a "Choose a file to import" prompt. */

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_CLAUDE_MODEL, useSettings } from '../../store/settings'
 import { parseNumberField } from './fields'
 import { SettingsPage } from './SettingsPage'
@@ -20,6 +20,12 @@ const renderPage = () =>
 describe('SettingsPage', () => {
   beforeEach(() => {
     useSettings.setState(useSettings.getInitialState())
+    // This build has Google Drive (the deployment's own Cloud project).
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '698829428298-abc.apps.googleusercontent.com')
+    vi.stubEnv('VITE_GOOGLE_API_KEY', 'AIza-build')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('renders every section with navigation home and back to writing', () => {
@@ -81,40 +87,26 @@ describe('SettingsPage', () => {
     expect(useSettings.getState().suggestionsEnabled).toBe(false)
   })
 
-  it('saves the Google client id and autosave interval', () => {
-    renderPage()
-    fireEvent.change(screen.getByLabelText('OAuth client ID'), { target: { value: ' id.apps.googleusercontent.com ' } })
-    expect(useSettings.getState().googleClientId).toBe('id.apps.googleusercontent.com')
-    fireEvent.change(screen.getByLabelText('Autosave to Drive at most every'), { target: { value: '120' } })
-    expect(useSettings.getState().driveAutosaveSec).toBe(120)
-    expect(screen.getByText('http://localhost:5173')).toBeInTheDocument()
-  })
-
-  it('saves the Google Picker API key and shows the project number derived from the client id', async () => {
-    vi.stubEnv('VITE_GOOGLE_API_KEY', '')
-    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
-    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
-    const user = userEvent.setup()
+  it('asks for no Google Cloud values: the Drive section is only about saving manuscripts', () => {
     renderPage()
     const drive = screen.getByRole('region', { name: 'Google Drive' })
-    const key = within(drive).getByLabelText('Google API key (for importing from Drive)')
-    expect(key).toHaveAttribute('type', 'password')
-    await user.type(key, ' AIza-picker ')
-    expect(useSettings.getState().googleApiKey).toBe('AIza-picker')
-    expect(key).toHaveAccessibleDescription(/never synced to Drive/)
+    expect(drive).toHaveTextContent(/“Thunder Writer” folder in your own Drive/)
+    fireEvent.change(within(drive).getByLabelText('Autosave to Drive at most every'), { target: { value: '120' } })
+    expect(useSettings.getState().driveAutosaveSec).toBe(120)
+    // Only the manuscript: no preference sync through Drive either.
+    expect(within(drive).queryByRole('button')).not.toBeInTheDocument()
+    // No client id, API key or project number fields, and no Cloud Console instructions, anywhere.
+    const page = document.body.textContent ?? ''
+    expect(page).not.toMatch(/client id|google api key|project number|cloud console|googleusercontent|AIza/i)
+    expect(screen.queryByLabelText(/OAuth client ID|Google API key|project number/i)).not.toBeInTheDocument()
+  })
 
-    const project = within(drive).getByLabelText('Google Cloud project number')
-    expect(project).toHaveValue('')
-    expect(project).toHaveAccessibleDescription(/Using 698829428298, the number at the start of your client ID/)
-    fireEvent.change(project, { target: { value: ' 111 222 ' } })
-    expect(useSettings.getState().googleProjectNumber).toBe('111222')
-    expect(project).toHaveAccessibleDescription(/Using 111222\. Leave blank/)
-
-    // Setup help: enable the Picker API and restrict the key to this origin and docs.google.com.
-    expect(within(drive).getByText('Google Picker API', { selector: 'li:first-child strong' })).toBeInTheDocument()
-    expect(within(drive).getByText('https://docs.google.com/*')).toBeInTheDocument()
-    expect(within(drive).getAllByText(/^http:\/\/localhost:\d+\/\*$/).length).toBeGreaterThan(0)
-    vi.unstubAllEnvs()
+  it('leaves the Google Drive section out of a build without Drive', () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
+    renderPage()
+    expect(screen.queryByRole('region', { name: 'Google Drive' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Appearance' })).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/google drive/i)
   })
 
     it('restores the default model if the field is left empty', () => {

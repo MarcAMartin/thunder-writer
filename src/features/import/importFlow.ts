@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { JSONContent } from '@tiptap/core'
 import { DEFAULT_FORMAT, useDocuments } from '../../store/documents'
-import type { ThunderDoc } from '../../types'
+import type { DocFormat, ThunderDoc } from '../../types'
 import { IMPORT_ACCEPT, IMPORT_MIME_TYPES, importManuscript } from './importManuscript'
 import { MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
 import { ImportError, type ImportResult } from './types'
@@ -60,16 +60,27 @@ const isEmptyContent = (content: unknown): boolean => {
   return typeof content === 'object' && walk(content as JSONContent)
 }
 
+/** The book format a new manuscript starts with (unset overrides don't count as changes). */
+const isDefaultFormat = (f: DocFormat | undefined): boolean => {
+  const set = Object.entries(f ?? {}).filter(([, v]) => v !== undefined)
+  const defaults = Object.entries(DEFAULT_FORMAT)
+  return set.length === defaults.length && defaults.every(([k, v]) => (f as unknown as Record<string, unknown>)[k] === v)
+}
+
+/** Nothing of the writer's in it: default title and book format, no text, never saved to Drive. */
+export const isUntouchedDoc = (d: ThunderDoc): boolean =>
+  !d.driveFileId && d.title === UNTITLED && isEmptyContent(d.content) && isDefaultFormat(d.format)
+
 /**
  * The blank "Untitled Manuscript" the writer page creates on a first visit
  * (e.g. arriving from Home › Import a manuscript) would otherwise linger next
- * to the imported book. The current manuscript is removed only when nothing
- * was ever written in it: default title, no text, never saved to Drive.
+ * to the imported book. The current manuscript is removed only when it is
+ * untouched (isUntouchedDoc).
  */
 export function discardUntouchedCurrentDoc(): void {
   const s = useDocuments.getState()
   const d = s.currentId ? s.docs[s.currentId] : undefined
-  if (!d || d.driveFileId || d.title !== UNTITLED || !isEmptyContent(d.content)) return
+  if (!d || !isUntouchedDoc(d)) return
   s.deleteDoc(d.id)
 }
 

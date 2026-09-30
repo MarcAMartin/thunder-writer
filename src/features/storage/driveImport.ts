@@ -1,7 +1,7 @@
 import { MAX_IMPORT_BYTES, tooLargeMessage } from '../import/limits'
 import { ImportError, type ImportResult, type ImportSource } from '../import/types'
 import type { ThunderDoc } from '../../types'
-import { DRIVE_API, DOC_SUFFIX, DriveError, isDriveError, type DriveClient } from './drive'
+import { BACKUP_SUFFIX, DRIVE_API, DOC_SUFFIX, DriveError, isDriveError, type DriveClient } from './drive'
 import { DOCX_MIME, GDOC_MIME, THUNDER_JSON_MIME, type PickedFile } from './picker'
 import { parseEnvelope } from './schema'
 
@@ -19,8 +19,14 @@ const TEXT_EXT = /\.(txt|text|md|markdown|html?)$/i
 
 export type DownloadKind = 'gdoc' | 'binary' | 'text' | 'thunder'
 
-export const isThunderFile = (f: Pick<PickedFile, 'name' | 'mimeType'>) =>
-  f.name.toLowerCase().endsWith(DOC_SUFFIX) && (f.mimeType === THUNDER_JSON_MIME || f.mimeType === '' || f.mimeType === 'text/plain')
+/** A Thunder Writer save, or the .bak Thunder Writer keeps of one before overwriting it. */
+export const isThunderFile = (f: Pick<PickedFile, 'name' | 'mimeType'>) => {
+  const name = f.name.toLowerCase()
+  return (
+    (name.endsWith(DOC_SUFFIX) || name.endsWith(DOC_SUFFIX + BACKUP_SUFFIX)) &&
+    (f.mimeType === THUNDER_JSON_MIME || f.mimeType === '' || f.mimeType === 'text/plain')
+  )
+}
 
 const UNSUPPORTED =
   'Thunder Writer can import Google Docs, Word (.docx), plain text, Markdown and HTML files.'

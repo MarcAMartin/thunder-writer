@@ -1,3 +1,4 @@
+import { hasGooglePicker } from '../storage/googleConfig'
 import { ImportError, type ImportFormat, type ImportSource } from './types'
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -33,8 +34,13 @@ const MIME_FORMAT: Record<string, ImportFormat> = {
 const SUPPORTED = 'Thunder Writer can import Word (.docx), Google Docs, plain text (.txt), Markdown (.md) and HTML files.'
 
 /** Google Drive for desktop shows each Google Doc on disk as a tiny ".gdoc" link file. */
-export const GOOGLE_SHORTCUT =
-  'This is a shortcut to a Google Doc, not the document itself. Use File › Import from Google Drive… to import it, or in Google Docs choose File › Download › Microsoft Word (.docx) and import that.'
+const GOOGLE_SHORTCUT_EXT = new Set(['gdoc', 'gsheet', 'gslides', 'gdraw', 'gform'])
+
+/** Offers File › Import from Google Drive… only in a build that has it. */
+export const googleShortcutMessage = () =>
+  hasGooglePicker()
+    ? 'This is a shortcut to a Google Doc, not the document itself. Use File › Import from Google Drive… to import it, or in Google Docs choose File › Download › Microsoft Word (.docx) and import that.'
+    : 'This is a shortcut to a Google Doc, not the document itself. In Google Docs, choose File › Download › Microsoft Word (.docx), then import that.'
 
 /** The JSON inside a Drive for desktop shortcut: {"doc_id": "…", "email": "…"} or {"url": "https://docs.google.com/…"}. */
 function isGoogleShortcut(head: string): boolean {
@@ -51,11 +57,6 @@ const UNSUPPORTED_EXT: Record<string, string> = {
   pdf: 'PDFs can’t be imported because they don’t keep paragraphs. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   epub: 'EPUB files can’t be imported. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   scriv: 'Scrivener projects can’t be read directly. In Scrivener, choose File › Compile and compile to Word (.docx), then import that.',
-  gdoc: GOOGLE_SHORTCUT,
-  gsheet: GOOGLE_SHORTCUT,
-  gslides: GOOGLE_SHORTCUT,
-  gdraw: GOOGLE_SHORTCUT,
-  gform: GOOGLE_SHORTCUT,
   json: 'This looks like a JSON file. To open a Thunder Writer backup (.thunder.json), use File › Import .thunder.json… instead.',
 }
 
@@ -73,7 +74,7 @@ export function fileExtension(name: string): string {
 export function stripKnownExtension(name: string): string {
   const trimmed = name.trim()
   const ext = fileExtension(trimmed)
-  if (ext && (ext in EXT_FORMAT || ext in UNSUPPORTED_EXT)) return trimmed.slice(0, -(ext.length + 1)).trim()
+  if (ext && (ext in EXT_FORMAT || ext in UNSUPPORTED_EXT || GOOGLE_SHORTCUT_EXT.has(ext))) return trimmed.slice(0, -(ext.length + 1)).trim()
   return trimmed
 }
 
@@ -99,6 +100,7 @@ function sniffTextStart(head: string): ImportFormat | null {
 export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): ImportFormat {
   if (source.format) return source.format
   const ext = fileExtension(source.name)
+  if (GOOGLE_SHORTCUT_EXT.has(ext)) throw new ImportError('unsupported', googleShortcutMessage())
   if (ext in UNSUPPORTED_EXT) throw new ImportError('unsupported', UNSUPPORTED_EXT[ext])
   if (ext in EXT_FORMAT) return EXT_FORMAT[ext]
   const mime = (source.mimeType ?? '').split(';')[0].trim().toLowerCase()
@@ -106,7 +108,7 @@ export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): Imp
   if (mime === 'application/pdf') throw new ImportError('unsupported', UNSUPPORTED_EXT.pdf)
   const head = typeof source.data === 'string' ? source.data.slice(0, 2048) : bytes ? new TextDecoder('latin1').decode(bytes.subarray(0, 2048)) : ''
   // A local file with Drive's Google Docs type is a Drive for desktop shortcut, never the document.
-  if (isGoogleShortcut(head)) throw new ImportError('unsupported', GOOGLE_SHORTCUT)
+  if (isGoogleShortcut(head)) throw new ImportError('unsupported', googleShortcutMessage())
   if (mime in MIME_FORMAT) {
     const f = MIME_FORMAT[mime]
     // A generic text/plain label on something that is really HTML.

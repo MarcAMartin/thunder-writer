@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  CONFIG_FILE_NAME,
   DRIVE_API,
   DRIVE_UPLOAD_API,
   DriveClient,
@@ -85,6 +84,8 @@ describe('DriveClient', () => {
     expect(await client.ensureFolder()).toBe('NEWFOLDER')
     expect(calls).toHaveLength(2)
     expect(query(calls[0])).toBe("mimeType='application/vnd.google-apps.folder' and name='Thunder Writer' and trashed=false")
+    // With more than one "Thunder Writer" folder, the oldest is always the one saved into.
+    expect(new URL(calls[0].url).searchParams.get('orderBy')).toBe('createdTime')
     expect(JSON.parse(String(calls[1].init.body))).toEqual({
       name: 'Thunder Writer',
       mimeType: 'application/vnd.google-apps.folder',
@@ -92,11 +93,14 @@ describe('DriveClient', () => {
     expect(auth(calls[0])).toBe('Bearer stale')
   })
 
-  it('lists manuscripts in the folder with the right query and fields', async () => {
+  it('lists manuscripts in every Thunder Writer folder (and only there) with the right query and fields', async () => {
     const { client, calls } = setup([
-      folderFound,
       (c) =>
-        query(c).includes("'FOLDER' in parents")
+        method(c) === 'GET' && query(c).includes("mimeType='application/vnd.google-apps.folder'")
+          ? json({ files: [{ id: 'OLDEST', name: 'Thunder Writer' }, { id: 'SECOND', name: 'Thunder Writer' }] })
+          : undefined,
+      (c) =>
+        query(c).includes("name contains '.thunder.json'")
           ? json({
               files: [
                 { id: '1', name: 'A.thunder.json', modifiedTime: '2026-09-01T10:00:00Z' },
@@ -108,8 +112,9 @@ describe('DriveClient', () => {
     const files = await client.listDocs()
     expect(files.map((f) => f.id)).toEqual(['1'])
     const params = new URL(calls[1].url).searchParams
+    // Not anywhere in Drive: a .thunder.json picked elsewhere to import (a co-author's) must not be listed and linked.
     expect(params.get('q')).toBe(
-      "'FOLDER' in parents and mimeType='application/json' and name contains '.thunder.json' and trashed=false",
+      "('OLDEST' in parents or 'SECOND' in parents) and mimeType='application/json' and name contains '.thunder.json' and trashed=false",
     )
     expect(params.get('fields')).toBe('nextPageToken,files(id,name,modifiedTime)')
     expect(params.get('orderBy')).toBe('modifiedTime desc')
@@ -213,37 +218,71 @@ describe('DriveClient', () => {
     expect(calls.map(method)).toEqual(['PATCH'])
   })
 
+  describe('backupDocFile (.bak before an overwrite)', () => {
+    const SAVED = '{"app":"thunder-writer","version":1,"doc":{"title":"Storm"}}'
+    const original = (c: Call) => {
+      if (method(c) !== 'GET') return undefined
+      if (c.url === `${DRIVE_API}/F1?fields=id,name`) return json({ id: 'F1', name: 'Storm.thunder.json' })
+      if (c.url === `${DRIVE_API}/F1?alt=media`) return new Response(SAVED, { status: 200 })
+      return undefined
+    }
+    const bakQuery = "appProperties has { key='thunderBackupOf' and value='F1' } and trashed=false"
+    const multipartParts = (c: Call) => String(c.init.body).split('--BOUNDARY')
+
+    it('creates "<name>.bak" in the Thunder Writer folder, holding Drive’s copy byte for byte', async () => {
+      const { client, calls } = setup([
+        folderFound,
+        original,
+        (c) => (query(c) === bakQuery ? json({ files: [] }) : undefined),
+        (c) => (method(c) === 'POST' && c.url.startsWith(DRIVE_UPLOAD_API) ? json({ id: 'BAK' }) : undefined),
+      ])
+      await client.backupDocFile('F1')
+      const post = calls.find((c) => method(c) === 'POST')!
+      const [, meta, content] = multipartParts(post)
+      expect(JSON.parse(meta.split('\r\n\r\n')[1])).toEqual({
+        name: 'Storm.thunder.json.bak',
+        mimeType: 'application/json',
+        appProperties: { thunderBackupOf: 'F1' },
+        // Even if the writer moved the manuscript elsewhere: drive.file can only add files to the app's own folder.
+        parents: ['FOLDER'],
+      })
+      expect(content.split('\r\n\r\n')[1].replace(/\r\n$/, '')).toBe(SAVED)
+      // Only reads of the original: it is never written here.
+      expect(calls.filter((c) => c.url.includes('/F1') && method(c) !== 'GET')).toEqual([])
+    })
+
+    it('replaces the existing .bak (found by its link to the manuscript, so a rename can’t orphan it)', async () => {
+      const { client, calls } = setup([
+        original,
+        (c) => (query(c) === bakQuery ? json({ files: [{ id: 'BAK' }] }) : undefined),
+        (c) => (method(c) === 'PATCH' && c.url.startsWith(`${DRIVE_UPLOAD_API}/BAK?`) ? json({ id: 'BAK' }) : undefined),
+      ])
+      await client.backupDocFile('F1')
+      const patch = calls.find((c) => method(c) === 'PATCH')!
+      expect(JSON.parse(multipartParts(patch)[1].split('\r\n\r\n')[1])).toMatchObject({ name: 'Storm.thunder.json.bak' })
+      expect(calls.some((c) => method(c) === 'POST')).toBe(false)
+    })
+
+    it('does nothing when the manuscript’s Drive file is gone (the save creates a new one)', async () => {
+      const { client, calls } = setup([(c) => (c.url.includes('/F1') ? json({ error: {} }, 404) : undefined)])
+      await expect(client.backupDocFile('F1')).resolves.toBeUndefined()
+      expect(calls.every((c) => method(c) === 'GET')).toBe(true)
+    })
+
+    it('rejects on other failures, so nothing is overwritten without a backup', async () => {
+      const { client } = setup([
+        folderFound,
+        original,
+        (c) => (query(c) === bakQuery ? json({ files: [] }) : undefined),
+        (c) => (method(c) === 'POST' ? json({ error: { errors: [{ reason: 'storageQuotaExceeded' }] } }, 403) : undefined),
+      ])
+      await expect(client.backupDocFile('F1')).rejects.toMatchObject({ code: 'forbidden' })
+    })
+  })
+
   it('rejects downloads that are not Thunder Writer files', async () => {
     const { client } = setup([() => json({ random: true })])
     const err = await client.downloadDoc('F9').catch((e: unknown) => e)
     expect((err as DriveError).code).toBe('invalid_file')
-  })
-
-  it('saves config without secrets, updating the existing config file', async () => {
-    const { client, calls } = setup([
-      folderFound,
-      (c) => (query(c).includes(`name='${CONFIG_FILE_NAME}'`) ? json({ files: [{ id: 'CFG', name: CONFIG_FILE_NAME }] }) : undefined),
-      (c) => (method(c) === 'PATCH' ? json({ id: 'CFG' }) : undefined),
-    ])
-    await client.saveConfig({ theme: 'dark', claudeApiKey: 'sk-ant-SECRET', openaiApiKey: 'sk-SECRET' })
-    const patch = calls.find((c) => method(c) === 'PATCH')!
-    expect(patch.url).toContain('/CFG?uploadType=multipart')
-    expect(String(patch.init.body)).toContain('"theme":"dark"')
-    expect(String(patch.init.body)).not.toContain('SECRET')
-  })
-
-  it('loads config, returning null when none exists', async () => {
-    const empty = setup([folderFound, (c) => (query(c).includes(CONFIG_FILE_NAME) ? json({ files: [] }) : undefined)])
-    expect(await empty.client.loadConfig()).toBeNull()
-
-    const full = setup([
-      folderFound,
-      (c) => (query(c).includes(CONFIG_FILE_NAME) ? json({ files: [{ id: 'CFG', name: CONFIG_FILE_NAME }] }) : undefined),
-      (c) =>
-        c.url.endsWith('/CFG?alt=media')
-          ? json({ app: 'thunder-writer', kind: 'config', version: 1, settings: { theme: 'light', claudeApiKey: 'x' } })
-          : undefined,
-    ])
-    expect(await full.client.loadConfig()).toEqual({ theme: 'light' })
   })
 })

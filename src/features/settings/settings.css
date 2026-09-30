@@ -62,7 +62,7 @@
 .st-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .st-label { font-size: 14px; font-weight: 550; }
 .st-hint { font-size: 12.5px; color: var(--tw-text-muted); line-height: 1.45; }
-.st-hint a, .st-details a { color: var(--tw-accent); }
+.st-hint a { color: var(--tw-accent); }
 
 .st-input {
   font: inherit;
@@ -158,18 +158,6 @@
 .st-switch:checked { background: var(--tw-accent); border-color: var(--tw-accent); }
 .st-switch:checked::after { transform: translateX(18px); background: var(--tw-accent-contrast); }
 .st-switch:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; }
-
-.st-details { font-size: 14px; line-height: 1.55; }
-.st-details summary { cursor: pointer; color: var(--tw-accent); border-radius: 4px; }
-.st-details summary:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; }
-.st-details ol { margin: 10px 0; padding-left: 20px; }
-.st-details li { margin: 4px 0; }
-.st-details code, .st-hint code {
-  font-size: 12.5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--tw-surface-2);
-}
 
 .st-danger-btn { align-self: flex-start; color: var(--tw-danger); border-color: var(--tw-danger); }
 .st-danger-btn:hover { background: color-mix(in srgb, var(--tw-danger) 10%, var(--tw-surface)); }

@@ -1,3 +1,4 @@
+import { BACKUP_DB_NAME, clearBackups, suspendBackupWrites } from '../backups/store'
 import { disconnectDrive } from './driveSession'
 import { DB_NAME, clearLocalStore, suspendWrites } from './local'
 
@@ -25,20 +26,23 @@ function deleteDb(name: string): Promise<void> {
 }
 
 /**
- * Wipes everything Thunder Writer keeps in this browser: manuscripts, context
- * files, settings and API keys. Google Drive files are untouched. The caller
+ * Wipes everything Thunder Writer keeps in this browser: manuscripts, their
+ * backups, context files, settings and API keys. Google Drive files are untouched. The caller
  * should reload the page afterwards.
  */
 export async function clearAllLocalData(): Promise<void> {
   suspendWrites()
+  suspendBackupWrites()
   disconnectDrive()
   await clearLocalStore().catch(() => undefined)
+  // Emptied rather than deleted: deleting a database this page still has open would stay blocked.
+  await clearBackups().catch(() => undefined)
   try {
     const dbs = (await indexedDB.databases?.()) ?? []
     await Promise.all(
       dbs
         .map((d) => d.name)
-        .filter((n): n is string => !!n && n.startsWith(PREFIX) && n !== DB_NAME)
+        .filter((n): n is string => !!n && n.startsWith(PREFIX) && n !== DB_NAME && n !== BACKUP_DB_NAME)
         .map(deleteDb),
     )
   } catch {

@@ -4,23 +4,17 @@ import {
   DEFAULT_CLAUDE_MODEL,
   DEFAULT_OPENAI_MODEL,
   SETTING_BOUNDS,
-  googleClientId,
-  projectNumberFromClientId,
   useSettings,
   type SettingsState,
 } from '../../store/settings'
 import type { AIProvider, ThemeMode } from '../../types'
 import { clearAllLocalData } from '../storage/clearAll'
-import { driveErrorMessage } from '../storage/drive'
-import { loadConfigFromDrive, saveConfigToDrive } from '../storage/driveSession'
+import { isDriveConfigured } from '../storage/driveSession'
 import { parseNumberField } from './fields'
 import { testApiKey, type KeyTestResult } from './keyTest'
 import './settings.css'
 
 type Patch = Partial<Omit<SettingsState, 'set'>>
-
-const ENV_CLIENT_ID = ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? '').trim()
-const envApiKey = () => ((import.meta.env.VITE_GOOGLE_API_KEY as string | undefined) ?? '').trim()
 
 /** "Settings View": every change saves immediately to this browser. */
 export function SettingsPage() {
@@ -38,7 +32,8 @@ export function SettingsPage() {
     document.getElementById(location.hash.slice(1))?.scrollIntoView?.({ block: 'start' })
   }, [location.hash])
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'
+  // Drive uses the deployment's own Google Cloud project; there is nothing for the writer to set up.
+  const driveAvailable = isDriveConfigured()
 
   return (
     <div className="st-page">
@@ -59,7 +54,8 @@ export function SettingsPage() {
           <h1>Settings</h1>
           <p>
             Everything here is saved instantly, in this browser only. Thunder Writer has no server: your keys go straight
-            from this browser to the AI provider you pick, and your manuscripts stay here or in your own Google Drive.
+            from this browser to the AI provider you pick, and your manuscripts stay here
+            {driveAvailable ? ' or in your own Google Drive.' : '.'}
           </p>
         </div>
 
@@ -187,81 +183,22 @@ export function SettingsPage() {
           )}
         </Section>
 
-        <Section id="drive" title="Google Drive" lede="Optional. Save manuscripts and preferences to your own Drive.">
-          <TextField
-            label="OAuth client ID"
-            value={s.googleClientId}
-            placeholder={ENV_CLIENT_ID ? `Using built-in ID ${ENV_CLIENT_ID.slice(0, 12)}…` : '1234567890-abc.apps.googleusercontent.com'}
-            onChange={(googleClientId) => save({ googleClientId: googleClientId.trim() })}
-            hint={
-              ENV_CLIENT_ID
-                ? 'Leave blank to use the client ID this copy of Thunder Writer was built with.'
-                : 'Needed once so Google knows which app is asking.'
-            }
-            autoComplete="off"
-          />
-          <details className="st-details">
-            <summary>How to get a client ID (about 3 minutes)</summary>
-            <ol>
-              <li>
-                Open the{' '}
-                <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">
-                  Google Cloud Console
-                </a>{' '}
-                and create (or pick) a project.
-              </li>
-              <li>
-                Under <em>APIs &amp; Services → Library</em>, enable the <strong>Google Drive API</strong>.
-              </li>
-              <li>
-                Open <em>Google Auth Platform</em> and fill in <em>Branding</em> (older consoles:{' '}
-                <em>APIs &amp; Services → OAuth consent screen</em>). External is fine.
-              </li>
-              <li>
-                Under <em>Google Auth Platform → Audience → Test users</em>, add the Google account you’ll connect
-                with. While the app is in Testing, Google blocks every account that isn’t on that list (“Access
-                blocked … has not completed the Google verification process”).
-              </li>
-              <li>
-                Under <em>Google Auth Platform → Clients</em> (older consoles: <em>APIs &amp; Services → Credentials</em>),
-                create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.
-              </li>
-              <li>
-                Add <code>{origin}</code>
-                {origin !== 'http://localhost:5173' && (
-                  <>
-                    {' '}
-                    (and <code>http://localhost:5173</code> for development)
-                  </>
-                )}{' '}
-                as an <em>Authorized JavaScript origin</em>. No redirect URI is needed.
-              </li>
-              <li>Paste the client ID above.</li>
-            </ol>
-            <p className="st-hint">
-              Thunder Writer asks only for the <code>drive.file</code> permission: it can see files it creates and files
-              you pick with <em>Import from Google Drive</em>, never the rest of your Drive. Access lasts for this browser
-              session.
-            </p>
-          </details>
-          <PickerFields
-            apiKey={s.googleApiKey}
-            projectNumber={s.googleProjectNumber}
-            clientId={googleClientId(s)}
-            origin={origin}
-            onApiKey={(googleApiKey) => save({ googleApiKey })}
-            onProjectNumber={(googleProjectNumber) => save({ googleProjectNumber })}
-          />
-          <DriveConfigSync enabled={!!(s.googleClientId.trim() || ENV_CLIENT_ID)} />
-          <NumberField
-            label="Autosave to Drive at most every"
-            unit="seconds"
-            {...SETTING_BOUNDS.driveAutosaveSec}
-            value={s.driveAutosaveSec}
-            onCommit={(driveAutosaveSec) => save({ driveAutosaveSec })}
-            hint="Also saves about 5 seconds after you pause. 0 = only after pauses."
-          />
-        </Section>
+        {driveAvailable && (
+          <Section
+            id="drive"
+            title="Google Drive"
+            lede="Once you connect Drive from the File menu, your manuscripts also save to a “Thunder Writer” folder in your own Drive."
+          >
+            <NumberField
+              label="Autosave to Drive at most every"
+              unit="seconds"
+              {...SETTING_BOUNDS.driveAutosaveSec}
+              value={s.driveAutosaveSec}
+              onCommit={(driveAutosaveSec) => save({ driveAutosaveSec })}
+              hint="Also saves about 5 seconds after you pause. 0 = only after pauses."
+            />
+          </Section>
+        )}
 
         <Section id="appearance" title="Appearance">
           <RadioGroup<ThemeMode>
@@ -279,8 +216,8 @@ export function SettingsPage() {
 
         <Section id="data" title="Data in this browser" danger>
           <p className="st-hint">
-            Removes every manuscript, context file, setting and API key stored in this browser. Files in Google Drive are
-            not touched.
+            Removes every manuscript, backup, context file, setting and API key stored in this browser.
+            {driveAvailable && ' Files in Google Drive are not touched.'}
           </p>
           <ClearDataButton />
         </Section>
@@ -635,133 +572,14 @@ function ProviderFields(props: {
   )
 }
 
-/** Google Picker credentials, for importing existing Drive files (Google Docs, Word, text). */
-function PickerFields(props: {
-  apiKey: string
-  projectNumber: string
-  clientId: string
-  origin: string
-  onApiKey: (v: string) => void
-  onProjectNumber: (v: string) => void
-}) {
-  const envKey = envApiKey()
-  const derived = projectNumberFromClientId(props.clientId)
-  const effective = props.projectNumber.trim() || derived
-  const origins = [props.origin, ...(props.origin !== 'http://localhost:5173' ? ['http://localhost:5173'] : [])]
-  return (
-    <>
-      <SecretField
-        label="Google API key (for importing from Drive)"
-        value={props.apiKey}
-        placeholder={envKey ? `Using built-in key ${envKey.slice(0, 8)}…` : 'AIza…'}
-        onChange={props.onApiKey}
-        hint={
-          <>
-            Lets you pick an existing Google Doc, Word, text, Markdown or HTML file from anywhere in your Drive and import
-            it as a new manuscript (the original is never changed). Stored only in this browser and never synced to Drive.
-            {envKey && ' Leave blank to use the key this copy of Thunder Writer was built with.'}
-          </>
-        }
-      />
-      <TextField
-        label="Google Cloud project number"
-        value={props.projectNumber}
-        placeholder={derived ? `${derived} (from your client ID)` : '123456789012'}
-        onChange={(v) => props.onProjectNumber(v.replace(/\s+/g, ''))}
-        autoComplete="off"
-        hint={
-          effective
-            ? props.projectNumber.trim()
-              ? `Using ${effective}. Leave blank to use the number from your client ID${derived ? ` (${derived})` : ''}.`
-              : `Using ${effective}, the number at the start of your client ID. Only change this if your client ID comes from a different project.`
-            : 'Found at the start of your OAuth client ID, or on the Cloud Console dashboard.'
-        }
-      />
-      <details className="st-details">
-        <summary>How to set up importing from Drive (about 2 minutes)</summary>
-        <ol>
-          <li>
-            In the same{' '}
-            <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">
-              Google Cloud Console
-            </a>{' '}
-            project as your client ID, open <em>APIs &amp; Services → Library</em> and enable the{' '}
-            <strong>Google Picker API</strong>.
-          </li>
-          <li>
-            Under <em>APIs &amp; Services → Credentials</em>, choose <em>Create credentials → API key</em>.
-          </li>
-          <li>
-            Edit the key. Under <em>Application restrictions</em> pick <strong>Websites</strong> and add{' '}
-            {origins.map((o) => (
-              <span key={o}>
-                <code>{o}/*</code>,{' '}
-              </span>
-            ))}
-            and <code>https://docs.google.com/*</code> (the Picker runs in a frame on docs.google.com, and Google rejects
-            the key without it).
-          </li>
-          <li>
-            Under <em>API restrictions</em>, choose <em>Restrict key</em> and select only the <strong>Google Picker API</strong>.
-          </li>
-          <li>Paste the key above. The project number fills itself in from your client ID.</li>
-        </ol>
-        <p className="st-hint">
-          The Picker keeps the <code>drive.file</code> permission: Thunder Writer can open only the files you pick, never
-          browse the rest of your Drive. The key identifies the app to Google; it can&apos;t read your files by itself.
-          You can also set <code>VITE_GOOGLE_API_KEY</code> in <code>.env.local</code> at build time.
-        </p>
-      </details>
-    </>
-  )
-}
-
-/** Sync non-secret preferences through the writer's own Drive. */
-function DriveConfigSync({ enabled }: { enabled: boolean }) {
-  const [state, setState] = useState<{ busy: boolean; msg: string | null; ok: boolean }>({ busy: false, msg: null, ok: true })
-  const run = async (kind: 'save' | 'load') => {
-    setState({ busy: true, msg: null, ok: true })
-    try {
-      if (kind === 'save') {
-        await saveConfigToDrive()
-        setState({ busy: false, msg: 'Preferences saved to Drive.', ok: true })
-      } else {
-        const cfg = await loadConfigFromDrive()
-        setState({ busy: false, msg: cfg ? 'Preferences loaded from Drive.' : 'No saved preferences in Drive yet.', ok: !!cfg })
-      }
-    } catch (e) {
-      setState({ busy: false, msg: driveErrorMessage(e), ok: false })
-    }
-  }
-  return (
-    <div className="st-field">
-      <span className="st-label">Sync preferences</span>
-      <div className="st-row">
-        <button type="button" className="tw-btn" disabled={!enabled || state.busy} onClick={() => run('save')}>
-          Save to Drive
-        </button>
-        <button type="button" className="tw-btn" disabled={!enabled || state.busy} onClick={() => run('load')}>
-          Load from Drive
-        </button>
-        <span className="st-test" role="status" aria-live="polite">
-          {state.msg && <span className={state.ok ? 'st-ok' : 'st-bad'}>{state.msg}</span>}
-        </span>
-      </div>
-      <div className="st-hint">
-        {enabled
-          ? 'Theme, provider, models, cadence and trivia settings travel with you. API keys are never uploaded.'
-          : 'Add a client ID above to sync preferences.'}
-      </div>
-    </div>
-  )
-}
-
 function ClearDataButton() {
   const [busy, setBusy] = useState(false)
   const onClick = async () => {
     if (
       !window.confirm(
-        'Delete all Thunder Writer data in this browser? Manuscripts not saved to Google Drive will be lost, and your API keys will be removed.',
+        isDriveConfigured()
+          ? 'Delete all Thunder Writer data in this browser, including its backups? Manuscripts not saved to Google Drive will be lost, and your API keys will be removed.'
+          : 'Delete all Thunder Writer data in this browser, including its backups? Your manuscripts will be lost unless you saved them to your computer, and your API keys will be removed.',
       )
     )
       return

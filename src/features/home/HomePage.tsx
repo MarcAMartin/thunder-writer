@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ThemeToggle } from '../../shell/ThemeToggle'
-import { googleClientId, useSettings } from '../../store/settings'
+import { isDriveConfigured, isPickerConfigured } from '../storage/driveSession'
 import { BoltMark } from './BoltMark'
 import { DemoPanel } from './DemoPanel'
+import { HeroActions } from './HeroActions'
 import {
   CloudIcon,
   CoinIcon,
@@ -15,13 +16,15 @@ import {
   SpellIcon,
   StoryIcon,
 } from './icons'
-import { IMPORT_LOCAL_PATH, OPEN_FROM_DRIVE_PATH, OPEN_PICKER_PATH, SETTINGS_PATH, WRITE_PATH } from './routes'
+import { IMPORT_LOCAL_PATH, NEW_MANUSCRIPT_PATH, OPEN_PICKER_PATH, SETTINGS_PATH } from './routes'
 import './home.css'
 
 interface Item {
   icon: ReactNode
   title: string
   body: string
+  /** Shown instead of `body` in a build without Google Drive. */
+  bodyWithoutDrive?: string
 }
 
 const IDEA_ITEMS: Item[] = [
@@ -62,6 +65,7 @@ const FEATURES: Item[] = [
     icon: <CloudIcon />,
     title: 'Autosave, twice over',
     body: 'Every change is kept in this browser and, once you connect Google Drive, synced to your own Drive on change or on a timer.',
+    bodyWithoutDrive: 'Every change is kept in this browser as you write, and you can save a copy to your computer any time.',
   },
   {
     icon: <CoinIcon />,
@@ -76,7 +80,9 @@ const FEATURES: Item[] = [
 ]
 
 export function HomePage() {
-  const driveConfigured = useSettings((s) => googleClientId(s).length > 0)
+  // Fixed at build time (the deployment's Google Cloud project), so plain calls are enough.
+  const drive = isDriveConfigured()
+  const pickerReady = isPickerConfigured()
 
   return (
     <div className="hm-root">
@@ -117,42 +123,28 @@ export function HomePage() {
                 decide what stays.
               </p>
 
-              <div className="hm-ctas">
-                <Link to={WRITE_PATH} className="tw-btn tw-btn-primary hm-cta hm-cta-primary">
-                  Start Writing
-                  <span aria-hidden="true" className="hm-cta-arrow">
-                    →
-                  </span>
-                </Link>
-                <Link to={IMPORT_LOCAL_PATH} className="tw-btn hm-cta">
-                  Import a manuscript
-                </Link>
-                <Link to={OPEN_FROM_DRIVE_PATH} className="tw-btn hm-cta">
-                  Open from Google Drive
-                </Link>
-              </div>
+              <HeroActions />
 
               <p className="hm-fineprint">
-                Already writing in Google Docs or Word?{' '}
-                <Link to={OPEN_PICKER_PATH} className="hm-inline-link">
-                  Import it straight from Google Drive
+                Already writing in Word or Google Docs?{' '}
+                <Link to={IMPORT_LOCAL_PATH} className="hm-inline-link">
+                  Import a manuscript
                 </Link>
+                {pickerReady && (
+                  <>
+                    {' '}
+                    or{' '}
+                    <Link to={OPEN_PICKER_PATH} className="hm-inline-link">
+                      import it from Google Drive
+                    </Link>
+                  </>
+                )}
                 ; the original is never changed.
               </p>
 
               <p className="hm-fineprint">
-                No account and no server. Your manuscript lives in this browser and, if you choose,
-                your own Google Drive.
-                {!driveConfigured && (
-                  <>
-                    {' '}
-                    To connect Drive, add a Google client ID in{' '}
-                    <Link to={SETTINGS_PATH} className="hm-inline-link">
-                      Settings
-                    </Link>
-                    .
-                  </>
-                )}
+                No account and no server. Your manuscript lives in this browser
+                {drive ? ' and, once you connect it, your own Google Drive.' : '.'}
               </p>
             </div>
 
@@ -208,7 +200,7 @@ export function HomePage() {
                   <span className="hm-icon-wrap">{f.icon}</span>
                   <div>
                     <h3 className="hm-h3">{f.title}</h3>
-                    <p className="hm-body">{f.body}</p>
+                    <p className="hm-body">{drive ? f.body : (f.bodyWithoutDrive ?? f.body)}</p>
                   </div>
                 </li>
               ))}
@@ -226,7 +218,7 @@ export function HomePage() {
               Start now — add your Claude or OpenAI key in Settings whenever you want suggestions.
             </p>
             <div className="hm-ctas hm-ctas-center">
-              <Link to={WRITE_PATH} className="tw-btn tw-btn-primary hm-cta hm-cta-primary">
+              <Link to={NEW_MANUSCRIPT_PATH} className="tw-btn tw-btn-primary hm-cta hm-cta-primary">
                 Start Writing
               </Link>
               <Link to={SETTINGS_PATH} className="tw-btn tw-btn-ghost hm-cta">

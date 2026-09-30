@@ -1,12 +1,5 @@
 import type { ThunderDoc } from '../../types'
-import type { SettingsState } from '../../store/settings'
-import {
-  makeConfigEnvelope,
-  makeEnvelope,
-  parseConfig,
-  parseEnvelope,
-  type SyncedConfig,
-} from './schema'
+import { makeEnvelope, parseEnvelope } from './schema'
 
 /**
  * Google Drive REST v3 client. Talks to Google directly from the browser with a
@@ -19,7 +12,10 @@ export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/file
 export const FOLDER_NAME = 'Thunder Writer'
 export const FOLDER_MIME = 'application/vnd.google-apps.folder'
 export const DOC_SUFFIX = '.thunder.json'
-export const CONFIG_FILE_NAME = 'thunder-writer.config.json'
+/** Drive's previous copy of a manuscript, kept next to it: "<title>.thunder.json.bak". */
+export const BACKUP_SUFFIX = '.bak'
+/** appProperties key on a .bak file: the id of the manuscript file it backs up. */
+export const BACKUP_OF_PROPERTY = 'thunderBackupOf'
 
 export type DriveErrorCode =
   | 'not_configured'
@@ -131,13 +127,22 @@ export function buildMultipart(
   content: unknown,
   boundary: string,
 ): { body: string; contentType: string } {
+  return buildMultipartText(metadata, JSON.stringify(content), boundary)
+}
+
+/** A multipart upload body whose file part is `text` as it is (already serialized JSON). */
+export function buildMultipartText(
+  metadata: Record<string, unknown>,
+  text: string,
+  boundary: string,
+): { body: string; contentType: string } {
   const body =
     `--${boundary}\r\n` +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     `${JSON.stringify(metadata)}\r\n` +
     `--${boundary}\r\n` +
     'Content-Type: application/json\r\n\r\n' +
-    `${JSON.stringify(content)}\r\n` +
+    `${text}\r\n` +
     `--${boundary}--`
   return { body, contentType: `multipart/related; boundary=${boundary}` }
 }
@@ -218,12 +223,21 @@ export class DriveClient {
     return this.folderPromise
   }
 
-  private async findOrCreateFolder(): Promise<string> {
+  /**
+   * Every "Thunder Writer" folder this app made, oldest first. Two tabs (or two
+   * computers) connecting for the first time at once can each create one;
+   * saves always go to the oldest, and listDocs looks in all of them.
+   */
+  private async findFolders(): Promise<string[]> {
     const q = `mimeType='${FOLDER_MIME}' and name='${escapeQuery(FOLDER_NAME)}' and trashed=false`
-    const params = new URLSearchParams({ q, fields: 'files(id,name)', spaces: 'drive', pageSize: '10' })
+    const params = new URLSearchParams({ q, fields: 'files(id,name)', orderBy: 'createdTime', spaces: 'drive', pageSize: '10' })
     const found = await this.json<{ files?: DriveFileInfo[] }>(`${DRIVE_API}?${params}`)
-    const existing = found.files?.[0]
-    if (existing) return existing.id
+    return (found.files ?? []).map((f) => f.id)
+  }
+
+  private async findOrCreateFolder(): Promise<string> {
+    const [existing] = await this.findFolders()
+    if (existing) return existing
     const created = await this.json<{ id: string }>(`${DRIVE_API}?fields=id`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -232,12 +246,17 @@ export class DriveClient {
     return created.id
   }
 
-  /** Lists manuscripts in the app folder, newest first. */
+  /**
+   * Lists manuscripts in the Thunder Writer folders (all of them, see
+   * findFolders), newest first. Only there: a .thunder.json picked elsewhere
+   * to import (maybe a co-author's) must not show up here, where opening it
+   * would link it and autosave would write into it.
+   */
   async listDocs(): Promise<DriveFileInfo[]> {
-    const folder = await this.ensureFolder()
-    const q =
-      `'${escapeQuery(folder)}' in parents and mimeType='application/json' and ` +
-      `name contains '${DOC_SUFFIX}' and trashed=false`
+    const folders = await this.findFolders()
+    if (!folders.length) return []
+    const inFolders = folders.map((f) => `'${escapeQuery(f)}' in parents`).join(' or ')
+    const q = `(${inFolders}) and mimeType='application/json' and name contains '${DOC_SUFFIX}' and trashed=false`
     const out: DriveFileInfo[] = []
     let pageToken: string | undefined
     do {
@@ -280,6 +299,50 @@ export class DriveClient {
       })
     }
     return res.headRevisionId ? { id: res.id, revisionId: res.headRevisionId } : { id: res.id }
+  }
+
+  /**
+   * Keeps Drive's current copy of a manuscript file as "<name>.bak" in the
+   * Thunder Writer folder, before Thunder Writer writes over it. (Always there:
+   * drive.file can't add files to a folder the writer moved the manuscript
+   * into.) One .bak per manuscript, replaced each time (found again by its
+   * appProperties, so renaming the manuscript doesn't leave the old one
+   * behind). Does nothing if the file is gone (the save then creates a new
+   * one); rejects on any other failure, so the caller doesn't overwrite
+   * without a backup.
+   */
+  async backupDocFile(fileId: string): Promise<void> {
+    const id = encodeURIComponent(fileId)
+    let meta: { name?: string }
+    let text: string
+    try {
+      meta = await this.json(`${DRIVE_API}/${id}?fields=id,name`)
+      text = await (await this.request(`${DRIVE_API}/${id}?alt=media`)).text()
+    } catch (e) {
+      if (isDriveError(e) && e.code === 'not_found') return
+      throw e
+    }
+    const q = `appProperties has { key='${BACKUP_OF_PROPERTY}' and value='${escapeQuery(fileId)}' } and trashed=false`
+    const params = new URLSearchParams({ q, fields: 'files(id)', spaces: 'drive', pageSize: '1' })
+    const existing = (await this.json<{ files?: { id: string }[] }>(`${DRIVE_API}?${params}`)).files?.[0]?.id
+    const name = `${meta.name || docFileName('')}${BACKUP_SUFFIX}`
+    const boundary = (this.deps.boundary ?? defaultBoundary)()
+    const metadata: Record<string, unknown> = { name, mimeType: 'application/json', appProperties: { [BACKUP_OF_PROPERTY]: fileId } }
+    if (existing) {
+      const { body, contentType } = buildMultipartText(metadata, text, boundary)
+      await this.request(`${DRIVE_UPLOAD_API}/${encodeURIComponent(existing)}?uploadType=multipart&fields=id`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': contentType },
+        body,
+      })
+    } else {
+      const { body, contentType } = buildMultipartText({ ...metadata, parents: [await this.ensureFolder()] }, text, boundary)
+      await this.request(`${DRIVE_UPLOAD_API}?uploadType=multipart&fields=id`, {
+        method: 'POST',
+        headers: { 'Content-Type': contentType },
+        body,
+      })
+    }
   }
 
   /** Drive's current head revision of a file (changes whenever its content does). */
@@ -335,30 +398,5 @@ export class DriveClient {
     if (revision) doc.driveRevisionId = revision
     else delete doc.driveRevisionId
     return doc
-  }
-
-  private async findConfigFile(): Promise<string | null> {
-    const folder = await this.ensureFolder()
-    const q = `'${escapeQuery(folder)}' in parents and name='${escapeQuery(CONFIG_FILE_NAME)}' and trashed=false`
-    const params = new URLSearchParams({ q, fields: 'files(id,name,modifiedTime)', spaces: 'drive', pageSize: '1' })
-    const found = await this.json<{ files?: DriveFileInfo[] }>(`${DRIVE_API}?${params}`)
-    return found.files?.[0]?.id ?? null
-  }
-
-  /** Saves non-secret preferences (never API keys) next to the manuscripts. */
-  async saveConfig(settings: Partial<SettingsState>): Promise<string> {
-    const existing = await this.findConfigFile()
-    const res = await this.uploadJson(CONFIG_FILE_NAME, makeConfigEnvelope(settings), existing ?? undefined)
-    return res.id
-  }
-
-  /** Loads preferences from Drive, or null when none have been saved yet. */
-  async loadConfig(): Promise<SyncedConfig | null> {
-    const id = await this.findConfigFile()
-    if (!id) return null
-    const data = await this.json<unknown>(`${DRIVE_API}/${encodeURIComponent(id)}?alt=media`)
-    const cfg = parseConfig(data)
-    if (!cfg) throw new DriveError('invalid_file', 'The settings file in Drive is not a Thunder Writer config.')
-    return cfg
   }
 }

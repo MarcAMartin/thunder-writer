@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useEditorContext } from '../../shell/EditorContext'
 import type { DriveImportOutcome } from './driveImport'
 import { importErrorMessage } from './driveImport'
@@ -16,7 +15,7 @@ import { Modal } from './Modal'
 import type { PickedFile } from './picker'
 
 type Phase =
-  | { kind: 'setup' }
+  | { kind: 'unavailable' }
   | { kind: 'prompt' }
   | { kind: 'picking' }
   | { kind: 'importing'; file: PickedFile }
@@ -35,7 +34,7 @@ const plural = (v: number, one: string, many = `${one}s`) => `${n(v)} ${v === 1 
 export function DriveImportFlow({ pick, onClose }: { pick: Promise<PickedFile | null> | null; onClose: () => void }) {
   const [current, setCurrent] = useState<Promise<PickedFile | null> | null>(pick)
   const [phase, setPhase] = useState<Phase>(() =>
-    pick ? { kind: 'picking' } : isDriveConfigured() && isPickerConfigured() ? { kind: 'prompt' } : { kind: 'setup' },
+    pick ? { kind: 'picking' } : isDriveConfigured() && isPickerConfigured() ? { kind: 'prompt' } : { kind: 'unavailable' },
   )
   const connected = useStorageStatus((s) => s.driveConnected)
   // Refs survive StrictMode's effect replay, so each Picker session is handled exactly once.
@@ -100,17 +99,13 @@ export function DriveImportFlow({ pick, onClose }: { pick: Promise<PickedFile | 
 
   let body
   let footer
-  if (phase.kind === 'setup') {
+  if (phase.kind === 'unavailable') {
     body = (
       <div className="fm-callout">
-        <p>
-          {isDriveConfigured()
-            ? 'Importing Google Docs and Word files from your Drive needs a Google API key for the Google Picker, in addition to the OAuth client ID. Add it in Settings → Google Drive.'
-            : 'Google Drive needs a one-time setup: add your Google OAuth client ID and a Google API key in Settings.'}
-        </p>
-        <Link to="/settings#drive" className="tw-btn tw-btn-primary" onClick={close} data-autofocus="">
-          Open Settings
-        </Link>
+        <p>Importing from Google Drive isn’t available in this copy of Thunder Writer.</p>
+        <button type="button" className="tw-btn tw-btn-primary" onClick={close} data-autofocus="">
+          OK
+        </button>
       </div>
     )
   } else if (phase.kind === 'prompt') {

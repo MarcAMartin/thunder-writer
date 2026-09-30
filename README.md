@@ -149,6 +149,13 @@ book:
   click.)
   Thunder Writer can only see the files it created and the files you choose to
   import. It can't see the rest of your Drive.
+- **Backups you can always get back to.** As you write, Thunder Writer keeps
+  backups of each manuscript in your browser, plus a copy just before anything
+  replaces or deletes one. Open **Backups ▾** in the writer to see them;
+  choosing one opens it as a new manuscript, so nothing is overwritten (and
+  **Undo** closes it again). In Google Drive, the previous version is kept as
+  a `.bak` file in the Thunder Writer folder before Thunder Writer saves over
+  it.
 
 ### Private by design
 
@@ -190,15 +197,19 @@ them from the File menu.
    **A hosted version is coming soon.** For now you need to run your own copy,
    which takes a developer setup (Node.js and a terminal): see the
    [technical notes](tech_notes.md#getting-started).
-   <!-- TODO: link the hosted app here once the production URL is final, and reword step 4 for hosted users (the host does the Google setup). -->
+   <!-- TODO: link the hosted app here once the production URL is final. -->
 2. **Add your AI key** under **Settings → AI provider**: a
    [Claude key](https://console.anthropic.com/) or an
    [OpenAI key](https://platform.openai.com/api-keys). **Test key** checks it
    without spending anything.
-3. **Start writing**, or **Import a manuscript** you already have.
+3. **Start Writing** for a fresh manuscript, or **Continue Writing** to pick
+   up where you left off. On a computer you haven't written on before,
+   Continue Writing connects your Google Drive and lists the manuscripts you
+   saved there. You can also **Import a manuscript** you already have.
 4. *(Optional)* Connect **Google Drive** from the File menu for a cloud copy.
-   Your copy of Thunder Writer needs a one-time
-   [Google setup](tech_notes.md#google-cloud-setup) first.
+   There's nothing to set up: just approve Google's permission window.
+   (Hosting your own copy? It needs a one-time
+   [Google setup](tech_notes.md#google-cloud-setup) by you, not your writers.)
 
 You can write without an AI key. The suggestion pane will just point you to
 Settings.
