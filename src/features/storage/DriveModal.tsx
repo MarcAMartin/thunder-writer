@@ -102,8 +102,9 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
     body = (
       <div className="fm-callout">
         <p>
-          Connect Google Drive to see your manuscripts. Thunder Writer can only see files it created, kept in a
-          “Thunder Writer” folder.
+          Connect Google Drive to see your manuscripts. This list shows the files Thunder Writer saved, kept in a
+          “Thunder Writer” folder. To bring in an existing Google Doc or Word file, use{' '}
+          <strong>Import from Google Drive…</strong> below.
         </p>
         <button type="button" className="tw-btn tw-btn-primary" onClick={connect} data-autofocus="">
           Connect Google Drive
@@ -136,7 +137,12 @@ export function DriveModal({ onClose, onImport }: { onClose: () => void; onImpor
       </div>
     )
   } else if (view.files.length === 0) {
-    body = <p className="fm-empty">No manuscripts in the “Thunder Writer” Drive folder yet. Use “Save to Drive” to add one.</p>
+    body = (
+      <p className="fm-empty">
+        No manuscripts in the “Thunder Writer” Drive folder yet. Use “Save to Drive” to add the one you’re writing, or{' '}
+        <strong>Import from Google Drive…</strong> below to open an existing Google Doc or Word file.
+      </p>
+    )
   } else {
     body = (
       <>

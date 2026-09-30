@@ -9,6 +9,8 @@ interface ImportButtonProps {
   children?: ReactNode
   /** Runs before the file chooser opens, e.g. to close a menu. Must not await. */
   onBeforeOpen?: () => void
+  /** Element to focus if the writer cancels the file chooser (e.g. the File menu button). */
+  returnFocus?: () => HTMLElement | null | undefined
 }
 
 /**
@@ -16,13 +18,13 @@ interface ImportButtonProps {
  * .txt, .md and .html files. Needs one <ImportHost/> mounted on the page to
  * show progress and the result.
  */
-export function ImportButton({ variant = 'button', className, children, onBeforeOpen }: ImportButtonProps) {
+export function ImportButton({ variant = 'button', className, children, onBeforeOpen, returnFocus }: ImportButtonProps) {
   const busy = useImportFlow((s) => s.phase.kind === 'importing')
   const label = children ?? 'Import manuscript…'
   const onClick = () => {
     if (busy) return
     onBeforeOpen?.()
-    openImportPicker()
+    openImportPicker({ returnFocus })
   }
   if (variant === 'menuitem') {
     return (

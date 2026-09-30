@@ -60,14 +60,39 @@ function parseDecls(style: string | null | undefined): Decls {
   return out
 }
 
-/** `.c3{font-weight:700}` and `p.MsoTitle{…}` rules from <style> blocks, keyed by class name. */
-function classStyles(doc: Document): Map<string, Decls> {
+/** Removes CSS comments in one pass (an unclosed comment runs to the end, as in a browser). */
+function stripCssComments(css: string): string {
+  let out = ''
+  let at = 0
+  for (;;) {
+    const open = css.indexOf('/*', at)
+    if (open < 0) return out + css.slice(at)
+    out += css.slice(at, open)
+    const close = css.indexOf('*/', open + 2)
+    if (close < 0) return out
+    at = close + 2
+  }
+}
+
+/**
+ * `.c3{font-weight:700}` and `p.MsoTitle{…}` rules from <style> blocks, keyed
+ * by class name. A single linear pass (split on braces), so a huge or
+ * malformed <style> can't stall the import.
+ */
+export function classStyles(doc: Document): Map<string, Decls> {
   const map = new Map<string, Decls>()
   for (const el of doc.querySelectorAll('style')) {
-    const css = (el.textContent ?? '').replace(/\/\*[\s\S]*?\*\//g, '')
-    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      const decls = parseDecls(m[2])
-      for (const sel of m[1].split(',')) {
+    const css = stripCssComments(el.textContent ?? '')
+    // Each "}" closes a rule: the text after the last "{" is its declarations,
+    // and the text between the previous "{" or "}" and that "{" its selectors.
+    for (const piece of css.split('}')) {
+      const open = piece.lastIndexOf('{')
+      if (open < 0) continue
+      const before = piece.slice(0, open)
+      const selectors = before.slice(before.lastIndexOf('{') + 1)
+      if (!selectors.trim()) continue
+      const decls = parseDecls(piece.slice(open + 1))
+      for (const sel of selectors.split(',')) {
         const cls = /^\s*[a-z0-9]*\.([\w-]+)\s*$/i.exec(sel)
         if (cls) map.set(cls[1], { ...(map.get(cls[1]) ?? {}), ...decls })
       }
@@ -232,12 +257,25 @@ export function sanitizeHtml(html: string): { body: HTMLElement; metaTitle?: str
     if (el.isConnected) unwrap(el)
   })
 
+  // Spaces and tabs the writer typed are kept (the DOM parser runs with
+  // preserveWhitespace). Only line breaks in the HTML source (a hand-written or
+  // "Save as Web Page" file wrapping its text) are source formatting: each,
+  // with the indentation around it, reads as one space, as a browser shows it.
+  const walker = doc.createTreeWalker(body, 4 /* NodeFilter.SHOW_TEXT */)
+  const texts: Text[] = []
+  while (walker.nextNode()) texts.push(walker.currentNode as Text)
+  for (const t of texts) {
+    if (t.parentElement?.closest('pre')) continue
+    const v = t.nodeValue ?? ''
+    if (/[\r\n]/.test(v)) t.nodeValue = v.replace(/[ \t]*(?:\r\n?|\n)[ \t\r\n]*/g, ' ')
+  }
+
   return { body, metaTitle, titleText, stats }
 }
 
 /** Sanitised HTML → TipTap JSON with the editor's own schema (what generateJSON does, without re-parsing). */
 export function htmlToDoc(html: string): HtmlResult {
   const { body, metaTitle, titleText, stats } = sanitizeHtml(html)
-  const doc = PMDOMParser.fromSchema(editorSchema()).parse(body).toJSON() as JSONContent
+  const doc = PMDOMParser.fromSchema(editorSchema()).parse(body, { preserveWhitespace: true }).toJSON() as JSONContent
   return { doc, metaTitle, titleText, stats }
 }

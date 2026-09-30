@@ -1,4 +1,4 @@
-import { isBareChapterNumber, isChapterHeading, isSceneBreak } from './chapters'
+import { bareChapterSequence, bareChapterValue, isBareChapterNumber, isChapterHeading, isSceneBreak } from './chapters'
 
 describe('isChapterHeading', () => {
   it.each([
@@ -63,4 +63,17 @@ describe('isSceneBreak', () => {
   it.each(['', 'The end.', '*emphasis*', '— he said', '#hashtag', 'A * B', '1.'])('rejects %j', (l) =>
     expect(isSceneBreak(l)).toBe(false),
   )
+})
+
+describe('bare chapter numbers', () => {
+  it('reads their values', () => {
+    expect(['I', 'IV', 'IX', 'XIV', 'XL', 'MCMXC', '12.', '3'].map(bareChapterValue)).toEqual([1, 4, 9, 14, 40, 1990, 12, 3])
+    expect(bareChapterValue('Hello')).toBeNull()
+  })
+
+  it('finds the longest run counting up by one', () => {
+    expect(bareChapterSequence([30, 30])).toEqual([])
+    expect(bareChapterSequence([1, 2, 100, 3])).toEqual([0, 1, 3])
+    expect(bareChapterSequence([100, 1, 2])).toEqual([1, 2])
+  })
 })

@@ -1,8 +1,9 @@
 import type { JSONContent } from '@tiptap/core'
+import JSZip from 'jszip'
 import { checkContent } from '../editor/contentCheck'
 import { buildBombDocx, buildDocx, patchDeclaredSize } from './__fixtures__/buildDocx'
 import { importManuscript } from './importManuscript'
-import { MAX_IMPORT_BYTES } from './limits'
+import { formatMB, MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
 import { DOCX_MIME } from './sniff'
 import { blockText } from './structure'
 import { ImportError } from './types'
@@ -64,6 +65,20 @@ describe('importManuscript — Word', () => {
     expect(joined).toMatch(/1 scene break/)
     expect(JSON.stringify(r.content)).toContain('Check the tide tables.')
     expect(JSON.stringify(r.content)).not.toContain('Too slow?')
+  })
+
+  it('keeps Word’s Quote paragraphs as one block quote and highlighter as highlight', async () => {
+    const data = await buildDocx([
+      { runs: ['She read the letter aloud.'] },
+      { style: 'Quote', runs: ['“Keep the light burning,”'] },
+      { style: 'Quote', runs: ['the old keeper wrote.'] },
+      { runs: ['It was ', { text: 'important', highlight: 'yellow' }, '.'] },
+    ])
+    const r = await importManuscript({ name: 'q.docx', data })
+    const blocks = (r.content as { content: JSONContent[] }).content
+    expect(blocks.map((b) => b.type)).toEqual(['paragraph', 'blockquote', 'paragraph'])
+    expect(blocks[1].content?.map((p) => p.content?.[0]?.text)).toEqual(['“Keep the light burning,”', 'the old keeper wrote.'])
+    expect(blocks[2].content?.[1]).toEqual({ type: 'text', text: 'important', marks: [{ type: 'highlight' }] })
   })
 
   it('prefers the document’s metadata title, and ignores junk metadata titles', async () => {
@@ -166,5 +181,162 @@ describe('importManuscript — limits and errors', () => {
     expect(blocks((await importManuscript({ name: 'download', data: '<!doctype html><p>Hello</p>' })).content)).toEqual(['Hello'])
     const docx = await buildDocx([{ runs: ['From Drive'] }])
     expect(blocks((await importManuscript({ name: 'download', data: docx })).content)).toEqual(['From Drive'])
+  })
+})
+
+describe('importManuscript — Word fidelity', () => {
+  const chapters = [
+    { runs: ['It began.'] },
+    { style: 'Heading1' as const, runs: [] },
+    { runs: ['First chapter text.'] },
+    { style: 'Heading1' as const, runs: ['The Storm'] },
+    { runs: ['Second chapter text.'] },
+  ]
+
+  it('keeps automatic "Chapter %1" heading numbers, including on an untitled numbered heading', async () => {
+    for (const linkStyle of [true, false]) {
+      const paras = linkStyle ? chapters : chapters.map((p) => (p.style ? { ...p, numbered: true } : p))
+      const data = await buildDocx(paras, { headingNumbering: { lvlText: 'Chapter %1', linkStyle } })
+      const r = await importManuscript({ name: 'Book.docx', data })
+      expect(blocks(r.content)).toEqual(['It began.', 'H1:Chapter 1', 'First chapter text.', 'H1:Chapter 2 The Storm', 'Second chapter text.'])
+      expect(r.chapterCount).toBe(2)
+      expect(r.warnings.join(' ')).toMatch(/2 headings used Word’s automatic numbering/)
+    }
+  })
+
+  it('formats heading numbers as Word shows them (Roman, words, start value)', async () => {
+    const data = await buildDocx(chapters, { headingNumbering: { lvlText: 'Part %1', numFmt: 'upperRoman', start: 3, linkStyle: true } })
+    expect(blocks((await importManuscript({ name: 'Book.docx', data })).content)).toContain('H1:Part IV The Storm')
+    const words = await buildDocx(chapters, { headingNumbering: { lvlText: 'Chapter %1', numFmt: 'cardinalText', linkStyle: true } })
+    expect(blocks((await importManuscript({ name: 'Book.docx', data: words })).content)).toContain('H1:Chapter One')
+  })
+
+  it('leaves numbered body lists alone', async () => {
+    const data = await buildDocx([{ runs: ['Buy milk'], numbered: true }, { runs: ['Text.'] }], { headingNumbering: { lvlText: '%1.' } })
+    const r = await importManuscript({ name: 'List.docx', data })
+    expect(blocks(r.content)).toEqual(['orderedList', 'Text.'])
+    expect(r.warnings.join(' ')).not.toMatch(/automatic numbering/)
+  })
+
+  it('recognises "Chapter 4" + Shift-Enter + title in one paragraph', async () => {
+    const data = await buildDocx([{ runs: ['Chapter 4', '\n', 'The Calm'] }, { runs: ['Quiet.'] }, { runs: ['Chapter Two: The Storm'] }, { runs: ['Loud.'] }])
+    const r = await importManuscript({ name: 'Book.docx', data })
+    expect(blocks(r.content)).toEqual(['H1:Chapter 4\nThe Calm', 'Quiet.', 'H1:Chapter Two: The Storm', 'Loud.'])
+    expect(r.chapterCount).toBe(2)
+  })
+
+  it('keeps typed double spaces and tabs inside paragraphs', async () => {
+    const data = await buildDocx([{ runs: ['\t', 'She said <hi> & left.  Two spaces.', '\t', 'after tab'] }])
+    expect(blocks((await importManuscript({ name: 'Letter.docx', data })).content)).toEqual(['She said <hi> & left.  Two spaces.\tafter tab'])
+  })
+
+  it('names the manuscript from its visible Title, not a stale document property', async () => {
+    const data = await buildDocx([{ style: 'Title', runs: ['My New Book'] }, { runs: ['Chapter 1'] }, { runs: ['Text.'] }], {
+      coreTitle: 'Old Book From Last Year',
+    })
+    const r = await importManuscript({ name: 'Copy of old.docx', data })
+    expect(r.title).toBe('My New Book')
+    expect(r.chapterCount).toBe(1)
+  })
+
+  it('measures a main document hidden under a non-.xml name (zip-bomb guard)', async () => {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', '<Types/>')
+    zip.file(
+      '_rels/.rels',
+      '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.bin"/></Relationships>',
+    )
+    zip.file('word/dummy.xml', '<x/>')
+    zip.file('word/document.bin', ' '.repeat(3 * 1024 * 1024))
+    const bytes = new Uint8Array(await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } }))
+    expect((await importError(vetDocx(bytes, 1024 * 1024))).code).toBe('too_large')
+    // Even disguised as a picture, the part the relationships name as the document is measured.
+    const img = new JSZip()
+    img.file('[Content_Types].xml', '<Types/>')
+    img.file('_rels/.rels', (await zip.file('_rels/.rels')!.async('string')).replace('word/document.bin', 'word/media/image1.png'))
+    img.file('word/dummy.xml', '<x/>')
+    img.file('word/media/image1.png', ' '.repeat(3 * 1024 * 1024))
+    const imgBytes = new Uint8Array(await img.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } }))
+    expect((await importError(vetDocx(imgBytes, 1024 * 1024))).code).toBe('too_large')
+  })
+
+  it('resolves the parts mammoth reads from the relationships', async () => {
+    const pkg = await vetDocx(new Uint8Array(await buildDocx([{ runs: ['Hi'] }], { footnotes: { 1: 'x' }, headingNumbering: { lvlText: '%1' } })))
+    expect(pkg.parts).toEqual({
+      document: 'word/document.xml',
+      related: { styles: 'word/styles.xml', numbering: 'word/numbering.xml', footnotes: 'word/footnotes.xml' },
+    })
+  })
+})
+
+describe('importManuscript — Markdown and text titles', () => {
+  it('takes a Markdown book title from a leading H1 and does not count it as a chapter', async () => {
+    const r = await importManuscript({
+      name: 'draft3-final.md',
+      data: '# The Lighthouse Keeper\n\n# Chapter 1\n\nOne.\n\n# Chapter 2\n\nTwo.\n\n# Chapter 3\n\nThree.',
+    })
+    expect(r.title).toBe('The Lighthouse Keeper')
+    expect(r.chapterCount).toBe(3)
+  })
+
+  it('prefers Markdown front matter for the title and notes that the metadata was left out', async () => {
+    const r = await importManuscript({ name: 'x.md', data: '---\ntitle: Orchard\n---\n# The Orchard\n\n# Chapter 1\n\nText.' })
+    expect(r.title).toBe('Orchard')
+    expect(r.chapterCount).toBe(1)
+    expect(r.warnings.join(' ')).toMatch(/metadata block/)
+  })
+
+  it('takes a plain-text title from a short first line above the chapters', async () => {
+    const r = await importManuscript({ name: 'draft3.txt', data: 'THE ORCHARD\nby Jane Doe\n\nChapter 1\nOne.\n\nChapter 2\nTwo.\n\nChapter 3\nThree.' })
+    expect(r.title).toBe('THE ORCHARD')
+    expect(r.chapterCount).toBe(3)
+  })
+
+  it('keeps the file name when the first line is prose', async () => {
+    const r = await importManuscript({ name: 'notes.md', data: '# Chapter 1\n\nText.' })
+    expect(r.title).toBe('notes')
+    const t = await importManuscript({ name: 'story.txt', data: 'It was late.\n\nChapter 1\nText.' })
+    expect(t.title).toBe('story')
+  })
+
+  it('notes when hard-wrapped lines were joined into paragraphs', async () => {
+    const src = [
+      'It was a bright cold day in April, and the clocks were striking',
+      'thirteen. Winston Smith, his chin nuzzled into his breast in an',
+      'effort to escape the vile wind, slipped quickly.',
+    ].join('\n')
+    const r = await importManuscript({ name: 'wrapped.txt', data: src })
+    expect(blocks(r.content)).toHaveLength(1)
+    expect(r.warnings.join(' ')).toMatch(/wrapped at about 63 characters/)
+  })
+})
+
+describe('importManuscript — odd inputs', () => {
+  it('imports <br><br>-separated HTML as paragraphs with chapters and scene breaks', async () => {
+    const r = await importManuscript({
+      name: 'old.html',
+      data: '<body>Chapter 1<br><br>She ran.<br><br>* * *<br><br>He stayed.<br><br>Chapter 2<br><br>End.</body>',
+    })
+    expect(blocks(r.content)).toEqual(['H1:Chapter 1', 'She ran.', 'horizontalRule', 'He stayed.', 'H1:Chapter 2', 'End.'])
+    expect(r.chapterCount).toBe(2)
+  })
+
+  it('refuses a Google Drive for desktop ".gdoc" shortcut and points to the Drive import', async () => {
+    const shortcut = '{"doc_id":"1AbC","email":"a@b.com","resource_key":""}'
+    for (const src of [
+      { name: 'My Novel.gdoc', data: shortcut },
+      { name: 'My Novel', mimeType: 'application/vnd.google-apps.document', data: new TextEncoder().encode(shortcut).buffer },
+    ]) {
+      const e = await importError(importManuscript(src))
+      expect(e.code).toBe('unsupported')
+      expect(e.message).toMatch(/shortcut to a Google Doc.*Import from Google Drive/)
+    }
+  })
+
+  it('never says a file over the limit is the size of the limit', () => {
+    expect(formatMB(25.3 * 1024 * 1024)).toBe('25.3 MB')
+    expect(formatMB(MAX_IMPORT_BYTES)).toBe('25 MB')
+    expect(formatMB(MAX_IMPORT_BYTES + 1)).toBe('25.1 MB')
+    expect(tooLargeMessage('Novel.docx', 25.3 * 1024 * 1024)).toMatch(/is 25\.3 MB; the largest file Thunder Writer can import is 25 MB/)
   })
 })

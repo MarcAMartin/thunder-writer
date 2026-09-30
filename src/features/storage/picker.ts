@@ -48,6 +48,10 @@ export interface PickerDocsView {
   setMimeTypes(mimeTypes: string): PickerDocsView
   setIncludeFolders(included: boolean): PickerDocsView
   setSelectFolderEnabled(enabled: boolean): PickerDocsView
+  /** Tab label shown in the Picker. */
+  setLabel(label: string): PickerDocsView
+  /** Show Shared drives instead of My Drive. */
+  setEnableDrives(enabled: boolean): PickerDocsView
 }
 
 export interface Picker {
@@ -190,10 +194,15 @@ function toPicked(d: PickerDocument | undefined): PickedFile | null {
  */
 export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promise<PickedFile | null> {
   return new Promise<PickedFile | null>((resolve, reject) => {
-    const imports = new ns.DocsView(ns.ViewId.DOCS)
-      .setMimeTypes(IMPORTABLE_MIME_TYPES.join(','))
-      .setIncludeFolders(true)
-      .setSelectFolderEnabled(false)
+    const importView = (label: string) =>
+      new ns.DocsView(ns.ViewId.DOCS)
+        .setMimeTypes(IMPORTABLE_MIME_TYPES.join(','))
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setLabel(label)
+    const imports = importView('Manuscripts')
+    // Books kept with co-authors, an agent or a publisher often live in a Shared drive.
+    const shared = importView('Shared drives').setEnableDrives(true)
 
     let picker: Picker | null = null
     let settled = false
@@ -210,6 +219,7 @@ export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promis
 
     const builder = new ns.PickerBuilder()
       .addView(imports)
+      .addView(shared)
       .setOAuthToken(opts.token)
       .setDeveloperKey(opts.developerKey)
       .setAppId(opts.appId)
@@ -241,6 +251,7 @@ export function openPicker(ns: PickerNamespace, opts: OpenPickerOptions): Promis
         .setMimeTypes(THUNDER_JSON_MIME)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false)
+        .setLabel('Thunder Writer files')
       builder.addView(thunder)
     }
 

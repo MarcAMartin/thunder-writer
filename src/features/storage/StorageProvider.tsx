@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { useDocuments, type DocumentsState } from '../../store/documents'
-import { flushPendingEdits } from '../../store/pendingEdits'
+import { flushPendingEdits, registerBrowserPersister } from '../../store/pendingEdits'
 import { useSettings } from '../../store/settings'
 import { createAutosaveScheduler, pendingDriveDocs } from './autosave'
 import { applyRemoteDocs, openCrossTab, remoteOwned, type CrossTab } from './crossTab'
@@ -39,6 +39,13 @@ function useLocalPersistence() {
           localError: state === 'error' ? (err instanceof Error ? err.message : 'Could not save in this browser.') : null,
         }),
       onWritten: (saved, deleted) => tabs?.post(saved, deleted),
+    })
+
+    // Cmd/Ctrl+S ("Saved in your browser") writes the queue now and reports whether it worked.
+    const unregisterPersister = registerBrowserPersister(async () => {
+      await sync.flush()
+      const st = status()
+      return st.local === 'error' ? (st.localError ?? 'Could not save in this browser.') : null
     })
 
     const flushNow = () => {
@@ -92,6 +99,7 @@ function useLocalPersistence() {
 
     return () => {
       cancelled = true
+      unregisterPersister()
       unsubscribe?.()
       tabs?.dispose()
       document.removeEventListener('visibilitychange', onVisibility)

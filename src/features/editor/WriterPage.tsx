@@ -9,6 +9,7 @@ import { SuggestionsPane } from '../suggestions/SuggestionsPane'
 import { FileMenu } from '../storage/FileMenu'
 import { ImportHost } from '../import/ImportHost'
 import { useManuscriptDrop } from '../import/useManuscriptDrop'
+import { DesktopCopyBadge, ExportHost, SaveToComputerMenu, useExportUi } from '../export'
 import { createEditorBridge } from './bridge'
 import { sanitizeContent } from './contentCheck'
 import { PageView } from './PageView'
@@ -17,6 +18,8 @@ import { StatusBar } from './StatusBar'
 import { DocTitle, Toolbar } from './Toolbar'
 import { useManuscriptEditor } from './useManuscriptEditor'
 import './editor.css'
+
+const openSaveToComputer = () => useExportUi.getState().openChooser()
 
 function Bolt() {
   return (
@@ -48,9 +51,8 @@ export function WriterPage() {
   const resolved = useMemo(() => resolveFormat(format), [format])
   const { editor, contentError } = useManuscriptEditor(hydrated ? currentId : null)
   const startWritingSession = useSession((s) => s.startWritingSession)
-  // Dropping a .docx/.txt/.md/.html file on the pages imports it as a new manuscript.
-  const mainRef = useRef<HTMLElement>(null)
-  const dragging = useManuscriptDrop(mainRef)
+  // Dropping a .docx/.txt/.md/.html file anywhere on the page imports it as a new manuscript.
+  const dragging = useManuscriptDrop()
 
   // The session clock starts the first time the writer opens the editor. Coming
   // back from Settings (a remount) must not zero the time, cost or open cards.
@@ -99,7 +101,11 @@ export function WriterPage() {
             </Link>
             <DocTitle />
             <div className="ed-filemenu">
-              <FileMenu />
+              <FileMenu
+                afterMenu={<SaveToComputerMenu />}
+                afterStatus={<DesktopCopyBadge />}
+                onSaveToComputer={openSaveToComputer}
+              />
             </div>
             <div className="ed-topbar-spacer" />
             <ThemeToggle />
@@ -109,7 +115,7 @@ export function WriterPage() {
           </div>
           <Toolbar />
         </header>
-        <main ref={mainRef} className="ed-main" id="manuscript" aria-label="Manuscript pages" aria-busy={!ready}>
+        <main className="ed-main" id="manuscript" aria-label="Manuscript pages" aria-busy={!ready}>
           {ready && contentError ? (
             <UnreadableManuscript message={contentError} />
           ) : ready ? (
@@ -125,6 +131,8 @@ export function WriterPage() {
           <SuggestionsPane />
         </div>
         <StatusBar />
+        {/* Save to computer: desktop copy service, Cmd/Ctrl+S, the Save dialog and its toast. */}
+        <ExportHost />
         <ImportHost dragging={dragging} />
       </div>
     </EditorContext.Provider>

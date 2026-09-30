@@ -209,6 +209,13 @@
   .fm-status > span:last-child,
   .fm-status-btn { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 }
+@media (max-width: 600px) {
+  /* Phone-width header: the dot shows the save state; the words stay for screen readers (and the title tooltip). */
+  .fm-status > span:last-child:not(.fm-status-dot) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .fm-status-btn { max-width: 90px; }
+}
 
 /* Import from Google Drive */
 .fm-foot-start { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-right: auto; }

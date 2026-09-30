@@ -1,4 +1,4 @@
-import { decodeText } from './decode'
+import { decodeText, ENCODING_WARNING, encodingWarning, MIXED_ENCODING, MIXED_ENCODING_WARNING } from './decode'
 
 const bytes = (...b: number[]) => new Uint8Array(b).buffer
 
@@ -30,5 +30,30 @@ describe('decodeText', () => {
 
   it('strips a BOM from string input', () => {
     expect(decodeText('﻿Hello').text).toBe('Hello')
+  })
+})
+
+describe('decodeText — a UTF-8 file with a few stray legacy bytes', () => {
+  it('keeps every valid UTF-8 character and reads only the stray bytes as Windows-1252', () => {
+    const utf8 = new TextEncoder().encode('She said “hello” — café. ')
+    // “hi” pasted from an old ANSI file.
+    const buf = new Uint8Array([...utf8, 0x93, 0x68, 0x69, 0x94]).buffer
+    const r = decodeText(buf)
+    expect(r.text).toBe('She said “hello” — café. “hi”')
+    expect(r.guessed).toBe(true)
+    expect(r.encoding).toBe(MIXED_ENCODING)
+    expect(encodingWarning(r)).toBe(MIXED_ENCODING_WARNING)
+  })
+
+  it('still reads a file that is essentially Windows-1252 as Windows-1252 throughout', () => {
+    // "Ã©" would be valid UTF-8 (C3 A9) on its own, but the file is full of legacy bytes.
+    const r = decodeText(bytes(0x93, 0x68, 0x69, 0x94, 0x20, 0xc3, 0xa9, 0x20, 0x96, 0x20, 0xe9))
+    expect(r.text).toBe('“hi” Ã© – é')
+    expect(r.encoding).toBe('windows-1252')
+    expect(encodingWarning(r)).toBe(ENCODING_WARNING)
+  })
+
+  it('gives no warning for clean UTF-8', () => {
+    expect(encodingWarning(decodeText(new TextEncoder().encode('Café').buffer))).toBeNull()
   })
 })

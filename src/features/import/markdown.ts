@@ -1,12 +1,12 @@
 import type { JSONContent } from '@tiptap/core'
-import { isSceneBreak } from './chapters'
+import { isChapterHeading, isSceneBreak } from './chapters'
 import { blockLineMode, normalizeNewlines } from './text'
 
 /**
  * A small Markdown reader covering what manuscripts use: ATX and setext
- * headings, paragraphs, *emphasis*, **strong**, ~~strike~~, blockquotes,
- * bullet and numbered lists (nested by indentation), and thematic breaks /
- * scene breaks. Code is kept as plain text, links keep their text, images are
+ * headings, paragraphs, *emphasis*, **strong**, ~~strike~~, <u>underline</u>,
+ * ==highlight==, blockquotes, bullet and numbered lists (nested by
+ * indentation), and thematic breaks / scene breaks. Code is kept as plain text, links keep their text, images are
  * dropped (counted). It builds TipTap JSON directly, so no HTML is involved.
  */
 
@@ -14,10 +14,12 @@ export interface MarkdownResult {
   doc: JSONContent
   /** From YAML front matter (`title: …`), if present. */
   title?: string
+  /** True when a YAML front-matter block was read as metadata and left out. */
+  frontMatter: boolean
   images: number
 }
 
-type MarkName = 'bold' | 'italic' | 'strike'
+type MarkName = 'bold' | 'italic' | 'underline' | 'strike' | 'highlight'
 interface Ctx {
   images: number
 }
@@ -53,7 +55,21 @@ function matchListItem(line: string): ListMatch | null {
 const startsBlock = (line: string) =>
   ATX.test(line) || QUOTE.test(line) || FENCE.test(line) || isSceneBreak(line) || BULLET.test(line)
 
+/** A line that can sit over "===" as a heading: short and not ending like a sentence. */
 const looksLikeTitle = (t: string) => t.length <= 80 && !/[.,;:!?"”’)]$/.test(t)
+
+/**
+ * Stricter test for a line over "---", which in a manuscript is far more often
+ * a scene break under the last line of a scene: at most ~60 characters and ten
+ * words, no sentence punctuation inside it, and not ending in punctuation,
+ * closing italics (* or _), a dash or an ellipsis. "Chapter 3: The Storm" passes.
+ */
+function looksLikeSetext2Title(t: string): boolean {
+  if (isChapterHeading(t)) return true
+  if (t.length > 60 || t.split(/\s+/).length > 10) return false
+  if (/[.,;:!?"”’'*_)\]—–…-]$/.test(t)) return false
+  return !/[.?!,;]["”’']?\s/.test(t)
+}
 
 const indentOf = (l: string) => l.length - l.trimStart().length
 
@@ -115,7 +131,10 @@ function parseBlocks(lines: string[], ctx: Ctx): JSONContent[] {
     i++
     // A setext underline ("===" / "---") only makes a heading of a short, title-like line;
     // under a sentence it is a manuscript scene break.
-    if (i < lines.length && (SETEXT_1.test(lines[i]) || SETEXT_2.test(lines[i])) && looksLikeTitle(t)) {
+    if (
+      i < lines.length &&
+      ((SETEXT_1.test(lines[i]) && looksLikeTitle(t)) || (SETEXT_2.test(lines[i]) && looksLikeSetext2Title(t)))
+    ) {
       out.push({ type: 'heading', attrs: { level: SETEXT_1.test(lines[i]) ? 1 : 2 }, content: parseInline(t, ctx) })
       i++
       continue
@@ -192,7 +211,13 @@ function paragraphs(lines: string[], ctx: Ctx): JSONContent[] {
 /* Inline                                                                     */
 /* ------------------------------------------------------------------------- */
 
-type Rule = { re: RegExp; kind: 'escape' | 'code' | 'image' | 'link' | 'autolink' | 'mark'; marks?: MarkName[] }
+type Rule = {
+  re: RegExp
+  kind: 'escape' | 'code' | 'image' | 'link' | 'autolink' | 'mark'
+  marks?: MarkName[]
+  /** Capture group holding the marked text (default 1). */
+  group?: number
+}
 
 const inner = (d: string) => `(?:\\\\[\\s\\S]|[^${d}\\\\])`
 const RULES: Rule[] = [
@@ -231,6 +256,10 @@ const RULES: Rule[] = [
     ),
   },
   { kind: 'mark', marks: ['strike'], re: /~~(?![\s~])([\s\S]+?)(?<!\s)~~/g },
+  // Markdown has no underline: <u>…</u> (and <ins>) is the usual spelling, and what Thunder Writer writes.
+  { kind: 'mark', marks: ['underline'], re: /<(u|ins)>((?:\\[\s\S]|[^\\])+?)<\/\1>/gi, group: 2 },
+  // ==highlight== (Obsidian, Typora, markdown-it-mark).
+  { kind: 'mark', marks: ['highlight'], re: /==(?![\s=])((?:\\[\s\S]|=(?!=)|[^=\\])+?)(?<!\s)==/g },
 ]
 
 function pushText(out: JSONContent[], text: string, marks: MarkName[]) {
@@ -288,9 +317,9 @@ export function parseInline(text: string, ctx: Ctx, marks: MarkName[] = [], out:
         break
       case 'mark': {
         const add = (rule.marks ?? []).filter((mk) => !marks.includes(mk))
-        const order: MarkName[] = ['bold', 'italic', 'strike']
+        const order: MarkName[] = ['bold', 'italic', 'underline', 'strike', 'highlight']
         const merged = order.filter((mk) => marks.includes(mk) || add.includes(mk))
-        parseInline(m[1], ctx, merged, out)
+        parseInline(m[rule.group ?? 1], ctx, merged, out)
         break
       }
     }
@@ -300,29 +329,41 @@ export function parseInline(text: string, ctx: Ctx, marks: MarkName[] = [], out:
   return out
 }
 
-/** YAML front matter (`---` … `---`) at the very top: read its title and remove it. */
-function frontMatter(lines: string[]): { title?: string; body: string[] } {
+/** `key: value`, `key:` (a list or block follows), `- item`, an indented continuation, or a `#` comment. */
+const YAML_LINE = /^(?:[A-Za-z_][\w-]*[ \t]*:(?:[ \t].*)?|[ \t]*-(?:[ \t].*)?|[ \t]+\S.*|#.*)$/
+
+/**
+ * YAML front matter (`---` … `---`) at the very top: read its title and remove
+ * it. Only a block that is unmistakably metadata counts: it starts on the line
+ * right after the opening `---`, has no blank lines, and every line is YAML
+ * (with at least one `key: value`). Anything else, such as a manuscript that
+ * opens with a `---` scene break over "Note: this draft is rough.", is left
+ * as text, so no prose is ever dropped.
+ */
+function frontMatter(lines: string[]): { title?: string; body: string[]; found?: boolean } {
   if (lines[0]?.trim() !== '---') return { body: lines }
   for (let i = 1; i < Math.min(lines.length, 60); i++) {
     const l = lines[i].trim()
+    if (!l) return { body: lines }
     if (l === '---' || l === '...') {
       const meta = lines.slice(1, i)
-      if (!meta.some((m) => /^[A-Za-z_][\w-]*\s*:/.test(m))) return { body: lines }
+      if (!meta.length || !meta.every((m) => YAML_LINE.test(m)) || !meta.some((m) => /^[A-Za-z_][\w-]*[ \t]*:/.test(m))) {
+        return { body: lines }
+      }
       const t = meta.map((m) => /^title\s*:\s*(.*)$/i.exec(m)).find(Boolean)
       const title = t?.[1].trim().replace(/^(["'])(.*)\1$/, '$2').trim()
-      return { title: title || undefined, body: lines.slice(i + 1) }
+      return { title: title || undefined, body: lines.slice(i + 1), found: true }
     }
-    if (!l) continue
   }
   return { body: lines }
 }
 
 export function markdownToDoc(src: string): MarkdownResult {
   const ctx: Ctx = { images: 0 }
-  const { title, body } = frontMatter(normalizeNewlines(src).split('\n'))
+  const { title, body, found } = frontMatter(normalizeNewlines(src).split('\n'))
   const content = parseBlocks(
     body.map((l) => l.replace(/^\t+/, (tabs) => '    '.repeat(tabs.length))),
     ctx,
   )
-  return { doc: { type: 'doc', content }, title, images: ctx.images }
+  return { doc: { type: 'doc', content }, title, frontMatter: !!found, images: ctx.images }
 }

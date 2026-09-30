@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDocuments } from '../../store/documents'
+import { flushPendingEdits } from '../../store/pendingEdits'
 import { DesktopCopyControl } from './DesktopCopyControl'
-import { restoreDesktopCopy, startDesktopCopyService } from './desktopCopy'
+import { flushPendingDesktopCopy, restoreDesktopCopy, startDesktopCopyService } from './desktopCopy'
 import { saveCurrentDocOnce, useExportUi } from './exportUi'
 import { EXPORT_FORMATS, MENU_ORDER, type ExportKind } from './formats'
 import { useSaveShortcut } from './useSaveShortcut'
@@ -25,12 +26,22 @@ export function ExportHost() {
   )
 }
 
-/** Starts the desktop-copy service and restores the open manuscript's copy. */
+/**
+ * Starts the desktop-copy service and follows the open manuscript: switching
+ * writes the previous manuscript's pending changes to its file, then restores
+ * the new one's copy (the badge, panel and Cmd/Ctrl+S all act on the open one).
+ */
 export function useDesktopCopyService(): void {
   const currentId = useDocuments((s) => s.currentId)
   useEffect(() => startDesktopCopyService(), [])
   useEffect(() => {
-    if (currentId) void restoreDesktopCopy(currentId)
+    if (!currentId) return
+    void restoreDesktopCopy(currentId)
+    return () => {
+      // The editor flushes its keystrokes on switch; the old copy then catches up now.
+      flushPendingEdits()
+      flushPendingDesktopCopy(currentId)
+    }
   }, [currentId])
 }
 

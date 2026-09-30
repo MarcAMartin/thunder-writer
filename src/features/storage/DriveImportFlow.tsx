@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useEditorContext } from '../../shell/EditorContext'
 import type { DriveImportOutcome } from './driveImport'
 import { importErrorMessage } from './driveImport'
 import {
@@ -44,6 +45,12 @@ export function DriveImportFlow({ pick, onClose }: { pick: Promise<PickedFile | 
   const close = () => {
     closed.current = true
     onClose()
+  }
+  const { editor } = useEditorContext()
+  /** Closes the result and puts the cursor at the start of the new manuscript. */
+  const startWriting = () => {
+    close()
+    setTimeout(() => editor?.commands.focus('start'), 0)
   }
 
   useEffect(() => {
@@ -163,7 +170,7 @@ export function DriveImportFlow({ pick, onClose }: { pick: Promise<PickedFile | 
       </div>
     )
     footer = (
-      <button type="button" className="tw-btn tw-btn-primary" onClick={close} data-autofocus="">
+      <button type="button" className="tw-btn tw-btn-primary" onClick={startWriting} data-autofocus="">
         Start writing
       </button>
     )

@@ -136,7 +136,8 @@ export function splitAtBlankLines(node: JSONContent): JSONContent[] {
 }
 
 /** "The Calm", "A Storm at Sea": a short line that can be a chapter title under "Chapter 4". */
-const isTitleLine = (l: string) => l.length > 0 && l.length <= 60 && l.split(/\s+/).length <= 10 && !/[,;:]$/.test(l)
+const isTitleLine = (l: string) =>
+  l.length <= 60 && /^[\p{Lu}\d"“‘'(\[]/u.test(l) && l.split(/\s+/).length <= 10 && !/[,;:]$/.test(l)
 
 /**
  * "Chapter 4" + a line break + "The Calm" typed as one paragraph: the first

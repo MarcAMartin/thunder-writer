@@ -28,7 +28,7 @@ export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
     kind: 'docx',
     label: 'Word document (.docx)',
     short: 'Word',
-    hint: 'Recommended. Opens in Word, Pages and Google Docs, with your book’s page size and chapters.',
+    hint: 'Opens in Word, Pages and Google Docs, with your book’s page size and chapters.',
     ext: '.docx',
     mime: DOCX_MIME,
     pickerExt: ['.docx'],

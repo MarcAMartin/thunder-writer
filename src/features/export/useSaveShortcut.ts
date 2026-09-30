@@ -1,25 +1,36 @@
 import { useEffect } from 'react'
 import { useDocuments } from '../../store/documents'
-import { flushPendingEdits } from '../../store/pendingEdits'
+import { saveInBrowserNow } from '../../store/pendingEdits'
 import { getDesktopCopyStatus, resumeDesktopCopy, writeDesktopCopyNow } from './desktopCopy'
 import { modKey, useExportUi } from './exportUi'
 
-/** Cmd+S (Mac) / Ctrl+S (elsewhere); Shift adds "save as". */
-export function isSaveShortcut(e: Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')
+/**
+ * Cmd+S (Mac) / Ctrl+S (elsewhere). Shift is left alone: Cmd/Ctrl+Shift+S is
+ * the editor's strikethrough shortcut (TipTap), shown in the toolbar.
+ * Latin layouts match on the typed letter (so Dvorak's Cmd+O isn't taken for
+ * Cmd+S); other scripts (Cyrillic, Greek…) match on the physical S key.
+ */
+export function isSaveShortcut(
+  e: Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'altKey'> & { shiftKey?: boolean },
+): boolean {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return false
+  if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase() === 's'
+  return e.code === 'KeyS'
 }
 
 const BROWSER = 'Saved in your browser'
 
 /**
  * What Cmd/Ctrl+S does:
+ *  - always: push the editor's pending keystrokes into the store and write
+ *    the browser copy (IndexedDB) now, so "Saved in your browser" is true;
  *  - with a desktop copy for this manuscript: write it now (asking for
  *    permission again first if a reload took it away) and confirm with a toast;
  *  - without one: open "Save to your computer" (Word first); once the writer
  *    has closed that dialog this session, just confirm the browser save and
- *    point at Shift+S;
- *  - with Shift: always open "Save to your computer".
- * Runs inside the key press, so permission prompts and Save dialogs may open.
+ *    offer the dialog from the toast.
+ * Runs inside the key press, so permission prompts and Save dialogs may open:
+ * nothing is awaited before them.
  */
 export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promise<void> {
   const ui = useExportUi.getState()
@@ -28,24 +39,42 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     ui.showToast('Open a manuscript first.', 'info')
     return
   }
-  flushPendingEdits()
-  const mod = modKey()
+  // Starts the IndexedDB write synchronously; awaited only after any permission prompt.
+  const browserSave = saveInBrowserNow()
+  const browserFailed = (err: string, extra = '') =>
+    useExportUi.getState().showToast(`Not saved in your browser: ${err}${extra}`, 'error', {
+      label: 'Save to computer…',
+      run: () => useExportUi.getState().openChooser(),
+    })
+  const openChooser = (note?: string) => {
+    useExportUi.getState().openChooser(note)
+    void browserSave.then((err) => {
+      if (err) browserFailed(err)
+    })
+  }
   if (opts.saveAs) {
-    ui.openChooser()
+    openChooser()
     return
   }
+  const mod = modKey()
   const status = getDesktopCopyStatus(docId)
   if (!status) {
     if (ui.chooserDismissed) {
-      ui.showToast(`${BROWSER}. Press ${mod}⇧S to also save a copy to your computer.`, 'ok')
+      const err = await browserSave
+      if (err) browserFailed(err)
+      else
+        useExportUi.getState().showToast(`${BROWSER}.`, 'ok', {
+          label: 'Also save to computer…',
+          run: () => useExportUi.getState().openChooser(),
+        })
     } else {
-      ui.openChooser()
+      openChooser()
     }
     return
   }
   const name = status.fileName
   if (status.phase === 'missing') {
-    ui.openChooser(`${name} was moved or deleted. Choose where to keep your copy.`)
+    openChooser(`${name} was moved or deleted. Choose where to keep your copy.`)
     return
   }
 
@@ -60,6 +89,11 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     if (toastId !== null) useExportUi.getState().dismissToast(toastId)
   }
 
+  const browserErr = await browserSave
+  if (browserErr) {
+    browserFailed(browserErr, outcome === 'written' || outcome === 'clean' ? ` · ${name} on your computer is up to date` : '')
+    return
+  }
   const now = getDesktopCopyStatus(docId)
   const show = useExportUi.getState().showToast
   switch (outcome) {
@@ -92,8 +126,9 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
 }
 
 /**
- * Intercepts Cmd/Ctrl+S (and Shift+Cmd/Ctrl+S) everywhere in the page so the
- * browser's "Save web page" dialog never appears. Mount once (ExportHost does).
+ * Intercepts Cmd/Ctrl+S everywhere in the page (capture phase, before the
+ * editor sees it) so the browser's "Save web page" dialog never appears.
+ * Mount once (ExportHost does).
  */
 export function useSaveShortcut(enabled = true): void {
   useEffect(() => {
@@ -104,7 +139,7 @@ export function useSaveShortcut(enabled = true): void {
       e.stopPropagation()
       // Holding the keys down repeats the event; one save is enough.
       if (e.repeat) return
-      void handleSaveShortcut({ saveAs: e.shiftKey })
+      void handleSaveShortcut()
     }
     window.addEventListener('keydown', onKey, { capture: true })
     return () => window.removeEventListener('keydown', onKey, { capture: true })

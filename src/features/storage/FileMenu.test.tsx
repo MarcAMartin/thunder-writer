@@ -49,6 +49,29 @@ describe('FileMenu', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Saved locally')
   })
 
+  it('hosts Save to computer: slots beside the button and status, and a menu item that returns focus to File', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <MemoryRouter initialEntries={['/write']}>
+        <FileMenu afterMenu={<button type="button">Save to computer</button>} afterStatus={<span>copy badge</span>} onSaveToComputer={onSave} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('button', { name: 'Save to computer' })).toBeInTheDocument()
+    expect(screen.getByText('copy badge')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^file/i }))
+    await user.click(screen.getByRole('menuitem', { name: 'Save to computer…' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /^file/i })).toHaveFocus()
+  })
+
+  it('has no Save to computer item unless the page provides it', async () => {
+    const user = userEvent.setup()
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    expect(screen.queryByRole('menuitem', { name: 'Save to computer…' })).not.toBeInTheDocument()
+  })
+
   it('creates a new manuscript from the menu', async () => {
     const user = userEvent.setup()
     renderAt()

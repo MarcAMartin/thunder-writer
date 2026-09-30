@@ -197,14 +197,14 @@ export class GoogleAuth {
         new DriveError(
           denied ? 'access_denied' : 'auth',
           denied
-            ? 'Google Drive access was not granted. Thunder Writer only sees files it creates.'
+            ? 'Google Drive access was not granted. Thunder Writer only sees files it creates and files you pick with Import from Google Drive.'
             : `Google sign-in failed${resp.error_description ? `: ${resp.error_description}` : '.'}`,
         ),
       )
       return
     }
     if (oauth2.hasGrantedAllScopes && !oauth2.hasGrantedAllScopes(resp, DRIVE_SCOPE)) {
-      p.reject(new DriveError('access_denied', 'Please allow Thunder Writer to see the files it creates in Drive.'))
+      p.reject(new DriveError('access_denied', 'Please allow Thunder Writer to see the files it creates in Drive (and the files you pick to import).'))
       return
     }
     const seconds = Number(resp.expires_in ?? 3600)

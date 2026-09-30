@@ -119,42 +119,131 @@ async function inflate(bytes: Uint8Array, e: ZipEntry, limit: number, keep: bool
   return { size, data: out }
 }
 
-const isXmlPart = (name: string) => /\.(xml|rels)$/i.test(name)
+/**
+ * Parts the importer never reads: pictures, audio/video, embedded fonts and
+ * embedded objects. Everything else is measured, whatever its name, because
+ * mammoth finds the parts it reads through relationships, not by file name.
+ */
+const isMediaName = (name: string) =>
+  /\/embeddings\//i.test(name) ||
+  /\.(png|jpe?g|jfif|gif|bmp|tiff?|emf|wmf|emz|wmz|svg|webp|ico|wdp|heic|mp4|m4v|mov|avi|wmv|mp3|m4a|wav|odttf|ttf|otf|fntdata)$/i.test(name)
+
+const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+/** Parts mammoth reads through the main document's relationships (docx-reader.js findPartPaths). */
+const RELATED_PARTS = ['styles', 'numbering', 'footnotes', 'endnotes', 'comments'] as const
+export type RelatedPart = (typeof RELATED_PARTS)[number]
+
+interface Relationship {
+  type: string
+  target: string
+}
+
+function readRelationships(xml: string | null): Relationship[] {
+  if (!xml) return []
+  const out: Relationship[] = []
+  for (const m of xml.matchAll(/<(?:[\w-]+:)?Relationship\b([^>]*)>/g)) {
+    const attr = (name: string) => new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(m[1])
+    const type = attr('Type')
+    const target = attr('Target')
+    if (type && target) out.push({ type: type[1] ?? type[2], target: target[1] ?? target[2] })
+  }
+  return out
+}
+
+/** Resolves a relationship target against a folder, the way mammoth does ("../x" and "/x" included). */
+function joinPart(base: string, target: string): string {
+  const parts = target.startsWith('/') ? [] : base.split('/').filter(Boolean)
+  for (const seg of target.split('/')) {
+    if (!seg || seg === '.') continue
+    if (seg === '..') parts.pop()
+    else parts.push(seg)
+  }
+  return parts.join('/')
+}
+
+const dirname = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')
+const basename = (path: string) => path.slice(path.lastIndexOf('/') + 1)
+/** "word/document.xml" → "word/_rels/document.xml.rels". */
+const relsPathFor = (path: string) => joinPart(dirname(path), `_rels/${basename(path)}.rels`)
+
+export interface DocxParts {
+  /** The main document part (usually word/document.xml). */
+  document: string
+  /** Styles, numbering, notes and comments parts, when the package has them. */
+  related: Partial<Record<RelatedPart, string>>
+}
 
 export interface DocxPackage {
   entries: ZipEntry[]
-  /** Reads a small part as text (null when absent or the browser can't inflate). */
+  /** The parts mammoth will read, resolved from the package relationships. */
+  parts: DocxParts
+  /** Reads a small part as text (null when absent). */
   readText(name: string): Promise<string | null>
 }
 
+/** Browsers without DecompressionStream can't measure a .docx safely, so it isn't opened at all. */
+export const NO_INFLATE_MESSAGE =
+  'This browser can’t safely open Word files. Update it (or use a current version of Chrome, Edge, Firefox or Safari), or save the manuscript as plain text and import that.'
+
 /**
- * Checks a .docx is a sane zip whose XML parts fit within MAX_DOCX_XML_BYTES,
- * measured by actually inflating them (declared sizes can lie). Images and
- * other media are never inflated: the importer drops them.
+ * Checks a .docx is a sane zip whose parts fit within MAX_DOCX_XML_BYTES,
+ * measured by actually inflating them (declared sizes can lie). Every part is
+ * counted except pictures, fonts and embedded objects, and those are counted
+ * too if the package's relationships name one of them as a part mammoth reads
+ * (the main document, styles, numbering, notes or comments), since a crafted
+ * file can give its document any name. Pictures are otherwise never inflated:
+ * the importer drops them.
  */
 export async function vetDocx(bytes: Uint8Array, cap = MAX_DOCX_XML_BYTES): Promise<DocxPackage> {
   const entries = readZipDirectory(bytes)
   if (!entries.some((e) => e.name === '[Content_Types].xml') || !entries.some((e) => /^word\/.+\.xml$/i.test(e.name))) {
     throw new ImportError('corrupt', 'This file isn’t a Word document (.docx), or it is damaged. Try opening it in Word and saving it again.')
   }
-  const xml = entries.filter((e) => isXmlPart(e.name))
+  if (!canInflate()) throw new ImportError('unsupported', NO_INFLATE_MESSAGE)
+  const byName = new Map(entries.map((e) => [e.name, e]))
+  let budget = cap
+  const counted = new Set<string>()
+  /** Inflates a part within the remaining budget (counting it once) and decodes it. */
+  const readPart = async (name: string, limit = budget): Promise<string | null> => {
+    const e = byName.get(name)
+    if (!e) return null
+    const { size, data } = await inflate(bytes, e, limit, true, cap)
+    if (!counted.has(name)) {
+      counted.add(name)
+      budget -= size
+    }
+    return data ? new TextDecoder('utf-8').decode(data) : null
+  }
+
+  // Which parts mammoth will read (docx-reader.js findPartPaths), resolved like it does.
+  const pkgRels = readRelationships(await readPart('_rels/.rels'))
+  const exists = (p: string) => byName.has(p)
+  const find = (rels: Relationship[], type: string, base: string, fallback: string) =>
+    rels.filter((r) => r.type === REL + type).map((r) => joinPart(base, r.target)).find(exists) ?? fallback
+  const document = find(pkgRels, 'officeDocument', '', 'word/document.xml')
+  const docRels = readRelationships(await readPart(relsPathFor(document)))
+  const related: DocxParts['related'] = {}
+  for (const name of RELATED_PARTS) {
+    const p = find(docRels, name, dirname(document), `word/${name}.xml`)
+    if (exists(p)) related[name] = p
+  }
+  const read = new Set([document, ...Object.values(related)])
+
+  const measured = entries.filter((e) => !isMediaName(e.name) || read.has(e.name))
   let declared = 0
-  for (const e of xml) {
+  for (const e of measured) {
     if (e.uncompressedSize === ZIP64 || e.compressedSize === ZIP64) throw tooLarge(cap)
     declared += e.uncompressedSize
   }
   if (declared > cap) throw tooLarge(cap)
-  if (canInflate()) {
-    let budget = cap
-    for (const e of xml) budget -= (await inflate(bytes, e, budget, false, cap)).size
+  for (const e of measured) {
+    if (!counted.has(e.name)) budget -= (await inflate(bytes, e, budget, false, cap)).size
   }
+
   return {
     entries,
-    async readText(name) {
-      const e = entries.find((x) => x.name === name)
-      if (!e || !canInflate()) return null
-      const { data } = await inflate(bytes, e, cap, true, cap)
-      return data ? new TextDecoder('utf-8').decode(data) : null
-    },
+    parts: { document, related },
+    // Everything has been measured by now; later reads are only bounded by the cap.
+    readText: (name) => readPart(name, cap),
   }
 }

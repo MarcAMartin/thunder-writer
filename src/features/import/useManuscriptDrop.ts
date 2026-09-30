@@ -1,19 +1,24 @@
-import { useEffect, useState, type RefObject } from 'react'
+import { useEffect, useState } from 'react'
 import { importLocalFile } from './importFlow'
 
 const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files')
 
 /**
- * Dropping a file on `target` (e.g. the manuscript pages) imports it as a new
- * manuscript. Listeners run in the capture phase so the editor never tries to
- * insert the file, and only file drags are intercepted: dragging text inside
- * the editor works as before. Returns true while a file is dragged over it.
+ * While mounted (on the writer page), dropping a file ANYWHERE in the window
+ * imports it as a new manuscript: on the pages, the toolbar, the Suggestions
+ * pane or a dialog. Without this, a file released outside the pages would
+ * get the browser's default action and open in the tab, leaving the app with
+ * unsaved edits still in the autosave delay.
+ *
+ * Listeners sit on the window in the capture phase, so the editor never tries
+ * to insert the file, and only file drags are intercepted: dragging text
+ * inside the editor works as before. If several files are dropped, the first
+ * is imported and the result says the rest were left out. Returns true while
+ * a file is dragged over the window.
  */
-export function useManuscriptDrop(target: RefObject<HTMLElement | null>): boolean {
+export function useManuscriptDrop(): boolean {
   const [dragging, setDragging] = useState(false)
   useEffect(() => {
-    const el = target.current
-    if (!el) return
     let depth = 0
     const over = (e: DragEvent) => {
       if (!hasFiles(e)) return
@@ -38,19 +43,20 @@ export function useManuscriptDrop(target: RefObject<HTMLElement | null>): boolea
       e.stopPropagation()
       depth = 0
       setDragging(false)
-      const file = e.dataTransfer?.files?.[0]
-      if (file) void importLocalFile(file)
+      const files = [...(e.dataTransfer?.files ?? [])]
+      const [file, ...rest] = files
+      if (file) void importLocalFile(file, { alsoDropped: rest.map((f) => f.name) })
     }
-    el.addEventListener('dragenter', enter, true)
-    el.addEventListener('dragover', over, true)
-    el.addEventListener('dragleave', leave, true)
-    el.addEventListener('drop', drop, true)
+    window.addEventListener('dragenter', enter, true)
+    window.addEventListener('dragover', over, true)
+    window.addEventListener('dragleave', leave, true)
+    window.addEventListener('drop', drop, true)
     return () => {
-      el.removeEventListener('dragenter', enter, true)
-      el.removeEventListener('dragover', over, true)
-      el.removeEventListener('dragleave', leave, true)
-      el.removeEventListener('drop', drop, true)
+      window.removeEventListener('dragenter', enter, true)
+      window.removeEventListener('dragover', over, true)
+      window.removeEventListener('dragleave', leave, true)
+      window.removeEventListener('drop', drop, true)
     }
-  }, [target])
+  }, [])
   return dragging
 }

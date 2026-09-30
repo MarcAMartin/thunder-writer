@@ -69,6 +69,7 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
         ref={triggerRef}
         type="button"
         className="tw-btn ex-trigger"
+        aria-label="Save to computer"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -81,7 +82,8 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
           }
         }}
       >
-        Save to computer <span aria-hidden="true">▾</span>
+        {/* Narrow screens show just "Save ▾"; the accessible name stays "Save to computer". */}
+        Save<span className="ex-trigger-long"> to computer</span> <span aria-hidden="true">▾</span>
       </button>
 
       {open && (

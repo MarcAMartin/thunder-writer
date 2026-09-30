@@ -27,8 +27,17 @@ import './storage.css'
 type ModalKind = 'open' | 'drive' | 'conflict' | null
 type Note = { text: string; tone: 'ok' | 'error' } | null
 
+export interface FileMenuProps {
+  /** Rendered right after the File button (the writer page puts "Save to computer ▾" here). */
+  afterMenu?: ReactNode
+  /** Rendered right after the save status (the writer page puts the desktop-copy badge here). */
+  afterStatus?: ReactNode
+  /** Adds "Save to computer…" to the menu (opens the Save to your computer panel). */
+  onSaveToComputer?: () => void
+}
+
 /** File actions for the writer header: new/open/import/export, Google Drive, save status. */
-export function FileMenu() {
+export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [modal, setModal] = useState<ModalKind>(null)
   const [note, setNote] = useState<Note>(null)
@@ -202,8 +211,20 @@ export function FileMenu() {
           <div id="fm-file-menu" ref={menuRef} className="fm-menu" role="menu" aria-label="File" onKeyDown={onMenuKey}>
             <MenuItem onClick={act(() => createDoc())}>New manuscript</MenuItem>
             <MenuItem onClick={act(() => setModal('open'))}>Open manuscript…</MenuItem>
-            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)} />
+            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)} returnFocus={() => triggerRef.current} />
             <MenuItem onClick={act(() => fileInput.current?.click())}>Import .thunder.json…</MenuItem>
+            {onSaveToComputer && (
+              <MenuItem
+                onClick={() => {
+                  // Focus goes back to File first, so closing the panel returns it there.
+                  closeMenu()
+                  onSaveToComputer()
+                }}
+                disabled={!doc}
+              >
+                Save to computer…
+              </MenuItem>
+            )}
             <MenuItem onClick={act(exportBackup)} disabled={!doc}>
               Download backup
             </MenuItem>
@@ -287,7 +308,11 @@ export function FileMenu() {
         )}
       </div>
 
+      {afterMenu}
+
       <SaveStatus onError={(m) => flash(m, 'error')} onResolve={() => setModal('conflict')} />
+
+      {afterStatus}
 
       <div className="fm-note-slot" aria-live="polite">
         {note && <span className={`fm-note fm-note-${note.tone}`}>{note.text}</span>}

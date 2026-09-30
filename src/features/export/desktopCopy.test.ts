@@ -265,6 +265,50 @@ describe('desktop copy', () => {
     expect(getDesktopCopyStatus('d1')).toBeUndefined()
   })
 
+  it('forgets the saved file handle when the deleted manuscript’s copy was never loaded this session', async () => {
+    openDoc()
+    const f = fakeFile()
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => f.handle)
+    await setUpDesktopCopy('d1', 'txt')
+    __resetDesktopCopyForTests() // a reload: the handle is only in IndexedDB
+    expect(mem.get(STORE)?.has('d1')).toBe(true)
+    useDocuments.getState().deleteDoc('d1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mem.get(STORE)?.has('d1')).toBe(false)
+    await restoreDesktopCopy('d1')
+    expect(getDesktopCopyStatus('d1')).toBeUndefined()
+  })
+
+  it('does not bring back the copy of a manuscript deleted while its handle was loading', async () => {
+    openDoc()
+    const f = fakeFile()
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => f.handle)
+    await setUpDesktopCopy('d1', 'txt')
+    __resetDesktopCopyForTests()
+    const restoring = restoreDesktopCopy('d1')
+    useDocuments.setState({ docs: {}, currentId: null }) // deleted before get() resolved (no service diff)
+    await restoring
+    expect(getDesktopCopyStatus('d1')).toBeUndefined()
+  })
+
+  it('keeps one copy per manuscript and writes the one that changed', async () => {
+    const a = makeExportDoc([p(t('Book A.'))], { id: 'a', title: 'A' })
+    const b = makeExportDoc([p(t('Book B.'))], { id: 'b', title: 'B' })
+    useDocuments.getState().hydrate([a, b], 'a')
+    const fa = fakeFile('A.txt')
+    const fb = fakeFile('B.txt')
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => fa.handle)
+    await setUpDesktopCopy('a', 'txt')
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => fb.handle)
+    useDocuments.getState().openDoc('b')
+    await setUpDesktopCopy('b', 'txt')
+    useDocuments.getState().updateContent('b', { type: 'doc', content: [p(t('Book B, revised.'))] })
+    expect(await writeDesktopCopyNow('b')).toBe('written')
+    expect(await writeDesktopCopyNow('a')).toBe('clean')
+    expect(fb.written.at(-1)).toBe('Book B, revised.\n')
+    expect(fa.written).toEqual(['Book A.\n'])
+  })
+
   it('writes a real Word file for the default format', async () => {
     openDoc()
     const f = fakeFile('My Novel.docx')

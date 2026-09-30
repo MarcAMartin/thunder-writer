@@ -38,6 +38,8 @@
 .im-file { margin: 0 0 6px; font-weight: 600; overflow-wrap: anywhere; }
 .im-error { margin: 0; line-height: 1.5; color: var(--tw-text); }
 .im-choose { font-size: 15px; padding: 10px 18px; }
+.im-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.im-toast-note { color: var(--tw-text-muted); font-size: 13px; }
 
 .im-stats {
   display: flex;

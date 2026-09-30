@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import { checkContent } from '../editor/contentCheck'
-import { htmlToDoc, sanitizeHtml } from './html'
+import { classStyles, htmlToDoc, sanitizeHtml } from './html'
 
 const marked = (doc: JSONContent) => {
   const out: Array<[string, string]> = []
@@ -104,5 +104,38 @@ describe('htmlToDoc — Google Docs export', () => {
     const r = htmlToDoc('<table><tr><td>One</td><td><p>Two</p></td></tr></table>')
     expect(r.stats.tables).toBe(1)
     expect(r.doc.content?.map((b) => b.type)).toEqual(['paragraph', 'paragraph'])
+  })
+})
+
+describe('htmlToDoc — spacing', () => {
+  const text = (html: string) => marked(htmlToDoc(html).doc).map(([t]) => t).join('|')
+
+  it('keeps typed double spaces and tabs (as the .txt reader does)', () => {
+    expect(text('<p>She said &lt;hi&gt; &amp; left.  Two spaces.\tafter tab</p>')).toBe('She said <hi> & left.  Two spaces.\tafter tab')
+  })
+
+  it('reads line breaks and indentation in the HTML source as a single space', () => {
+    expect(text('<body>\n  <p>\n    She ran\n    and ran.\n  </p>\n  <p>Next.</p>\n</body>')).toBe(' She ran and ran. |Next.')
+  })
+})
+
+describe('classStyles', () => {
+  it('reads class rules, including inside @media blocks', () => {
+    const d = new DOMParser().parseFromString(
+      '<style>/* x */ .c1{font-weight:700} p.c2, .c3 { font-style: italic } @media print { .c4{text-decoration:underline} }</style>',
+      'text/html',
+    )
+    const m = classStyles(d)
+    expect(m.get('c1')).toEqual({ 'font-weight': '700' })
+    expect(m.get('c2')).toEqual({ 'font-style': 'italic' })
+    expect(m.get('c3')).toEqual({ 'font-style': 'italic' })
+    expect(m.get('c4')).toEqual({ 'text-decoration': 'underline' })
+  })
+
+  it('stays linear on a huge <style> with no braces (a crafted or damaged file)', () => {
+    const d = new DOMParser().parseFromString(`<style>${'a'.repeat(1_000_000)}</style><p>Hi</p>`, 'text/html')
+    const t0 = performance.now()
+    classStyles(d)
+    expect(performance.now() - t0).toBeLessThan(1000)
   })
 })

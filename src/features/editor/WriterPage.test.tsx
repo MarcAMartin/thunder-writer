@@ -5,11 +5,19 @@ import type { TiptapEditorHTMLElement } from '@tiptap/core'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import { useImportFlow } from '../import/importFlow'
+import { useExportUi } from '../export'
 import type { ThunderDoc } from '../../types'
 
 // Sibling features are built independently; isolate the editor from them.
 vi.mock('../suggestions/SuggestionsPane', () => ({ SuggestionsPane: () => <aside data-testid="pane" /> }))
-vi.mock('../storage/FileMenu', () => ({ FileMenu: () => <div data-testid="filemenu" /> }))
+vi.mock('../storage/FileMenu', () => ({
+  FileMenu: ({ afterMenu, afterStatus }: { afterMenu?: React.ReactNode; afterStatus?: React.ReactNode }) => (
+    <div data-testid="filemenu">
+      {afterMenu}
+      {afterStatus}
+    </div>
+  ),
+}))
 
 const { WriterPage } = await import('./WriterPage')
 
@@ -49,6 +57,7 @@ beforeEach(() => {
   useDocuments.setState({ ...initialDocs, docs: {}, currentId: null, hydrated: false, dirtyForDrive: {} }, true)
   useSession.getState().resetSession()
   useImportFlow.setState({ phase: { kind: 'idle' }, prompt: false })
+  useExportUi.setState({ toast: null, chooserOpen: false, chooserNote: null, chooserDismissed: false })
 })
 
 afterEach(() => {
@@ -134,6 +143,47 @@ describe('WriterPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Bold' })).toHaveAttribute('aria-pressed', 'true'))
     fireEvent.change(screen.getByLabelText('Paragraph style'), { target: { value: 'h1' } })
     expect(getEditor().getHTML()).toMatch(/^<h1/)
+  })
+
+  it('puts Save to computer in the header and opens the dialog from it', async () => {
+    useDocuments.getState().hydrate([docWith('x')], 'doc-1')
+    renderPage()
+    await waitFor(() => expect(getEditor().getText()).toBe('x'))
+    fireEvent.click(screen.getByRole('button', { name: /Save to computer/ }))
+    expect(screen.getByRole('menuitem', { name: /Word document \(\.docx\)/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: /Keep a copy on my computer/ }))
+    expect(await screen.findByRole('dialog', { name: 'Save to your computer' })).toBeInTheDocument()
+  })
+
+  it('Cmd/Ctrl+S inside the editor: no browser Save page, pending keystrokes reach the store at once', async () => {
+    useDocuments.getState().hydrate([docWith('Once upon a time.')], 'doc-1')
+    useExportUi.setState({ chooserDismissed: true })
+    renderPage()
+    await waitFor(() => expect(getEditor().getText()).toBe('Once upon a time.'))
+    act(() => {
+      getEditor().chain().focus('end').insertContent(' Saved.').run()
+    })
+    // Still inside the editor's 400 ms debounce.
+    expect(JSON.stringify(useDocuments.getState().docs['doc-1'].content)).not.toContain('Saved.')
+    const prose = document.querySelector('.ed-prose')!
+    const notPrevented = fireEvent.keyDown(prose, { key: 's', code: 'KeyS', ctrlKey: true })
+    expect(notPrevented).toBe(false)
+    expect(JSON.stringify(useDocuments.getState().docs['doc-1'].content)).toContain('Saved.')
+    await waitFor(() => expect(useExportUi.getState().toast?.text).toBe('Saved in your browser.'))
+  })
+
+  it('leaves Cmd/Ctrl+Shift+S to the editor as strikethrough', async () => {
+    useDocuments.getState().hydrate([docWith('Strike me.')], 'doc-1')
+    renderPage()
+    await waitFor(() => expect(getEditor().getText()).toBe('Strike me.'))
+    act(() => {
+      getEditor().commands.focus()
+      getEditor().commands.selectAll()
+    })
+    const prose = document.querySelector('.ed-prose')!
+    fireEvent.keyDown(prose, { key: 'S', code: 'KeyS', keyCode: 83, ctrlKey: true, shiftKey: true })
+    expect(getEditor().getHTML()).toContain('<s>Strike me.</s>')
+    expect(useExportUi.getState().chooserOpen).toBe(false)
   })
 
   it('renames the manuscript inline', async () => {

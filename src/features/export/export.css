@@ -1,7 +1,8 @@
 /* Export feature: Save to computer menu, desktop copy, save dialog, toast. Theme tokens only. */
 
 .ex-menu-wrap { position: relative; display: inline-flex; }
-.ex-trigger { display: inline-flex; align-items: center; gap: 6px; }
+.ex-trigger { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ex-trigger-long { white-space: pre; }
 
 .ex-menu {
   position: absolute;
@@ -79,6 +80,17 @@
 .ex-chip:hover { background: var(--tw-surface-2); color: var(--tw-text); }
 .ex-chip:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 1px; }
 .ex-chip-text { overflow: hidden; text-overflow: ellipsis; }
+
+/* Narrow writer header: short button label, dot-only chip, full-width menu. */
+@media (max-width: 900px) {
+  .ex-chip { max-width: 170px; }
+}
+@media (max-width: 600px) {
+  .ex-trigger-long { display: none; }
+  .ex-chip { max-width: none; }
+  .ex-chip-text { display: none; }
+  .ex-menu { position: fixed; top: 52px; left: 12px; right: 12px; width: auto; }
+}
 .ex-chip.ex-tone-warn,
 .ex-chip.ex-tone-error { border-color: currentColor; }
 

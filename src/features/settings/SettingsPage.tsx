@@ -214,10 +214,17 @@ export function SettingsPage() {
                 Under <em>APIs &amp; Services → Library</em>, enable the <strong>Google Drive API</strong>.
               </li>
               <li>
-                Set up the <em>OAuth consent screen</em> (External is fine; add yourself as a test user).
+                Open <em>Google Auth Platform</em> and fill in <em>Branding</em> (older consoles:{' '}
+                <em>APIs &amp; Services → OAuth consent screen</em>). External is fine.
               </li>
               <li>
-                Under <em>Credentials</em>, create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.
+                Under <em>Google Auth Platform → Audience → Test users</em>, add the Google account you’ll connect
+                with. While the app is in Testing, Google blocks every account that isn’t on that list (“Access
+                blocked … has not completed the Google verification process”).
+              </li>
+              <li>
+                Under <em>Google Auth Platform → Clients</em> (older consoles: <em>APIs &amp; Services → Credentials</em>),
+                create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.
               </li>
               <li>
                 Add <code>{origin}</code>
@@ -232,8 +239,9 @@ export function SettingsPage() {
               <li>Paste the client ID above.</li>
             </ol>
             <p className="st-hint">
-              Thunder Writer asks only for the <code>drive.file</code> permission: it can see files it creates, never the
-              rest of your Drive. Access lasts for this browser session.
+              Thunder Writer asks only for the <code>drive.file</code> permission: it can see files it creates and files
+              you pick with <em>Import from Google Drive</em>, never the rest of your Drive. Access lasts for this browser
+              session.
             </p>
           </details>
           <PickerFields
@@ -681,7 +689,7 @@ function PickerFields(props: {
             <strong>Google Picker API</strong>.
           </li>
           <li>
-            Under <em>Credentials</em>, choose <em>Create credentials → API key</em>.
+            Under <em>APIs &amp; Services → Credentials</em>, choose <em>Create credentials → API key</em>.
           </li>
           <li>
             Edit the key. Under <em>Application restrictions</em> pick <strong>Websites</strong> and add{' '}

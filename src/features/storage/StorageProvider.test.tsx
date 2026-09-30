@@ -18,7 +18,7 @@ vi.mock('./local', () => ({
 }))
 
 import { StorageProvider } from './StorageProvider'
-import { registerPendingFlush } from '../../store/pendingEdits'
+import { registerPendingFlush, saveInBrowserNow } from '../../store/pendingEdits'
 import { CHANNEL_NAME } from './crossTab'
 import { useStorageStatus } from './driveSession'
 
@@ -68,6 +68,31 @@ describe('StorageProvider', () => {
 
     act(() => useDocuments.getState().deleteDoc(id))
     await waitFor(() => expect(disk.docs.has(id)).toBe(false))
+  })
+
+  it('saveInBrowserNow (Cmd/Ctrl+S) writes the editor\'s pending typing to IndexedDB before resolving, and reports failures', async () => {
+    const local = await import('./local')
+    render(<StorageProvider>{null}</StorageProvider>)
+    await waitFor(() => expect(useDocuments.getState().hydrated).toBe(true))
+    let id = ''
+    act(() => {
+      id = useDocuments.getState().createDoc({ title: 'Fresh' }).id
+    })
+    const unregister = registerPendingFlush(() => useDocuments.getState().updateTitle(id, 'Typed just now'))
+    let err: string | null = 'unset'
+    await act(async () => {
+      err = await saveInBrowserNow()
+    })
+    expect(err).toBeNull()
+    expect((disk.docs.get(id) as ThunderDoc).title).toBe('Typed just now')
+    unregister()
+
+    vi.mocked(local.saveDoc).mockRejectedValueOnce(new Error('QuotaExceededError'))
+    act(() => useDocuments.getState().updateTitle(id, 'Again'))
+    await act(async () => {
+      err = await saveInBrowserNow()
+    })
+    expect(err).toBe('QuotaExceededError')
   })
 
   it('still hydrates (empty) when browser storage is blocked', async () => {

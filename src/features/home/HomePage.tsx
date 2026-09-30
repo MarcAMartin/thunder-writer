@@ -15,7 +15,7 @@ import {
   SpellIcon,
   StoryIcon,
 } from './icons'
-import { IMPORT_LOCAL_PATH, OPEN_FROM_DRIVE_PATH, SETTINGS_PATH, WRITE_PATH } from './routes'
+import { IMPORT_LOCAL_PATH, OPEN_FROM_DRIVE_PATH, OPEN_PICKER_PATH, SETTINGS_PATH, WRITE_PATH } from './routes'
 import './home.css'
 
 interface Item {
@@ -131,6 +131,14 @@ export function HomePage() {
                   Open from Google Drive
                 </Link>
               </div>
+
+              <p className="hm-fineprint">
+                Already writing in Google Docs or Word?{' '}
+                <Link to={OPEN_PICKER_PATH} className="hm-inline-link">
+                  Import it straight from Google Drive
+                </Link>
+                ; the original is never changed.
+              </p>
 
               <p className="hm-fineprint">
                 No account and no server. Your manuscript lives in this browser and, if you choose,

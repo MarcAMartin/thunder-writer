@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { JSONContent } from '@tiptap/core'
+import { ENCODING_WARNING } from '../import/decode'
+import { importManuscript } from '../import/importManuscript'
+import { MAX_IMPORT_BYTES, tooLargeMessage } from '../import/limits'
+import { blockText } from '../import/structure'
 import { ImportError, type ImportResult, type ImportSource } from '../import/types'
 import { DRIVE_API, DriveClient, DriveError } from './drive'
 import {
@@ -67,18 +72,59 @@ describe('downloadPickedFile', () => {
     const bytes = new Uint8Array([0x50, 0x4b, 3, 4])
     const d = setup(() => new Response(bytes, { status: 200 }))
     const src = await downloadPickedFile(d.client, docx)
-    expect(d.calls[0].url).toBe(`${DRIVE_API}/D1?alt=media`)
+    expect(d.calls[0].url).toBe(`${DRIVE_API}/D1?alt=media&supportsAllDrives=true`)
     expect(src.data).toBeInstanceOf(ArrayBuffer)
     expect(new Uint8Array(src.data as ArrayBuffer)).toEqual(bytes)
     expect(src).toMatchObject({ name: 'Draft 3.docx', mimeType: DOCX_MIME })
     expect(src.format).toBeUndefined()
   })
 
-  it('downloads text types with alt=media as text', async () => {
+  it('downloads text types with alt=media as bytes, for the importer to decode', async () => {
     const d = setup(() => new Response('# Chapter One', { status: 200 }))
     const src = await downloadPickedFile(d.client, md)
-    expect(d.calls[0].url).toBe(`${DRIVE_API}/M1?alt=media`)
-    expect(src).toEqual({ name: 'notes.md', mimeType: 'text/markdown', data: '# Chapter One' })
+    expect(d.calls[0].url).toBe(`${DRIVE_API}/M1?alt=media&supportsAllDrives=true`)
+    expect(src).toMatchObject({ name: 'notes.md', mimeType: 'text/markdown' })
+    expect(src.data).toBeInstanceOf(ArrayBuffer)
+    expect(new TextDecoder().decode(src.data as ArrayBuffer)).toBe('# Chapter One')
+  })
+
+  it('keeps legacy encodings intact: a Windows-1252 .txt from Drive imports with its curly quotes and a note', async () => {
+    // “hi” café, saved by an old Word "Save as Plain Text" (Windows-1252).
+    const cp1252 = new Uint8Array([0x93, 0x68, 0x69, 0x94, 0x20, 0x63, 0x61, 0x66, 0xe9])
+    const d = setup(() => new Response(cp1252, { status: 200, headers: { 'Content-Type': 'text/plain; charset=windows-1252' } }))
+    const src = await downloadPickedFile(d.client, { id: 'T', name: 'Old draft.txt', mimeType: 'text/plain' })
+    const r = await importManuscript(src)
+    expect(blockText((r.content as JSONContent).content![0])).toBe('“hi” café')
+    expect(r.warnings).toContain(ENCODING_WARNING)
+  })
+
+  it('reads a UTF-16 (Notepad "Unicode") Markdown file from Drive without stray characters', async () => {
+    const text = '# Chapter 1\n\nHi there.'
+    const utf16 = new Uint8Array(2 + text.length * 2)
+    utf16.set([0xff, 0xfe])
+    for (let i = 0; i < text.length; i++) utf16[2 + i * 2] = text.charCodeAt(i)
+    const d = setup(() => new Response(utf16, { status: 200 }))
+    const src = await downloadPickedFile(d.client, md)
+    const r = await importManuscript(src)
+    const blocks = (r.content as JSONContent).content!
+    expect(blocks.map((b) => blockText(b))).toEqual(['Chapter 1', 'Hi there.'])
+    expect(JSON.stringify(r.content)).not.toContain('hardBreak')
+  })
+
+  it('stops a download that turns out larger than the import limit, even without a size from the Picker', async () => {
+    const big = new Uint8Array(MAX_IMPORT_BYTES + 10)
+    const d = setup(() => new Response(big, { status: 200 }))
+    const err = await downloadPickedFile(d.client, docx).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ImportError)
+    expect((err as ImportError).code).toBe('too_large')
+    expect((err as ImportError).message).toMatch(/largest file Thunder Writer can import is 25 MB/)
+  })
+
+  it('refuses a download whose Content-Length is over the limit before reading it', async () => {
+    const d = setup(() => new Response('x', { status: 200, headers: { 'Content-Length': String(40 * 1024 * 1024) } }))
+    const err = (await downloadPickedFile(d.client, md).catch((e: unknown) => e)) as ImportError
+    expect(err.code).toBe('too_large')
+    expect(err.message).toBe(tooLargeMessage('notes.md', 40 * 1024 * 1024))
   })
 
   it('refuses unsupported and oversized files without downloading', async () => {
@@ -154,7 +200,7 @@ describe('importPickedFile', () => {
     const importManuscript = vi.fn()
     const file = { id: 'T1', name: 'Backup.thunder.json', mimeType: 'application/json' }
     const out = await importPickedFile(file, { client: d.client, importManuscript })
-    expect(d.calls[0].url).toBe(`${DRIVE_API}/T1?alt=media`)
+    expect(d.calls[0].url).toBe(`${DRIVE_API}/T1?alt=media&supportsAllDrives=true`)
     expect(out).toEqual({ kind: 'thunder', file, doc })
     expect(importManuscript).not.toHaveBeenCalled()
 

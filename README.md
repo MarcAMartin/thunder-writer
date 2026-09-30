@@ -129,28 +129,42 @@ connected, to your Drive like any other.
 **The original file is only read, never changed.** This holds for files on
 your computer and for files picked in Google Drive.
 
-- **From your computer:** use **File › Import manuscript…**, drop a file onto
-  the pages, or use **Import a manuscript** on the home page.
-- **From Google Drive:** use **File › Import from Google Drive…**. This needs
-  the Picker setup described below.
+- **From your computer:** use **File › Import manuscript…**, drop a file
+  anywhere on the writer page, or use **Import a manuscript** on the home page.
+  If several files are dropped, only the first is imported (the result says so).
+- **From Google Drive:** use **File › Import from Google Drive…**, the
+  **Import it straight from Google Drive** link on the home page, or the
+  Google Drive button in the import prompt. Google Docs need no download
+  first. My Drive and Shared drives each have a tab. This needs the Picker
+  setup described below. A Google Drive for desktop `.gdoc` file on your
+  computer is only a shortcut; it is refused with a pointer to this route.
 
 | Format | What comes across |
 | ------ | ----------------- |
-| Word `.docx` | Paragraphs, Title and Heading 1–3 styles (Heading 4–6 become H3), bold, italic, underline, strikethrough, lists, quotes. Footnotes are kept as a numbered list at the end. Images and comments are left out, and the result dialog says how many. |
+| Word `.docx` | Paragraphs, Title and Heading 1–3 styles (Heading 4–6 become H3), bold, italic, underline, strikethrough, lists, quotes, typed spacing and tabs. Automatic heading numbers (Word's "Chapter 1" heading list numbering) are written into the heading text. The visible Title paragraph names the manuscript, ahead of the file's document properties. Footnotes are kept as a numbered list at the end. Images and comments are left out, and the result dialog says how many. |
 | Google Docs | Exported as HTML through the Picker, keeping the same formatting as `.docx`. A Doc too large for Google to export (about 10 MB) must first be downloaded as `.docx` and imported from your computer. |
 | `.html` | Headings, paragraphs, marks, lists, quotes and centre/right alignment. Scripts, frames, forms, styles and links are stripped; link text is kept. |
-| `.md` | Headings, emphasis, strikethrough, quotes, nested lists, scene breaks, and a `title:` in front matter. |
-| `.txt` | Paragraphs split by blank lines, with hard-wrapped lines joined, or one paragraph per line. Text is read as UTF-8, UTF-16, or Windows-1252. |
+| `.md` | Headings, emphasis, strikethrough, quotes, nested lists, scene breaks, and a `title:` in front matter. A leading `---` counts as front matter only if every line up to the next `---` is YAML; otherwise it is a scene break and nothing is dropped. A `---` under a sentence is a scene break, not a heading. A first `# Title` above the chapters names the manuscript and isn't counted as a chapter. |
+| `.txt` | Paragraphs split by blank lines, or one paragraph per line. Lines are joined only when the whole file is hard-wrapped at one width (the dialog says so). A longer gap than usual between paragraphs is kept as an empty line. A short first line above the chapters names the manuscript. |
 
-Files must be 25 MB or smaller. Old `.doc`, password-protected `.docx`, PDF,
+Text, Markdown and HTML files are read as UTF-8, UTF-16 (with a byte-order
+mark) or Windows-1252, and HTML honours its `<meta charset>`. A mostly UTF-8
+file with a few stray legacy bytes keeps its UTF-8, and only those bytes are
+read as Windows-1252. Files picked in Google Drive are decoded the same way.
+
+Files must be 25 MB or smaller, from your computer or from Drive. A larger
+Drive file is stopped during the download. Old `.doc`, password-protected `.docx`, PDF,
 RTF, ODT, Pages, EPUB and Scrivener projects are refused, with a message on how
 to export them as `.docx` or plain text.
 
 **Chapters and scene breaks.** A standalone line such as "Chapter 1",
 "CHAPTER ONE", "Chapter Twelve: The Storm", "Part One", "Prologue" or
 "Epilogue" becomes a Chapter heading (H1), so it starts on a new page when
-**Chapters start new page** is on. Bare numerals like "IV" or "12" are
-promoted only if at least two appear. A sentence that just begins with
+**Chapters start new page** is on. So does "Chapter 4" followed by its title on
+the next line (Shift+Enter) in the same paragraph. Bare numerals like "IV" or
+"12" are promoted only if at least two appear counting up (I, II, III), so a
+"XXX" to-do marker stays text. Paragraphs separated only by `<br><br>` in HTML
+are split into separate paragraphs. A sentence that just begins with
 "Chapter…" stays a paragraph. Lines such as `* * *`, `***`, `#`, `~~~` or `§`
 become the scene-break divider. Your words themselves are never changed; only
 empty paragraphs and trailing spaces are tidied.
@@ -166,15 +180,20 @@ You need a Google OAuth **Web** client id, which takes about 3 minutes:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick
    a project, then enable the **Google Drive API**.
-2. Set up the **OAuth consent screen**. External is fine, and add yourself as a
-   test user while it is in testing. Add the scope
+2. Open **Google Auth Platform** (older consoles: **APIs & Services → OAuth
+   consent screen**) and fill in **Branding**. External is fine. Add the scope
    `https://www.googleapis.com/auth/drive.file`.
-3. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**
-   and choose **Web application**.
-4. Under **Authorized JavaScript origins**, add `http://localhost:5173` and the
+3. Under **Google Auth Platform → Audience → Test users**, add every Google
+   account that will connect. While the app is in **Testing**, Google blocks
+   any other account with "Access blocked". Publishing the app (**Audience →
+   Publish app**) lifts that; `drive.file` is a non-sensitive scope.
+4. Under **Google Auth Platform → Clients** (older consoles: **APIs & Services →
+   Credentials → Create credentials → OAuth client ID**), create a client of
+   type **Web application**.
+5. Under **Authorized JavaScript origins**, add `http://localhost:5173` and the
    origin where you host the build. No redirect URI is needed, because the app
    uses Google Identity Services' token popup.
-5. Give the client id to the app in either of these ways:
+6. Give the client id to the app in either of these ways:
    - Copy `.env.example` to `.env.local` and set `VITE_GOOGLE_CLIENT_ID=…`, then
      restart `npm run dev`. The value is baked in at build time.
    - Paste it into **Settings → Google Drive → OAuth client ID**. This overrides
@@ -319,3 +338,38 @@ parsed leniently and validated with the same zod schema and sanitiser.
 
 Tests are colocated as `*.test.ts(x)` and run in jsdom. The pagination,
 scheduler, prompt, pricing, Drive and autosave logic are covered as pure units.
+
+## Saving to your computer
+
+Code: `src/features/export/` (mounted by `WriterPage` via `<ExportHost />`).
+
+- **Save to computer ▾** (writer header, next to **File**; also **File › Save to
+  computer…**) saves a one-off copy of the open manuscript as Word `.docx`
+  (recommended: book trim size, margins, font, chapters as Heading 1 starting
+  new pages, page numbers), Markdown, plain text, a print-ready `.html` page
+  (Print → Save as PDF gives a book-sized PDF) or a `.thunder.json` backup.
+  The `docx` library is loaded lazily, only when a Word file is built.
+- In Chrome and Edge the native Save dialog (`showSaveFilePicker`) opens on the
+  Desktop. Elsewhere, or if the dialog is blocked, the file is downloaded
+  through a temporary link and lands in Downloads (turn on "Ask where to save
+  each file" in the browser to pick the Desktop).
+- **Keep a copy on my computer** (Chrome/Edge, File System Access API): choose
+  a file once; it is rewritten about 15 s after you pause (at least every 30 s
+  while typing), when the tab is hidden, when you switch to another manuscript,
+  and on Cmd/Ctrl+S. The file handle is kept per manuscript in IndexedDB
+  (`thunder-writer-export`). After a reload the browser asks for write
+  permission again: click **Resume copy** in the header or press Cmd/Ctrl+S.
+  Deleting a manuscript stops its copy and forgets the handle (the file on
+  disk is left alone); **Clear all local data** removes the handles too.
+- **Cmd/Ctrl+S** is caught everywhere on `/write`, including inside the editor,
+  so the browser's "Save page" dialog never opens. It pushes the editor's
+  debounced keystrokes into the store, writes IndexedDB immediately and waits
+  for it before saying "Saved in your browser", then writes the desktop copy
+  if there is one (or opens **Save to your computer** the first time).
+  Cmd/Ctrl+**Shift**+S is left to the editor (strikethrough).
+- Round trips are tested (`src/features/export/roundtrip.test.ts`): a saved
+  `.docx`, `.md` or `.txt` re-imported with **File › Import manuscript…** comes
+  back with the same words, chapters, sections and scene breaks, and (Word and
+  Markdown) the same bold, italic, underline, strikethrough, highlight, lists
+  and block quotes. The importer reads Word's Quote style as a block quote and
+  its highlighter as highlight, and Markdown's `<u>…</u>` and `==…==`.

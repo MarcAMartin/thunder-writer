@@ -1,13 +1,14 @@
 import type { JSONContent } from '@tiptap/core'
 import { checkContent, sanitizeContent } from '../editor/contentCheck'
-import { decodeText, ENCODING_WARNING } from './decode'
+import { isBareChapterNumber, isChapterHeading, isSceneBreak } from './chapters'
+import { decodeText, encodingWarning, type DecodedText } from './decode'
 import { docxToHtml } from './docx'
 import { htmlToDoc, type HtmlStats } from './html'
 import { MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
 import { markdownToDoc } from './markdown'
 import { sniffFormat, stripKnownExtension } from './sniff'
-import { shapeManuscript } from './structure'
-import { textToDoc } from './text'
+import { blockText, shapeManuscript } from './structure'
+import { readPlainText } from './text'
 import { ImportError, type ImportResult, type ImportSource } from './types'
 
 /** File extensions the importer accepts, for <input accept> and Picker filters (MIME types: IMPORT_MIME_TYPES). */
@@ -25,6 +26,35 @@ function usableTitle(t: string | undefined): string | undefined {
   if (!s) return undefined
   if (/^(microsoft word\s*-|untitled\b|document\s*\d*$|doc\d*$|new document\b)/i.test(s)) return undefined
   return s.slice(0, MAX_TITLE)
+}
+
+/**
+ * A book title at the top of a Markdown or plain-text manuscript: the first
+ * block is a lone H1 (Markdown) or a short standalone line (text), and a
+ * chapter heading follows within the next few blocks (after a byline, say).
+ * It then names the manuscript and isn't counted as a chapter.
+ */
+function leadingTitle(doc: JSONContent, format: 'markdown' | 'text'): string | undefined {
+  const blocks = (doc.content ?? []).filter((b) => !(b.type === 'paragraph' && !blockText(b).trim()))
+  const first = blocks[0]
+  if (!first) return undefined
+  const text = blockText(first).trim()
+  // A text file's title block may carry a byline on the next line ("THE ORCHARD" / "by Jane Doe").
+  const lines = text.split('\n')
+  if (lines.length > (format === 'text' ? 3 : 1)) return undefined
+  const t = lines[0].trim()
+  if (!t || isChapterHeading(t) || isSceneBreak(t) || isBareChapterNumber(t)) return undefined
+  if (format === 'markdown') {
+    if (first.type !== 'heading' || Number(first.attrs?.level) !== 1) return undefined
+  } else if (first.type !== 'paragraph' || t.length > 80 || t.split(/\s+/).length > 12 || /[.,;:]$/.test(t)) {
+    return undefined
+  }
+  const isChapter = (b: JSONContent) => {
+    const s = blockText(b).trim()
+    if (format === 'markdown' && b.type === 'heading' && Number(b.attrs?.level) === 1) return true
+    return isChapterHeading(s) || isBareChapterNumber(s)
+  }
+  return blocks.slice(1, 5).some(isChapter) ? t : undefined
 }
 
 function byteSize(data: ArrayBuffer | string): number {
@@ -56,6 +86,13 @@ export async function importManuscript(source: ImportSource): Promise<ImportResu
   let images = 0
   let stats: HtmlStats | null = null
 
+  const noteEncoding = (d: DecodedText) => {
+    const w = encodingWarning(d)
+    if (w) warnings.push(w)
+  }
+  /** Notes from the format readers (numbering, front matter, wrapped lines). */
+  const formatNotes: string[] = []
+
   switch (format) {
     case 'docx': {
       if (!bytes) throw new ImportError('corrupt', 'A Word document must be read as a file, not as text.')
@@ -65,12 +102,17 @@ export async function importManuscript(source: ImportSource): Promise<ImportResu
       metaTitle = d.metaTitle
       titleText = h.titleText
       stats = { ...h.stats, comments: h.stats.comments + d.comments }
+      if (d.numberedHeadings > 0) {
+        formatNotes.push(
+          `${plural(d.numberedHeadings, 'heading')} used Word’s automatic numbering (like “Chapter 1”); the ${d.numberedHeadings === 1 ? 'number is' : 'numbers are'} now part of the heading text and won’t renumber themselves.`,
+        )
+      }
       break
     }
     case 'html':
     case 'gdoc-html': {
       const decoded = decodeText(source.data, { html: true })
-      if (decoded.guessed) warnings.push(ENCODING_WARNING)
+      noteEncoding(decoded)
       const h = htmlToDoc(decoded.text)
       doc = h.doc
       metaTitle = h.metaTitle
@@ -80,17 +122,26 @@ export async function importManuscript(source: ImportSource): Promise<ImportResu
     }
     case 'markdown': {
       const decoded = decodeText(source.data)
-      if (decoded.guessed) warnings.push(ENCODING_WARNING)
+      noteEncoding(decoded)
       const m = markdownToDoc(decoded.text)
       doc = m.doc
       metaTitle = m.title
+      titleText = leadingTitle(doc, 'markdown')
       images = m.images
+      if (m.frontMatter) formatNotes.push('The metadata block at the top of the file (between the --- lines) was read for the title and left out of the text.')
       break
     }
     case 'text': {
       const decoded = decodeText(source.data)
-      if (decoded.guessed) warnings.push(ENCODING_WARNING)
-      doc = textToDoc(decoded.text)
+      noteEncoding(decoded)
+      const t = readPlainText(decoded.text)
+      doc = t.doc
+      titleText = leadingTitle(doc, 'text')
+      if (t.wrapWidth) {
+        formatNotes.push(
+          `The lines of this file were wrapped at about ${t.wrapWidth} characters, so they were joined back into paragraphs. If two paragraphs ran together, put the cursor between them and press Enter.`,
+        )
+      }
       break
     }
   }
@@ -138,13 +189,17 @@ export async function importManuscript(source: ImportSource): Promise<ImportResu
   }
   if (stats?.tables) notes.push(`${plural(stats.tables, 'table was', 'tables were')} turned into plain paragraphs.`)
 
-  const title = usableTitle(metaTitle) ?? usableTitle(titleText) ?? (stripKnownExtension(source.name).slice(0, MAX_TITLE) || 'Imported manuscript')
+  // The visible title wins over document properties, which Word carries over from whatever
+  // file or template a new book was started from. Markdown front matter is written on purpose.
+  const [firstChoice, secondChoice] = format === 'markdown' ? [metaTitle, titleText] : [titleText, metaTitle]
+  const title =
+    usableTitle(firstChoice) ?? usableTitle(secondChoice) ?? (stripKnownExtension(source.name).slice(0, MAX_TITLE) || 'Imported manuscript')
 
   return {
     title,
     content,
     wordCount: shaped.wordCount,
     chapterCount: shaped.chapterCount,
-    warnings: [...notes, ...warnings],
+    warnings: [...notes, ...formatNotes, ...warnings],
   }
 }

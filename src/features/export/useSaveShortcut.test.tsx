@@ -9,7 +9,7 @@ vi.mock('idb-keyval', () => ({
   del: async (k: IDBValidKey) => void mem.delete(k),
 }))
 
-import { registerPendingFlush } from '../../store/pendingEdits'
+import { registerBrowserPersister, registerPendingFlush } from '../../store/pendingEdits'
 import { useDocuments } from '../../store/documents'
 import { __resetDesktopCopyForTests, getDesktopCopyStatus, restoreDesktopCopy, setUpDesktopCopy, startDesktopCopyService } from './desktopCopy'
 import { useExportUi } from './exportUi'
@@ -68,6 +68,18 @@ describe('isSaveShortcut', () => {
     expect(isSaveShortcut(k({ key: 's', ctrlKey: true, altKey: true }))).toBe(false)
     expect(isSaveShortcut(k({ key: 'd', metaKey: true }))).toBe(false)
   })
+
+  it('leaves Cmd/Ctrl+Shift+S to the editor (strikethrough)', () => {
+    const k = (o: Partial<KeyboardEvent>) => ({ key: '', code: '', metaKey: false, ctrlKey: false, altKey: false, ...o })
+    expect(isSaveShortcut(k({ key: 'S', code: 'KeyS', metaKey: true, shiftKey: true }))).toBe(false)
+    expect(isSaveShortcut(k({ key: 'S', code: 'KeyS', ctrlKey: true, shiftKey: true }))).toBe(false)
+  })
+
+  it('goes by the typed letter on Latin layouts (Dvorak Cmd+O sits on the S key)', () => {
+    const k = (o: Partial<KeyboardEvent>) => ({ key: '', code: '', metaKey: false, ctrlKey: false, altKey: false, ...o })
+    expect(isSaveShortcut(k({ key: 'o', code: 'KeyS', metaKey: true }))).toBe(false)
+    expect(isSaveShortcut(k({ key: 's', code: 'Semicolon', metaKey: true }))).toBe(true)
+  })
 })
 
 describe('useSaveShortcut', () => {
@@ -84,10 +96,35 @@ describe('useSaveShortcut', () => {
     await waitFor(() => expect(useExportUi.getState().chooserOpen).toBe(true))
     act(() => useExportUi.getState().closeChooser())
     press(window)
-    await waitFor(() => expect(useExportUi.getState().toast?.text).toMatch(/^Saved in your browser\. Press (⌘|Ctrl\+)⇧S/))
+    await waitFor(() => expect(useExportUi.getState().toast?.text).toBe('Saved in your browser.'))
     expect(useExportUi.getState().chooserOpen).toBe(false)
-    press(window, { shiftKey: true })
-    await waitFor(() => expect(useExportUi.getState().chooserOpen).toBe(true))
+    act(() => useExportUi.getState().toast!.action!.run())
+    expect(useExportUi.getState().chooserOpen).toBe(true)
+  })
+
+  it('does not take Cmd/Ctrl+Shift+S from the editor', () => {
+    render(<Harness />)
+    expect(press(screen.getByLabelText('editor'), { key: 'S', shiftKey: true })).toBe(true) // not prevented
+    expect(useExportUi.getState().chooserOpen).toBe(false)
+  })
+
+  it('writes the browser copy (IndexedDB) now and says so only when it worked', async () => {
+    let resolveWrite!: (err: string | null) => void
+    const persist = vi.fn(() => new Promise<string | null>((r) => (resolveWrite = r)))
+    const unregister = registerBrowserPersister(persist)
+    useExportUi.setState({ chooserDismissed: true })
+    render(<Harness />)
+    press(window)
+    expect(persist).toHaveBeenCalledTimes(1) // started inside the key press
+    await new Promise((r) => setTimeout(r, 5))
+    expect(useExportUi.getState().toast).toBeNull() // not claimed before the write finished
+    resolveWrite(null)
+    await waitFor(() => expect(useExportUi.getState().toast?.text).toBe('Saved in your browser.'))
+
+    persist.mockImplementation(async () => 'The disk is full.')
+    press(window)
+    await waitFor(() => expect(useExportUi.getState().toast).toMatchObject({ text: 'Not saved in your browser: The disk is full.', tone: 'error' }))
+    unregister()
   })
 
   it('pushes the editor’s pending keystrokes into the store first', async () => {
@@ -167,6 +204,21 @@ describe('ExportHost', () => {
     await screen.findByRole('dialog')
     expect(screen.getByRole('radio', { name: /Word/ })).toBeChecked()
     expect(screen.getByRole('button', { name: 'Choose where to save…' })).toHaveFocus()
+  })
+
+  it('switching manuscripts writes the previous one’s pending changes to its own copy at once', async () => {
+    const a = makeExportDoc([p(t('Book A.'))], { id: 'a', title: 'A' })
+    const b = makeExportDoc([p(t('Book B.'))], { id: 'b', title: 'B' })
+    useDocuments.getState().hydrate([a, b], 'a')
+    const fa = fakeFile('A.txt')
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => fa.handle)
+    await setUpDesktopCopy('a', 'txt')
+    render(<ExportHost />)
+    act(() => useDocuments.getState().updateContent('a', { type: 'doc', content: [p(t('Book A, last words.'))] }))
+    expect(fa.written).toHaveLength(1) // waiting for the 15 s debounce
+    act(() => useDocuments.getState().openDoc('b'))
+    await waitFor(() => expect(fa.written.at(-1)).toBe('Book A, last words.\n'))
+    expect(getDesktopCopyStatus('b')).toBeUndefined()
   })
 
   it('shows the toast in a live region', async () => {

@@ -73,6 +73,12 @@ describe('HomePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/write?import=local')
   })
 
+  it('offers a direct Google Drive import (the Picker) for drafts already in Google Docs', () => {
+    renderHome()
+    fireEvent.click(screen.getByRole('link', { name: /import it straight from google drive/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/write?open=picker')
+  })
+
   it('links to Settings and includes the theme toggle', () => {
     renderHome()
     const settings = screen.getAllByRole('link', { name: /^settings$/i })

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useDocuments } from '../../store/documents'
 import { googleApiKey, googleClientId, googleProjectNumber, useSettings } from '../../store/settings'
 import type { ThunderDoc } from '../../types'
+import { discardUntouchedCurrentDoc } from '../import/importFlow'
 import { importManuscript } from '../import/importManuscript'
 import type { DriveStatus, LocalStatus } from './autosave'
 import { DriveClient, DriveError, driveErrorMessage, isDriveError, type DriveFileInfo } from './drive'
@@ -275,6 +276,7 @@ export function importPickedDriveFile(file: PickedFile): Promise<DriveImportOutc
  * file; the picked original is never written.
  */
 export function createImportedManuscript(outcome: DriveImportOutcome): ThunderDoc {
+  discardUntouchedCurrentDoc()
   const docs = useDocuments.getState()
   const doc =
     outcome.kind === 'thunder'

@@ -172,6 +172,8 @@ export function restoreDesktopCopy(docId: string): Promise<void> {
       return
     }
     if (!isRecord(rec) || entries.has(docId)) return
+    // Deleted while the handle was loading: don't bring its copy back.
+    if (!useDocuments.getState().docs[docId]) return
     entries.set(docId, { record: rec, scheduler: null })
     patchStatus(docId, { kind: rec.kind, fileName: rec.fileName, lastWrittenAt: rec.lastWrittenAt, phase: 'ready' })
     let perm: PermissionState = 'prompt'
@@ -276,6 +278,15 @@ export async function writeDesktopCopyNow(docId: string, opts: { force?: boolean
 
 export const hasDesktopCopy = (docId: string) => entries.has(docId)
 
+/**
+ * Switching away from a manuscript: write its copy now if it has changes
+ * waiting for the debounce, so the file is current before the writer moves on.
+ */
+export function flushPendingDesktopCopy(docId: string): void {
+  const scheduler = entries.get(docId)?.scheduler
+  if (scheduler?.getState().dirty) void scheduler.flush()
+}
+
 export function getDesktopCopyStatus(docId: string | null | undefined): CopyStatus | undefined {
   return docId ? useDesktopCopy.getState().byDoc[docId] : undefined
 }
@@ -298,13 +309,12 @@ export function startDesktopCopyService(): () => void {
   if (serviceRefs === 1) {
     unsubscribeDocs = useDocuments.subscribe((s, prev) => {
       if (s.docs === prev.docs) return
+      // A deleted manuscript stops its copy, including one not loaded yet this session
+      // (its saved file handle is forgotten too). The file on the computer stays.
+      for (const id of Object.keys(prev.docs)) if (!s.docs[id]) void stopDesktopCopy(id)
       for (const [id, e] of entries) {
         const a = s.docs[id]
         const b = prev.docs[id]
-        if (!a && b) {
-          void stopDesktopCopy(id)
-          continue
-        }
         if (a && b && (a.content !== b.content || a.title !== b.title || a.format !== b.format)) e.scheduler?.notifyChange()
       }
     })

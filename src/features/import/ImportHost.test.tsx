@@ -1,15 +1,22 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { Editor } from '@tiptap/core'
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useRef } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { vi } from 'vitest'
+import { EditorContext } from '../../shell/EditorContext'
 import { currentDoc, useDocuments } from '../../store/documents'
 import { ImportButton } from './ImportButton'
 import { ImportHost } from './ImportHost'
-import { importLocalFile, useImportFlow } from './importFlow'
+import { BUSY_NOTICE, importLocalFile, openImportPicker, useImportFlow } from './importFlow'
 import { useManuscriptDrop } from './useManuscriptDrop'
 
 const MD = '# Chapter 1\n\nIt was *dark*.\n\n![map](map.png)\n\n# Chapter 2\n\nLight came.'
 const mdFile = () => new File([MD], 'My Book.md', { type: 'text/markdown' })
+
+function LocationProbe() {
+  const loc = useLocation()
+  return <div data-testid="location">{loc.pathname + loc.search}</div>
+}
 
 function renderHost(path = '/write') {
   return render(
@@ -22,7 +29,7 @@ function renderHost(path = '/write') {
 
 beforeEach(() => {
   useDocuments.setState({ docs: {}, currentId: null, dirtyForDrive: {}, hydrated: true })
-  useImportFlow.setState({ phase: { kind: 'idle' }, prompt: false })
+  useImportFlow.setState({ phase: { kind: 'idle' }, prompt: false, notice: null })
   document.querySelectorAll('input[type=file]').forEach((el) => el.remove())
 })
 
@@ -80,10 +87,9 @@ describe('local import flow', () => {
 })
 
 function DropTarget() {
-  const ref = useRef<HTMLDivElement>(null)
-  const dragging = useManuscriptDrop(ref)
+  const dragging = useManuscriptDrop()
   return (
-    <div ref={ref} data-testid="target" data-dragging={dragging}>
+    <div data-testid="target" data-dragging={dragging}>
       <p data-testid="inner">pages</p>
     </div>
   )
@@ -102,5 +108,123 @@ describe('useManuscriptDrop', () => {
     expect(target.dataset.dragging).toBe('false')
     await waitFor(() => expect(useImportFlow.getState().phase.kind).toBe('done'))
     expect(currentDoc(useDocuments.getState())?.title).toBe('My Book')
+  })
+
+  it('catches a file dropped anywhere in the window, so the browser never navigates to it', async () => {
+    render(
+      <>
+        <DropTarget />
+        <header data-testid="toolbar">toolbar</header>
+      </>,
+    )
+    const over = createEvent.dragOver(screen.getByTestId('toolbar'), { dataTransfer: { types: ['Files'] } })
+    fireEvent(screen.getByTestId('toolbar'), over)
+    expect(over.defaultPrevented).toBe(true)
+    const drop = createEvent.drop(document.body, { dataTransfer: { types: ['Files'], files: [mdFile()] } })
+    await act(async () => {
+      fireEvent(document.body, drop)
+    })
+    expect(drop.defaultPrevented).toBe(true)
+    await waitFor(() => expect(useImportFlow.getState().phase.kind).toBe('done'))
+    // Text drags inside the editor are left alone.
+    const textOver = createEvent.dragOver(screen.getByTestId('toolbar'), { dataTransfer: { types: ['text/plain'] } })
+    fireEvent(screen.getByTestId('toolbar'), textOver)
+    expect(textOver.defaultPrevented).toBe(false)
+  })
+
+  it('imports only the first of several dropped files and says so', async () => {
+    render(<DropTarget />)
+    const other = new File(['x'], 'Notes.txt', { type: 'text/plain' })
+    await act(async () => {
+      fireEvent.drop(screen.getByTestId('inner'), { dataTransfer: { types: ['Files'], files: [mdFile(), other] } })
+    })
+    await waitFor(() => expect(useImportFlow.getState().phase.kind).toBe('done'))
+    const phase = useImportFlow.getState().phase
+    expect(phase.kind === 'done' && phase.result.warnings.at(-1)).toMatch(/Only “My Book.md” was imported; “Notes.txt” was left out/)
+  })
+})
+
+describe('import feedback', () => {
+  it('tells the writer when a drop arrives while another import is running', async () => {
+    renderHost()
+    useImportFlow.setState({ phase: { kind: 'importing', name: 'Big.docx' } })
+    await act(async () => {
+      expect(await importLocalFile(mdFile())).toBeNull()
+    })
+    expect(useImportFlow.getState().notice).toBe(BUSY_NOTICE)
+    expect(screen.getByRole('status')).toHaveTextContent(/already in progress/)
+  })
+
+  it('offers Google Drive in the ?import=local prompt instead of telling Google Docs writers to download a .docx', async () => {
+    render(
+      <MemoryRouter initialEntries={['/write?import=local']}>
+        <ImportHost />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Import a manuscript' })
+    expect(dialog).not.toHaveTextContent(/Download › Microsoft Word/)
+    expect(dialog).toHaveTextContent(/Google Docs\? Import it straight from Google Drive/)
+    await userEvent.click(screen.getByRole('button', { name: 'Import from Google Drive…' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('open=picker')
+    expect(screen.queryByRole('dialog', { name: 'Import a manuscript' })).toBeNull()
+  })
+
+  it('"Start writing" puts the cursor in the new manuscript', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const focus = vi.fn()
+    const editor = { commands: { focus } } as unknown as Editor
+    render(
+      <MemoryRouter>
+        <EditorContext.Provider value={{ editor, bridge: null }}>
+          <ImportHost />
+        </EditorContext.Provider>
+      </MemoryRouter>,
+    )
+    await act(async () => {
+      await importLocalFile(mdFile())
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Start writing' }))
+    await act(async () => {
+      vi.runAllTimers()
+    })
+    expect(focus).toHaveBeenCalledWith('start')
+    vi.useRealTimers()
+  })
+
+  it('returns focus to the File button when the file chooser is cancelled', () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    openImportPicker({ returnFocus: () => trigger })
+    const input = document.querySelector<HTMLInputElement>('input[type=file]')!
+    input.dispatchEvent(new Event('cancel'))
+    expect(document.activeElement).toBe(trigger)
+    expect(document.querySelector('input[type=file]')).toBeNull()
+    trigger.remove()
+  })
+})
+
+describe('the blank first manuscript', () => {
+  it('is replaced by the import instead of lingering as an extra "Untitled Manuscript"', async () => {
+    const blank = useDocuments.getState().createDoc()
+    renderHost()
+    await act(async () => {
+      await importLocalFile(mdFile())
+    })
+    const docs = Object.values(useDocuments.getState().docs)
+    expect(docs.map((d) => d.title)).toEqual(['My Book'])
+    expect(useDocuments.getState().docs[blank.id]).toBeUndefined()
+  })
+
+  it('is kept once the writer has typed in it or renamed it', async () => {
+    const typed = useDocuments.getState().createDoc({
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hello' }] }] },
+    })
+    renderHost()
+    await act(async () => {
+      await importLocalFile(mdFile())
+    })
+    expect(useDocuments.getState().docs[typed.id]).toBeDefined()
+    expect(Object.keys(useDocuments.getState().docs)).toHaveLength(2)
   })
 })

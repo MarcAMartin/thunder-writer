@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
+import { useEditorContext } from '../../shell/EditorContext'
 import { formatCount } from '../editor/format'
 import { Modal } from '../storage/Modal'
-import { dismissImport, openImportPicker, setImportPrompt, useImportFlow } from './importFlow'
+import { dismissImport, openImportPicker, setImportNotice, setImportPrompt, useImportFlow } from './importFlow'
 import '../storage/storage.css'
 import './import.css'
 
-const SUPPORTED = 'Word (.docx), plain text (.txt), Markdown (.md) or HTML (for a Google Doc, choose File › Download › Microsoft Word in Google Docs first)'
+const SUPPORTED = 'Word (.docx), plain text (.txt), Markdown (.md) or HTML files from your computer.'
+const NOTICE_MS = 5000
 
 /**
  * Mount once on the writer page. Shows import progress, the result (words,
@@ -18,7 +20,30 @@ const SUPPORTED = 'Word (.docx), plain text (.txt), Markdown (.md) or HTML (for 
 export function ImportHost({ dragging = false }: { dragging?: boolean }) {
   const phase = useImportFlow((s) => s.phase)
   const prompt = useImportFlow((s) => s.prompt)
+  const notice = useImportFlow((s) => s.notice)
   const [params, setParams] = useSearchParams()
+  const { editor } = useEditorContext()
+
+  /** Closes the result and puts the cursor at the start of the new manuscript. */
+  const startWriting = () => {
+    dismissImport()
+    // After the dialog has closed and handed focus back (to <body>, when the File menu opened the chooser).
+    setTimeout(() => editor?.commands.focus('start'), 0)
+  }
+
+  /** The File menu reads ?open=picker and offers the Google Drive Picker. */
+  const importFromDrive = () => {
+    setImportPrompt(false)
+    const next = new URLSearchParams(params)
+    next.set('open', 'picker')
+    setParams(next, { replace: true })
+  }
+
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setImportNotice(null), NOTICE_MS)
+    return () => clearTimeout(t)
+  }, [notice])
 
   // /write?import=local: a file chooser can't open without a click, so show a prompt with a button.
   useEffect(() => {
@@ -35,6 +60,12 @@ export function ImportHost({ dragging = false }: { dragging?: boolean }) {
         <div className="im-toast" role="status">
           <span className="im-spinner" aria-hidden="true" />
           Importing “{phase.name}”…
+          {notice && <span className="im-toast-note">{notice}</span>}
+        </div>
+      )}
+      {phase.kind !== 'importing' && notice && (
+        <div className="im-toast" role="status">
+          {notice}
         </div>
       )}
 
@@ -43,7 +74,7 @@ export function ImportHost({ dragging = false }: { dragging?: boolean }) {
           title="Manuscript imported"
           onClose={dismissImport}
           footer={
-            <button type="button" className="tw-btn tw-btn-primary" data-autofocus onClick={dismissImport}>
+            <button type="button" className="tw-btn tw-btn-primary" data-autofocus onClick={startWriting}>
               Start writing
             </button>
           }
@@ -107,10 +138,17 @@ export function ImportHost({ dragging = false }: { dragging?: boolean }) {
             Bring in a draft you’ve already started. It opens as a new manuscript, with chapter headings and scene
             breaks recognised; the original file isn’t changed.
           </p>
-          <button type="button" className="tw-btn tw-btn-primary im-choose" data-autofocus onClick={openImportPicker}>
-            Choose a file to import
-          </button>
-          <p className="im-hint">{SUPPORTED}.</p>
+          <div className="im-choices">
+            <button type="button" className="tw-btn tw-btn-primary im-choose" data-autofocus onClick={() => openImportPicker()}>
+              Choose a file to import
+            </button>
+            <button type="button" className="tw-btn im-choose" onClick={importFromDrive}>
+              Import from Google Drive…
+            </button>
+          </div>
+          <p className="im-hint">
+            {SUPPORTED} Draft in Google Docs? Import it straight from Google Drive; there’s no need to download it first.
+          </p>
         </Modal>
       )}
 

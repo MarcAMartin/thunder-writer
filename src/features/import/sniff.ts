@@ -32,6 +32,16 @@ const MIME_FORMAT: Record<string, ImportFormat> = {
 
 const SUPPORTED = 'Thunder Writer can import Word (.docx), Google Docs, plain text (.txt), Markdown (.md) and HTML files.'
 
+/** Google Drive for desktop shows each Google Doc on disk as a tiny ".gdoc" link file. */
+export const GOOGLE_SHORTCUT =
+  'This is a shortcut to a Google Doc, not the document itself. Use File › Import from Google Drive… to import it, or in Google Docs choose File › Download › Microsoft Word (.docx) and import that.'
+
+/** The JSON inside a Drive for desktop shortcut: {"doc_id": "…", "email": "…"} or {"url": "https://docs.google.com/…"}. */
+function isGoogleShortcut(head: string): boolean {
+  const s = head.replace(/^\uFEFF/, '').trimStart()
+  return s.startsWith('{') && /"(?:doc_id|resource_id)"\s*:|"url"\s*:\s*"https:\/\/docs\.google\.com\//.test(s.slice(0, 2048))
+}
+
 const UNSUPPORTED_EXT: Record<string, string> = {
   doc: 'Older Word “.doc” files can’t be read. In Word, choose File › Save As › Word Document (.docx), then import the .docx.',
   dot: 'Older Word “.doc” files can’t be read. In Word, choose File › Save As › Word Document (.docx), then import the .docx.',
@@ -41,6 +51,11 @@ const UNSUPPORTED_EXT: Record<string, string> = {
   pdf: 'PDFs can’t be imported because they don’t keep paragraphs. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   epub: 'EPUB files can’t be imported. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   scriv: 'Scrivener projects can’t be read directly. In Scrivener, choose File › Compile and compile to Word (.docx), then import that.',
+  gdoc: GOOGLE_SHORTCUT,
+  gsheet: GOOGLE_SHORTCUT,
+  gslides: GOOGLE_SHORTCUT,
+  gdraw: GOOGLE_SHORTCUT,
+  gform: GOOGLE_SHORTCUT,
   json: 'This looks like a JSON file. To open a Thunder Writer backup (.thunder.json), use File › Import .thunder.json… instead.',
 }
 
@@ -89,6 +104,9 @@ export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): Imp
   const mime = (source.mimeType ?? '').split(';')[0].trim().toLowerCase()
   if (mime === 'application/msword') throw new ImportError('unsupported', UNSUPPORTED_EXT.doc)
   if (mime === 'application/pdf') throw new ImportError('unsupported', UNSUPPORTED_EXT.pdf)
+  const head = typeof source.data === 'string' ? source.data.slice(0, 2048) : bytes ? new TextDecoder('latin1').decode(bytes.subarray(0, 2048)) : ''
+  // A local file with Drive's Google Docs type is a Drive for desktop shortcut, never the document.
+  if (isGoogleShortcut(head)) throw new ImportError('unsupported', GOOGLE_SHORTCUT)
   if (mime in MIME_FORMAT) {
     const f = MIME_FORMAT[mime]
     // A generic text/plain label on something that is really HTML.
@@ -99,7 +117,6 @@ export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): Imp
   if (isOle(bytes)) throw new ImportError('unsupported', OLE_MESSAGE)
   if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) throw new ImportError('unsupported', UNSUPPORTED_EXT.pdf)
   if (startsWith(bytes, [0x7b, 0x5c, 0x72, 0x74, 0x66])) throw new ImportError('unsupported', UNSUPPORTED_EXT.rtf)
-  const head = typeof source.data === 'string' ? source.data : bytes ? new TextDecoder('latin1').decode(bytes.subarray(0, 512)) : ''
   if (sniffTextStart(head) === 'html') return 'html'
   if (mime === '' || mime.startsWith('text/') || mime === 'application/octet-stream') {
     if (bytes && looksBinary(bytes)) throw new ImportError('unsupported', SUPPORTED)
