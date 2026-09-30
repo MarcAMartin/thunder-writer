@@ -100,7 +100,14 @@ export interface BookPageModel {
 }
 
 export interface ChapterEntry {
+  /** Title for the contents list and page labels ("Chapter N" for an empty heading). */
   title: string
+  /**
+   * Title as running heads and short heads read it: the heading's text, '' when
+   * it's empty (the head then falls back to the book title, as in Word, the
+   * print file and the editor's page sheets).
+   */
+  headTitle: string
   block: number
   /** Page index where the chapter starts. */
   page: number
@@ -571,7 +578,8 @@ export class BookPaginator {
           const g = this.block(gi)!
           if (g.kind === 'chapter') {
             const ci = chapterBase + chapters.length
-            chapters.push({ title: g.title?.trim() || `Chapter ${ci + 1}`, block: gi, page: index })
+            const headTitle = g.title?.trim() ?? ''
+            chapters.push({ title: headTitle || `Chapter ${ci + 1}`, headTitle, block: gi, page: index })
             // The chapter "in effect" on a page is the first one that starts on it, else the one running on from before.
             if (!startedHere) page.chapter = ci
             startedHere = true

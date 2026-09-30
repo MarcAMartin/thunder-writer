@@ -18,7 +18,7 @@ export function pageInfoOf(layout: BookLayout, settings: HeaderFooterSettings, i
   return {
     index,
     side: sideOfFolio(folioOf(settings, index)),
-    chapterTitle: chapter?.title ?? '',
+    chapterTitle: chapter?.headTitle ?? '',
     // Text before the first chapter (a prologue, an epigraph) still opens the book.
     isChapterOpener: (page?.isChapterOpener ?? false) || (!!page && !page.isBlank && index === firstTextPage(layout)),
     isBlank: page?.isBlank ?? false,

@@ -1,4 +1,4 @@
-import { chapterKey, resolveHeaderFooter, type HeaderFooterSettings } from './headerFooter'
+import { chapterKey, resolveHeaderFooter, shortHeadOf, type HeaderFooterSettings } from './headerFooter'
 import type { BookGeometry } from './layout'
 
 /**
@@ -104,7 +104,7 @@ export function shortHeadCandidates(settings: HeaderFooterSettings, chapterTitle
   for (const t of chapterTitles) {
     const k = chapterKey(t)
     if (!k || seen.has(k)) continue
-    if (long.has(t) || settings.shortHeads[k]) {
+    if (long.has(t) || shortHeadOf(settings.shortHeads, t)) {
       seen.add(k)
       out.push(t)
     }

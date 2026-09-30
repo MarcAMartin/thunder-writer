@@ -3,6 +3,7 @@ import { useEditorState, type Editor } from '@tiptap/react'
 import { useEditorContext } from '../../shell/EditorContext'
 import { useDocuments } from '../../store/documents'
 import type { DocFormat } from '../../types'
+import { HeaderFooterButton, PreviewButton } from './BookTools'
 import { HEADING_LABELS } from './editorExtensions'
 import {
   BOOK_PRESETS,
@@ -336,6 +337,10 @@ export function Toolbar() {
           />
           <span>Chapters start new page</span>
         </label>
+        <HeaderFooterButton />
+      </div>
+      <div className="ed-group ed-group-preview">
+        <PreviewButton editor={editor} />
       </div>
     </div>
   )

@@ -45,7 +45,7 @@ const layout: BookLayout = {
       { block: 3, y: 60, clipTop: 0, clipBottom: 20 },
     ]),
   ],
-  chapters: [{ title: 'One', block: 1, page: 1 }],
+  chapters: [{ title: 'One', headTitle: 'One', block: 1, page: 1 }],
   firstIsRecto: true,
   done: true,
   progress: 1,
@@ -61,6 +61,13 @@ describe('BookPage', () => {
     expect(c.querySelector('.bp-foot')?.textContent).toBe('1')
     // An ordinary text page has one.
     expect(renderPage(2).querySelector('.bp-head')?.textContent).toContain('The Frozen River')
+  })
+
+  it('an empty chapter heading gives its pages the book title as chapter head, as the exports do', () => {
+    const untitled = { ...layout, chapters: [{ title: 'Chapter 1', headTitle: '', block: 1, page: 1 }] }
+    const c = render(<BookPage layout={untitled} index={2} settings={S({ versoHead: 'chapter', rectoHead: 'chapter' })} title="The Frozen River" />).container
+    expect(c.querySelector('.bp-head')?.textContent).toContain('The Frozen River')
+    expect(c.querySelector('.bp-head')?.textContent).not.toContain('Chapter 1')
   })
 
   it('a slice of a long quote carries only its own paragraphs’ text; the others keep their height, empty', () => {

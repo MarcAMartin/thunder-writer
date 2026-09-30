@@ -186,7 +186,8 @@
   left: 50%;
   bottom: 44px;
   transform: translateX(-50%);
-  z-index: 70;
+  /* Above the full-screen Book preview (z-index 1000), so Cmd/Ctrl+S confirms the save there too. */
+  z-index: 1010;
   width: max-content;
   max-width: calc(100vw - 32px);
   pointer-events: none;

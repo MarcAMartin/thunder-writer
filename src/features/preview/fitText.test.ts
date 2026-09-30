@@ -36,5 +36,6 @@ describe('checkFit', () => {
 describe('shortHeadCandidates', () => {
   it('offers chapters that are too long or already have a short head', () => {
     expect(shortHeadCandidates(S({ shortHeads: { One: '1' } }), ['One', 'Two', LONG], [LONG])).toEqual(['One', LONG])
+    expect(shortHeadCandidates(S(), ['constructor', 'toString', '__proto__'], [])).toEqual([])
   })
 })

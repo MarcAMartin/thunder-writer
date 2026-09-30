@@ -5,6 +5,8 @@ import {
   resolveHeaderFooter,
   RUNNING_HEAD_PRESETS,
   runningHeadPresetId,
+  shortHeadOf,
+  withShortHead,
   type FooterContent,
   type HeadContent,
   type HeaderFooterSettings,
@@ -49,6 +51,11 @@ export interface HeaderFooterPanelProps {
   chapterTitles?: readonly string[]
   /** Which heads / footer lines are too long for the trim size (see fitText.ts). */
   fit?: FitReport
+  /**
+   * Chapters don't start a new page ("Chapters start new page" is off). The
+   * print (HTML) file then can't show the chapter in effect, so a hint says so.
+   */
+  chaptersShareFlow?: boolean
   className?: string
 }
 
@@ -63,6 +70,7 @@ export function HeaderFooterPanel({
   sampleChapter = 'Chapter One',
   chapterTitles = [],
   fit = NO_FIT_ISSUES,
+  chaptersShareFlow = false,
   className,
 }: HeaderFooterPanelProps) {
   const id = useId()
@@ -73,11 +81,7 @@ export function HeaderFooterPanel({
   const usesChapter = value.versoHead === 'chapter' || value.rectoHead === 'chapter'
   const shortHeadRows = usesChapter ? shortHeadCandidates(value, chapterTitles, fit.chapters) : []
   const setShortHead = (chapter: string, text: string) => {
-    const next = { ...value.shortHeads }
-    const k = chapterKey(chapter)
-    if (text.trim()) next[k] = text
-    else delete next[k]
-    set('shortHeads', next)
+    set('shortHeads', withShortHead(value.shortHeads, chapter, text))
   }
   const tooLongNote = 'Too long for the head line at this trim size, so it prints smaller. A shorter text reads better.'
 
@@ -165,6 +169,13 @@ export function HeaderFooterPanel({
         </div>
       </div>
 
+      {usesChapter && chaptersShareFlow && (
+        <p className="bp-hf-hint" role="note">
+          With “Chapters start new page” off, the print (HTML) file shows the book title where a chapter head goes. The
+          preview and Word show the chapter.
+        </p>
+      )}
+
       {usesChapter && chapterTitles.length > 0 && (
         <div className="bp-hf-row">
           <span className="bp-hf-label" id={`${id}-short`}>
@@ -191,7 +202,7 @@ export function HeaderFooterPanel({
                         type="text"
                         aria-label={`Short running head for “${t}”`}
                         aria-invalid={long || undefined}
-                        value={value.shortHeads[chapterKey(t)] ?? ''}
+                        value={shortHeadOf(value.shortHeads, t)}
                         maxLength={200}
                         placeholder="Short head"
                         onChange={(e) => setShortHead(t, e.target.value)}

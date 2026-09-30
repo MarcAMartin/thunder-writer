@@ -88,3 +88,30 @@ export function isIndentBreaker(n: PMNode | undefined): boolean {
   return !n || ['heading', 'horizontalRule', 'blockquote', 'bulletList', 'orderedList'].includes(n.type)
 }
 
+/** A run of top-level blocks printed together (a Word section, an HTML <section>): a chapter, or text before the first chapter. */
+export interface SectionPart {
+  from: number
+  to: number
+  /** The chapter's title ('' for text before the first chapter). */
+  chapterTitle: string
+}
+
+/**
+ * A chapter heading's title as the Book preview reads it (ProseMirror's
+ * textContent: hard breaks add nothing), whitespace collapsed, so running
+ * heads and short heads (keyed by title) agree between the preview and exports.
+ */
+export const chapterTitleOf = (h: PMNode) => plainText(h, '').replace(/\s+/g, ' ').trim()
+
+/** Splits the top-level blocks at every chapter heading. Text before the first chapter is a part of its own. */
+export function chapterParts(blocks: PMNode[]): SectionPart[] {
+  const parts: SectionPart[] = []
+  blocks.forEach((b, i) => {
+    const chapter = b.type === 'heading' && headingLevel(b) === 1
+    if (chapter || parts.length === 0) {
+      if (parts.length) parts[parts.length - 1].to = i
+      parts.push({ from: i, to: blocks.length, chapterTitle: chapter ? chapterTitleOf(b) : '' })
+    }
+  })
+  return parts
+}

@@ -200,6 +200,38 @@ describe('round trip: Save to computer → Import', () => {
     }
   })
 
+  it('Word with running heads, footer line and page numbers imports cleanly: none of it leaks into the text', async () => {
+    const withHeads = {
+      ...doc,
+      format: {
+        ...doc.format,
+        headerFooter: {
+          authorName: 'Zelda Quillfeather',
+          versoHead: 'author' as const,
+          rectoHead: 'chapter' as const,
+          shortHeads: { 'Chapter One: The Storm': 'Stormhead' },
+          footer: 'custom' as const,
+          footerCustom: 'Advance Reader Copy XYZZY',
+          pageNumbers: 'header-outside' as const,
+          firstPageNumber: 3,
+        },
+        bookLayout: { chaptersStartRecto: true },
+      },
+    }
+    const blob = await toDocx(withHeads)
+    const r = await reimport(`${TITLE}.docx`, await blob.arrayBuffer(), DOCX_MIME)
+    const all = words(r.content)
+    expect(all).toBe(words(original))
+    for (const leak of ['Zelda', 'Quillfeather', 'Stormhead', 'XYZZY', 'Advance Reader']) expect(all).not.toContain(leak)
+    // Section breaks don't turn into empty paragraphs or scene breaks.
+    expect(count(r.content, 'paragraph')).toBe(count(original, 'paragraph'))
+    expect(count(r.content, 'horizontalRule')).toBe(3)
+    expect(r.chapterCount).toBe(3)
+    expect(chapterTitles(r.content)).toEqual(chapterTitles(original))
+    expect(markedRuns(r.content)).toEqual(markedRuns(original))
+    expect(listShape(r.content)).toEqual(listShape(original))
+  })
+
   it('round-trips a whole novel through Word quickly', async () => {
     const { makeBigDoc } = await import('./testFixtures')
     const big = makeBigDoc()

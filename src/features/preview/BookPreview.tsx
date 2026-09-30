@@ -288,7 +288,8 @@ export function BookPreview(props: BookPreviewProps) {
     setOpts(next)
     props.onLayoutOptionsChange?.(next)
   }
-  const chapterTitles = useMemo(() => chapters.map((c) => c.title), [chapters])
+  // As running heads read them (an empty heading has none): the same list the exporters and Headers & footers use.
+  const chapterTitles = useMemo(() => chapters.map((c) => c.headTitle).filter(Boolean), [chapters])
   const fit = useMemo(
     () =>
       panel === 'settings' && layout
@@ -629,6 +630,7 @@ export function BookPreview(props: BookPreviewProps) {
               sampleChapter={chapters[0]?.title || 'Chapter One'}
               chapterTitles={chapterTitles}
               fit={fit}
+              chaptersShareFlow={!format.chapterStartsNewPage}
             />
             <fieldset className="bp-hf">
               <legend className="bp-hf-legend">Book layout</legend>

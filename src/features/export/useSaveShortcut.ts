@@ -21,6 +21,15 @@ export function isSaveShortcut(
 const BROWSER = 'Saved in your browser'
 
 /**
+ * The full-screen Book preview is open (it sets `html.bp-open`). It sits above
+ * every other overlay and keeps focus inside itself, so the Save dialog must
+ * not open behind it: Cmd/Ctrl+S then saves quietly and says how to save a file.
+ */
+export function isPreviewCovering(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('bp-open')
+}
+
+/**
  * What Cmd/Ctrl+S does:
  *  - always: push the editor's pending keystrokes into the store and write
  *    the browser copy (IndexedDB) now, so "Saved in your browser" is true;
@@ -29,6 +38,9 @@ const BROWSER = 'Saved in your browser'
  *  - without one: open "Save to your computer" (Word first); once the writer
  *    has closed that dialog this session, just confirm the browser save and
  *    offer the dialog from the toast.
+ *  - while the Book preview is open: never open the dialog (it would be hidden
+ *    and unreachable behind the preview); confirm the browser save instead and
+ *    say to close the preview to save to the computer.
  * Runs inside the key press, so permission prompts and Save dialogs may open:
  * nothing is awaited before them.
  */
@@ -39,15 +51,28 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     ui.showToast('Open a manuscript first.', 'info')
     return
   }
+  const covered = isPreviewCovering()
+  const mod = modKey()
   // Starts the IndexedDB write synchronously; awaited only after any permission prompt.
   const browserSave = saveInBrowserNow()
+  const offerChooser = (label: string) => (covered ? undefined : { label, run: () => useExportUi.getState().openChooser() })
   const browserFailed = (err: string, extra = '') =>
-    useExportUi.getState().showToast(`Not saved in your browser: ${err}${extra}`, 'error', {
-      label: 'Save to computer…',
-      run: () => useExportUi.getState().openChooser(),
-    })
+    useExportUi.getState().showToast(`Not saved in your browser: ${err}${extra}`, 'error', offerChooser('Save to computer…'))
+  /** Opens "Save to your computer", or while the preview covers the page, says how to get to it. */
+  const chooser = (note?: string) => {
+    if (!covered) {
+      useExportUi.getState().openChooser(note)
+      return
+    }
+    const why = note ? `${note.replace(/ Choose where to keep your copy\.$/, '')} ` : ''
+    useExportUi.getState().showToast(`${BROWSER}. ${why}To save to your computer, close the preview and press ${mod}S.`, 'info')
+  }
   const openChooser = (note?: string) => {
-    useExportUi.getState().openChooser(note)
+    if (covered) {
+      void browserSave.then((err) => (err ? browserFailed(err) : chooser(note)))
+      return
+    }
+    chooser(note)
     void browserSave.then((err) => {
       if (err) browserFailed(err)
     })
@@ -56,12 +81,12 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     openChooser()
     return
   }
-  const mod = modKey()
   const status = getDesktopCopyStatus(docId)
   if (!status) {
-    if (ui.chooserDismissed) {
+    if (ui.chooserDismissed || covered) {
       const err = await browserSave
       if (err) browserFailed(err)
+      else if (covered) chooser()
       else
         useExportUi.getState().showToast(`${BROWSER}.`, 'ok', {
           label: 'Also save to computer…',
@@ -73,8 +98,9 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     return
   }
   const name = status.fileName
+  const movedNote = `${name} was moved or deleted. Choose where to keep your copy.`
   if (status.phase === 'missing') {
-    openChooser(`${name} was moved or deleted. Choose where to keep your copy.`)
+    openChooser(movedNote)
     return
   }
 
@@ -104,15 +130,15 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
       show(`${BROWSER} · ${name} is up to date`, 'ok')
       return
     case 'none':
-      useExportUi.getState().openChooser()
+      chooser()
       return
     case 'missing':
-      useExportUi.getState().openChooser(`${name} was moved or deleted. Choose where to keep your copy.`)
+      chooser(movedNote)
       return
     case 'needs-permission':
     case 'paused':
       if (now?.phase === 'missing') {
-        useExportUi.getState().openChooser(`${name} was moved or deleted. Choose where to keep your copy.`)
+        chooser(movedNote)
         return
       }
       show(`${BROWSER} · ${name} wasn’t updated: allow access when the browser asks (press ${mod}S again).`, 'error')

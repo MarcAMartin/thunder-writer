@@ -203,6 +203,43 @@
   outline-offset: 1px;
 }
 
+.ed-tool-text {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.ed-hf-btn {
+  color: var(--tw-text-muted);
+}
+.ed-hf-btn:hover:not(:disabled) {
+  color: var(--tw-text);
+}
+.ed-preview-btn {
+  border-color: var(--tw-border);
+  font-weight: 600;
+}
+.ed-preview-btn .ed-icon {
+  color: var(--tw-accent);
+}
+.ed-group-preview {
+  margin-left: auto;
+}
+
+.ed-hf-dialog {
+  width: min(760px, 100%);
+  max-height: min(860px, calc(100vh - 32px));
+}
+.ed-hf-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--tw-text-muted);
+}
+.ed-hf-layout {
+  margin-top: 16px;
+}
+
 .ed-glyph {
   font-family: var(--tw-font-serif);
   font-size: 16px;
@@ -327,16 +364,47 @@
   border-radius: 2px;
   box-shadow: var(--tw-shadow);
 }
-.ed-folio {
+/* Running head, footer line and page number: faint, in the margins, never part of the text. */
+.ed-band {
   position: absolute;
-  left: 0;
-  right: 0;
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(2.6em, 1fr) minmax(0, max-content) minmax(2.6em, 1fr);
+  gap: 0 0.8em;
+  align-items: baseline;
   font-family: var(--ed-font, var(--tw-font-serif));
-  font-size: 11px;
+  font-size: var(--ed-band-size, 11px);
+  line-height: 1.2;
   color: var(--tw-text-muted);
-  letter-spacing: 0.08em;
+  opacity: 0.72;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
   font-variant-numeric: oldstyle-nums;
+}
+.ed-band > span {
+  overflow: hidden;
+  text-overflow: clip;
+}
+.ed-band-l {
+  text-align: left;
+}
+.ed-band-c {
+  text-align: center;
+}
+.ed-band-r {
+  text-align: right;
+}
+.ed-head-caps .ed-band-c {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+.ed-folio {
+  letter-spacing: 0.04em;
+}
+.ed-footnote {
+  display: block;
+  text-align: center;
+  overflow: hidden;
 }
 
 .ed-flow {

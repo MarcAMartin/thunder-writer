@@ -10,6 +10,13 @@ const formatSchema = z.object({
   fontSizePt: z.number().positive().optional(),
   lineHeight: z.number().positive().optional(),
   chapterStartsNewPage: z.boolean().default(true),
+  // Printed-book settings. Kept as loose records here (z.object would strip them
+  // and they'd vanish on reload / Drive sync); normalizeHeaderFooter and
+  // normalizeBookLayout validate every field when they are read. A value that
+  // isn't an object at all (null, a string, another version's shape) falls back
+  // to the defaults rather than making the whole manuscript unreadable.
+  headerFooter: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  bookLayout: z.record(z.string(), z.unknown()).optional().catch(undefined),
 })
 
 const docSchema = z.object({

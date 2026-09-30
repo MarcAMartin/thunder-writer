@@ -9,49 +9,15 @@
  * even" headers when the .docx exporter adopts it (see the integration notes).
  * RUNNING_HEAD_PRESETS gives the UI a one-click choice of the common pairings.
  *
- * Everything here is pure; the preview, the settings panel's diagram and (later)
- * the exporters all call resolveHeaderFooter so they agree page by page.
+ * Everything here is pure; the preview, the settings panel's diagram, the
+ * editor's page sheets and the Word / print exporters all call resolveHeaderFooter so they agree page by page.
  */
 
-export type HeadContent = 'none' | 'title' | 'author' | 'chapter' | 'custom'
-export type FooterContent = 'none' | 'title' | 'author' | 'custom'
-export type PageNumberPosition = 'footer-center' | 'footer-outside' | 'header-outside' | 'none'
-export type PageSide = 'recto' | 'verso'
+// The settings types live in the shared domain file (they are stored in DocFormat).
+import type { BookLayoutOptions, FooterContent, HeadContent, HeaderFooterSettings, PageNumberPosition } from '../../types'
+export type { BookLayoutOptions, FooterContent, HeadContent, HeaderFooterSettings, PageNumberPosition } from '../../types'
 
-export interface HeaderFooterSettings {
-  /** Used in running heads. Empty falls back to the book title. */
-  authorName: string
-  /** Running head on left-hand (even) pages. */
-  versoHead: HeadContent
-  /** Running head on right-hand (odd) pages. */
-  rectoHead: HeadContent
-  /** Text used when a head is 'custom'. */
-  versoCustom: string
-  rectoCustom: string
-  /** Small line centred in the footer of every text page (e.g. "Advance reader copy"). */
-  footer: FooterContent
-  footerCustom: string
-  pageNumbers: PageNumberPosition
-  /** Number printed on the first page. Odd numbers fall on right-hand pages. */
-  firstPageNumber: number
-  /** No running head on a chapter's first page (standard). */
-  suppressOnChapterOpeners: boolean
-  /**
-   * The page number on a chapter's first page: 'drop' moves it to the foot of
-   * the page (a "drop folio", the usual practice), 'none' hides it.
-   */
-  openerFolio: 'drop' | 'none'
-  /** Blank pages carry no running head, footer or number. */
-  suppressOnBlankPages: boolean
-  /** Running head / folio size relative to body text. */
-  fontScale: number
-  smallCapsRunningHeads: boolean
-  /**
-   * Short running heads for chapters whose title is too long for the head line,
-   * keyed by the chapter title as written. Used wherever a head shows the chapter.
-   */
-  shortHeads: Record<string, string>
-}
+export type PageSide = 'recto' | 'verso'
 
 export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
   authorName: '',
@@ -83,16 +49,6 @@ export function runningHeadPresetId(s: Pick<HeaderFooterSettings, 'versoHead' | 
   return RUNNING_HEAD_PRESETS.find((p) => p.verso === s.versoHead && p.recto === s.rectoHead)?.id ?? 'custom'
 }
 
-/** Book layout choices that change where pages break (unlike heads and folios). */
-export interface BookLayoutOptions {
-  /** Chapters open on a right-hand page, with a blank left page inserted when needed. */
-  chaptersStartRecto: boolean
-  /** Justified body text, as in most printed books. Line breaks are the same either way. */
-  justify: boolean
-  /** Where a chapter opener's heading sits, as a fraction of the text-block height ("sink"). */
-  chapterSink: number
-}
-
 export const DEFAULT_BOOK_LAYOUT: BookLayoutOptions = {
   chaptersStartRecto: true,
   justify: true,
@@ -109,23 +65,45 @@ const str = (v: unknown, d: string, max = 200) => (typeof v === 'string' ? v.sli
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d)
 const MAX_SHORT_HEADS = 500
 
-/** Chapter title → short head, as stored: only non-empty string pairs, bounded. */
+/**
+ * Chapter title → short head, as stored: only non-empty string pairs, bounded.
+ * Built with Object.fromEntries so a chapter titled "__proto__" is an own key,
+ * never the object's prototype.
+ */
 function shortHeadsOf(v: unknown): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) return out
-  let n = 0
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return {}
+  const entries: [string, string][] = []
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-    if (n >= MAX_SHORT_HEADS) break
+    if (entries.length >= MAX_SHORT_HEADS) break
     const key = chapterKey(k)
     if (!key || typeof val !== 'string' || !val.trim()) continue
-    out[key] = val.slice(0, 200)
-    n++
+    entries.push([key, val.slice(0, 200)])
   }
-  return out
+  return Object.fromEntries(entries)
 }
 
 /** The key a chapter's short head is stored under: its title, whitespace collapsed. */
 export const chapterKey = (title: string) => title.replace(/\s+/g, ' ').trim().slice(0, 300)
+
+/**
+ * The short head stored for a chapter title ('' = none). Own keys only: a
+ * chapter titled "constructor", "toString" or "__proto__" must not pick up
+ * what a plain object inherits from Object.prototype.
+ */
+export function shortHeadOf(shortHeads: Readonly<Record<string, string>>, chapterTitle: string): string {
+  const k = chapterKey(chapterTitle)
+  if (!k || !Object.hasOwn(shortHeads, k)) return ''
+  const v: unknown = shortHeads[k]
+  return typeof v === 'string' ? v : ''
+}
+
+/** A copy of the short heads with one chapter's set (or removed when text is blank). */
+export function withShortHead(shortHeads: Readonly<Record<string, string>>, chapterTitle: string, text: string): Record<string, string> {
+  const k = chapterKey(chapterTitle)
+  const entries = Object.entries(shortHeads).filter(([key]) => key !== k)
+  if (k && text.trim()) entries.push([k, text])
+  return Object.fromEntries(entries)
+}
 
 /** Settings from storage (possibly old, partial or hand-edited) with every field valid. */
 export function normalizeHeaderFooter(raw: unknown): HeaderFooterSettings {
@@ -242,7 +220,7 @@ export function resolveHeaderFooter(
       case 'author':
         return author || title
       case 'chapter':
-        return (chapter && s.shortHeads[chapterKey(chapter)]?.trim()) || chapter || title
+        return (chapter && shortHeadOf(s.shortHeads, chapter).trim()) || chapter || title
       case 'custom':
         return custom.trim()
       default:

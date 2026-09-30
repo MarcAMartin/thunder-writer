@@ -6,12 +6,14 @@ interface ModalProps {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** Extra class on the dialog panel (e.g. a wider size). */
+  className?: string
 }
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
 
 /** Small accessible dialog: Escape closes, focus is trapped and restored. */
-export function Modal({ title, onClose, children, footer }: ModalProps) {
+export function Modal({ title, onClose, children, footer, className }: ModalProps) {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
@@ -53,7 +55,7 @@ export function Modal({ title, onClose, children, footer }: ModalProps) {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="fm-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
+      <div className={className ? `fm-dialog ${className}` : 'fm-dialog'} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
         <header className="fm-dialog-head">
           <h2 id={titleId}>{title}</h2>
           <button type="button" className="tw-btn tw-btn-ghost fm-icon-btn" onClick={onClose} aria-label="Close">

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseEnvelope } from '../storage/schema'
 import { toBackupJson } from './backup'
 import { br, h, hr, li, makeBigDoc, makeExportDoc, ol, p, pa, quote, t, ul } from './testFixtures'
-import { safeFontFamily, toHtml } from './toHtml'
+import { cssString, safeFontFamily, toHtml } from './toHtml'
+import type { PMNode } from './pm'
+import type { DocFormat, HeaderFooterSettings } from '../../types'
 import { escapeMarkdown, toMarkdown } from './toMarkdown'
 import { toPlainText } from './toPlainText'
 
@@ -105,6 +107,11 @@ describe('toPlainText', () => {
   })
 })
 
+const withHf = (headerFooter: Partial<HeaderFooterSettings>, bookLayout: DocFormat['bookLayout'] = {}) =>
+  makeExportDoc(novel.content ? (novel.content as { content: PMNode[] }).content : [], {
+    format: { presetId: 'trade-6x9', chapterStartsNewPage: true, headerFooter, bookLayout },
+  })
+
 describe('toHtml', () => {
   it('is a standalone document with print CSS at the trim size', () => {
     const html = toHtml(novel)
@@ -117,7 +124,105 @@ describe('toHtml', () => {
     expect(html).toContain('line-height: 1.4;')
     expect(html).toContain('counter(page)')
     expect(html).toMatch(/h1 \{ break-before: page; page-break-before: always; \}/)
-    expect(html).toContain('.tw-book > h1:first-child { break-before: auto;')
+    expect(html).toContain('.tw-book > h1:first-child, .tw-book > section:first-child > h1:first-child { break-before: auto;')
+  })
+
+  it('mirrors the margins on left and right pages, with the gutter at the spine', () => {
+    const css = toHtml(novel)
+    // Trade 6x9: inside (left) 0.85in, outside (right) 0.65in.
+    expect(css).toMatch(/@page :left \{\n  margin-left: 0\.65in;\n  margin-right: 0\.85in;/)
+    expect(css).toMatch(/@page :right \{\n  margin-left: 0\.85in;\n  margin-right: 0\.65in;/)
+  })
+
+  it('prints the default running heads (author or title / title) and a centred page number in margin boxes', () => {
+    const css = toHtml(novel)
+    const rule = (sel: string) => new RegExp(`@page ${sel} \\{[^]*?\\n\\}`).exec(css)?.[0] ?? ''
+    expect(rule(':left')).toContain('@top-center { content: "My Novel"; }')
+    expect(rule(':left')).toContain('@bottom-center { content: counter(page); }')
+    expect(rule(':right')).toContain('@top-center { content: "My Novel"; }')
+    // The book's first page and blank pages carry no running head.
+    expect(rule(':first')).toContain('@top-center { content: none; }')
+    expect(rule(':first')).toContain('@bottom-center { content: counter(page); }')
+    expect(rule(':blank')).toContain('@bottom-center { content: none; }')
+    expect(css).toContain('font-variant: small-caps')
+    const authored = toHtml(withHf({ authorName: 'Ada Lovelace' }))
+    expect(authored).toMatch(/@page :left \{[^]*?@top-center \{ content: "Ada Lovelace"; \}/)
+  })
+
+  it('starts chapters on right-hand pages on named pages, one per chapter, with chapter running heads', () => {
+    const doc = withHf({ versoHead: 'title', rectoHead: 'chapter', shortHeads: { 'Chapter One': 'One' } })
+    const css = toHtml(doc)
+    expect(css).toContain('h1, .tw-chapter { break-before: right; page-break-before: right; }')
+    expect(css).toContain('<section class="tw-chapter" style="page: tw-ch1">\n<h1>Chapter One</h1>')
+    expect(css).toContain('<section class="tw-chapter" style="page: tw-ch2">\n<h1>Chapter Two</h1>')
+    expect(css).toMatch(/@page tw-ch1:right \{\n[^]*?@top-center \{ content: "One"; \}/)
+    expect(css).toMatch(/@page tw-ch2:right \{\n[^]*?@top-center \{ content: "Chapter Two"; \}/)
+    expect(css).toMatch(/@page tw-ch2:left \{\n[^]*?@top-center \{ content: "My Novel"; \}/)
+    // The chapter's opening page: no running head.
+    expect(css).toMatch(/@page tw-ch2:first \{\n  @top-left \{ content: none; \}\n  @top-center \{ content: none; \}/)
+    expect(css).toMatch(/@page tw-ch2:blank \{/)
+    const plainBreaks = toHtml(withHf({}, { chaptersStartRecto: false }))
+    expect(plainBreaks).not.toContain('break-before: right')
+    expect(plainBreaks).toContain('h1 { break-before: page;')
+  })
+
+  it('places page numbers in the outside corners, top or bottom, and drops a top number on opening pages', () => {
+    const foot = toHtml(withHf({ pageNumbers: 'footer-outside' }))
+    expect(foot).toMatch(/@page :left \{[^}]*?[^]*?@bottom-left \{ content: counter\(page\); \}/)
+    expect(foot).toMatch(/@page :right \{[^]*?@bottom-right \{ content: counter\(page\); \}/)
+    const top = toHtml(withHf({ pageNumbers: 'header-outside' }))
+    expect(top).toMatch(/@page :left \{[^]*?@top-left \{ content: counter\(page\); \}[^]*?@bottom-center \{ content: none; \}/)
+    expect(top).toMatch(/@page :right \{[^]*?@top-right \{ content: counter\(page\); \}/)
+    expect(top).toMatch(/@page :first \{\n  @top-left \{ content: none; \}\n  @top-center \{ content: none; \}\n  @top-right \{ content: none; \}[^]*?@bottom-center \{ content: counter\(page\); \}/)
+    const none = toHtml(withHf({ pageNumbers: 'none' }))
+    expect(none).not.toContain('counter(page)')
+  })
+
+  it('numbers from the chosen first page and puts the footer line below a centred number', () => {
+    const css = toHtml(withHf({ firstPageNumber: 5, footer: 'custom', footerCustom: 'Advance reader copy' }))
+    expect(css).toContain('html { counter-reset: page 4; }')
+    expect(css).toContain('@bottom-center { content: counter(page) "\\A " "Advance reader copy"; }')
+    expect(css).toContain('white-space: pre;')
+    expect(toHtml(novel)).not.toContain('counter-reset: page')
+  })
+
+  it('gives each physical side its folio side when the first page number is even', () => {
+    // Physical page 1 is always :right in CSS, but folio 2 (or 4) is a left-hand page.
+    for (const firstPageNumber of [2, 4]) {
+      const css = toHtml(withHf({ firstPageNumber, versoHead: 'author', rectoHead: 'chapter', authorName: 'AUTH', pageNumbers: 'header-outside' }))
+      const rule = (sel: string) => new RegExp(`@page ${sel} \\{[^]*?\\n\\}`).exec(css)?.[0] ?? ''
+      // :right (folios N, N+2, ...) is a verso: outside margin at the left, author head, number top left.
+      expect(rule(':right')).toMatch(/^@page :right \{\n  margin-left: 0\.65in;\n  margin-right: 0\.85in;/)
+      expect(rule(':right')).toContain('@top-center { content: "AUTH"; }')
+      expect(rule(':right')).toContain('@top-left { content: counter(page); }')
+      // :left (folios N+1, ...) is a recto: gutter at the left, chapter head, number top right.
+      expect(rule(':left')).toMatch(/^@page :left \{\n  margin-left: 0\.85in;\n  margin-right: 0\.65in;/)
+      expect(rule(':left')).toContain('@top-right { content: counter(page); }')
+      expect(rule(':left')).not.toContain('"AUTH"')
+      expect(rule('tw-ch2:left')).toContain('@top-center { content: "Chapter Two"; }')
+      expect(rule('tw-ch2:right')).toContain('@top-center { content: "AUTH"; }')
+      // Right-hand chapter starts land on physical left pages.
+      expect(css).toContain('h1, .tw-chapter { break-before: left; page-break-before: left; }')
+      expect(css).toContain(`html { counter-reset: page ${firstPageNumber - 1}; }`)
+    }
+    const odd = toHtml(withHf({ firstPageNumber: 3, versoHead: 'author', authorName: 'AUTH' }))
+    expect(odd).toMatch(/@page :left \{\n  margin-left: 0\.65in;[^]*?"AUTH"/)
+    expect(odd).toContain('break-before: right;')
+  })
+
+  it('escapes running-head text so it cannot end the string, the rule or the style element', () => {
+    expect(cssString('a"b\\c\nd</style>')).toBe('"a\\"b\\\\c\\A d\\3c /style>"')
+    const html = toHtml(withHf({ versoHead: 'custom', versoCustom: '"; } </style><script>x()</script>' }))
+    expect(html.match(/<\/style>/g)).toHaveLength(1)
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('@top-center { content: "\\"; } \\3c /style>\\3c script>x()\\3c /script>"; }')
+  })
+
+  it('keeps one flow (no named pages) when chapters do not start new pages', () => {
+    const html = toHtml(makeExportDoc([h(1, 'A'), p(t('x'))], { format: { presetId: 'trade-6x9', chapterStartsNewPage: false, headerFooter: { rectoHead: 'chapter' } } }))
+    expect(html).not.toContain('<section')
+    expect(html).not.toContain('tw-ch1')
+    expect(html).toMatch(/@page :right \{[^]*?@top-center \{ content: "My Novel"; \}/)
   })
 
   it('marks up structure and marks', () => {

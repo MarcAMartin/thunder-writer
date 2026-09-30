@@ -160,6 +160,14 @@ describe('paginateBook: chapters', () => {
     ])
   })
 
+  it('labels an empty chapter heading "Chapter N" for the contents, but gives running heads no title', () => {
+    const { chapters } = paginateBook([chapter('One'), text(2), chapter('  '), text(2)], opts({ chaptersStartRecto: false }))
+    expect(chapters.map((c) => [c.title, c.headTitle])).toEqual([
+      ['One', 'One'],
+      ['Chapter 2', ''],
+    ])
+  })
+
   it('needs no blank page when the chapter already falls on a recto', () => {
     const { pages } = paginateBook([chapter('One'), text(9), text(6), chapter('Two'), text(2)], opts())
     // ch1 (3 lines) + 7 lines on p0, the rest on p1 (verso), ch2 on p2 (recto).

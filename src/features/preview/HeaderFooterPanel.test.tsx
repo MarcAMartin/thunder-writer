@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_HEADER_FOOTER, type HeaderFooterSettings } from './headerFooter'
+import { NO_FIT_ISSUES } from './fitText'
 import { HeaderFooterPanel, type HeaderFooterPanelProps } from './HeaderFooterPanel'
 
 function Bound({ spy, initial = DEFAULT_HEADER_FOOTER, ...rest }: { spy: (v: HeaderFooterSettings) => void; initial?: HeaderFooterSettings } & Partial<HeaderFooterPanelProps>) {
@@ -116,5 +117,22 @@ describe('HeaderFooterPanel', () => {
     const head = heads.find((t) => t.textContent === 'The Frozen River of the North')!
     expect(head.getAttribute('textLength')).not.toBeNull()
     expect(Number(head.getAttribute('textLength'))).toBeLessThan(96 - 28 - 2 * 10)
+  })
+
+  it('says the print file cannot show chapter heads when chapters share one flow', () => {
+    const chapterHeads = { ...DEFAULT_HEADER_FOOTER, rectoHead: 'chapter' } as HeaderFooterSettings
+    const { rerender } = render(<HeaderFooterPanel value={chapterHeads} onChange={() => {}} chaptersShareFlow />)
+    expect(screen.getByText(/print \(HTML\) file shows the book title/)).toBeInTheDocument()
+    rerender(<HeaderFooterPanel value={chapterHeads} onChange={() => {}} />)
+    expect(screen.queryByText(/print \(HTML\) file shows the book title/)).toBeNull()
+    rerender(<HeaderFooterPanel value={DEFAULT_HEADER_FOOTER} onChange={() => {}} chaptersShareFlow />)
+    expect(screen.queryByText(/print \(HTML\) file shows the book title/)).toBeNull()
+  })
+
+  it('shows an empty short head for chapters named like Object.prototype members', () => {
+    const chapterHeads = { ...DEFAULT_HEADER_FOOTER, rectoHead: 'chapter' } as HeaderFooterSettings
+    render(<HeaderFooterPanel value={chapterHeads} onChange={() => {}} chapterTitles={['constructor', 'toString']} fit={{ ...NO_FIT_ISSUES, chapters: ['constructor', 'toString'] }} />)
+    expect(screen.getByLabelText('Short running head for “constructor”')).toHaveValue('')
+    expect(screen.getByLabelText('Short running head for “toString”')).toHaveValue('')
   })
 })

@@ -102,6 +102,45 @@ describe('useSaveShortcut', () => {
     expect(useExportUi.getState().chooserOpen).toBe(true)
   })
 
+  it('never opens the Save dialog behind the Book preview: saves in the browser and says how to save a file', async () => {
+    document.documentElement.classList.add('bp-open')
+    try {
+      render(<Harness />)
+      press(window)
+      await waitFor(() => expect(useExportUi.getState().toast?.text).toMatch(/^Saved in your browser\. To save to your computer, close the preview and press .+S\.$/))
+      expect(useExportUi.getState().toast?.action).toBeUndefined()
+      expect(useExportUi.getState().chooserOpen).toBe(false)
+      // Even once the writer has dismissed the chooser, no action that would open it behind the preview.
+      useExportUi.setState({ chooserDismissed: true })
+      press(window)
+      await new Promise((r) => setTimeout(r, 5))
+      expect(useExportUi.getState().toast?.action).toBeUndefined()
+      expect(useExportUi.getState().chooserOpen).toBe(false)
+    } finally {
+      document.documentElement.classList.remove('bp-open')
+    }
+    // Closed again: Cmd+S behaves as before.
+    useExportUi.setState({ chooserDismissed: false })
+    press(window)
+    await waitFor(() => expect(useExportUi.getState().chooserOpen).toBe(true))
+  })
+
+  it('still writes the desktop copy while the Book preview is open', async () => {
+    const f = fakeFile()
+    ;(window as Win).showSaveFilePicker = vi.fn(async () => f.handle)
+    await setUpDesktopCopy('d1', 'txt')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Typed before previewing.'))] })
+    document.documentElement.classList.add('bp-open')
+    try {
+      render(<Harness />)
+      press(window)
+      await waitFor(() => expect(useExportUi.getState().toast?.text).toBe('Saved in your browser · copy written to My Novel.txt'))
+      expect(f.written.at(-1)).toBe('Typed before previewing.\n')
+    } finally {
+      document.documentElement.classList.remove('bp-open')
+    }
+  })
+
   it('does not take Cmd/Ctrl+Shift+S from the editor', () => {
     render(<Harness />)
     expect(press(screen.getByLabelText('editor'), { key: 'S', shiftKey: true })).toBe(true) // not prevented

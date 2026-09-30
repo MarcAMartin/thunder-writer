@@ -19,6 +19,61 @@ export interface BookPreset {
   lineHeight: number
 }
 
+/* ------------------------- printed-book settings ------------------------- */
+// Running heads, footers and page numbers for the printed book, and the book
+// layout choices that move page breaks. Stored in DocFormat; always read them
+// through normalizeHeaderFooter / normalizeBookLayout (features/preview/headerFooter),
+// which fill in defaults for old documents and repair hand-edited values.
+
+export type HeadContent = 'none' | 'title' | 'author' | 'chapter' | 'custom'
+export type FooterContent = 'none' | 'title' | 'author' | 'custom'
+export type PageNumberPosition = 'footer-center' | 'footer-outside' | 'header-outside' | 'none'
+
+export interface HeaderFooterSettings {
+  /** Used in running heads. Empty falls back to the book title. */
+  authorName: string
+  /** Running head on left-hand (even) pages. */
+  versoHead: HeadContent
+  /** Running head on right-hand (odd) pages. */
+  rectoHead: HeadContent
+  /** Text used when a head is 'custom'. */
+  versoCustom: string
+  rectoCustom: string
+  /** Small line centred in the footer of every text page (e.g. "Advance reader copy"). */
+  footer: FooterContent
+  footerCustom: string
+  pageNumbers: PageNumberPosition
+  /** Number printed on the first page. Odd numbers fall on right-hand pages. */
+  firstPageNumber: number
+  /** No running head on a chapter's first page (standard). */
+  suppressOnChapterOpeners: boolean
+  /**
+   * The page number on a chapter's first page: 'drop' moves it to the foot of
+   * the page (a "drop folio", the usual practice), 'none' hides it.
+   */
+  openerFolio: 'drop' | 'none'
+  /** Blank pages carry no running head, footer or number. */
+  suppressOnBlankPages: boolean
+  /** Running head / folio size relative to body text. */
+  fontScale: number
+  smallCapsRunningHeads: boolean
+  /**
+   * Short running heads for chapters whose title is too long for the head line,
+   * keyed by the chapter title as written. Used wherever a head shows the chapter.
+   */
+  shortHeads: Record<string, string>
+}
+
+/** Book layout choices that change where pages break (unlike heads and folios). */
+export interface BookLayoutOptions {
+  /** Chapters open on a right-hand page, with a blank left page inserted when needed. */
+  chaptersStartRecto: boolean
+  /** Justified body text, as in most printed books. Line breaks are the same either way. */
+  justify: boolean
+  /** Where a chapter opener's heading sits, as a fraction of the text-block height ("sink"). */
+  chapterSink: number
+}
+
 export interface DocFormat {
   presetId: string
   /** Overrides applied on top of the preset. */
@@ -27,6 +82,10 @@ export interface DocFormat {
   lineHeight?: number
   /** When true, every chapter heading (H1) starts on a new page, even after font changes. */
   chapterStartsNewPage: boolean
+  /** Running heads, footer line and page numbers (Book preview, Word and print exports). Missing = defaults. */
+  headerFooter?: Partial<HeaderFooterSettings>
+  /** Printed-book layout: chapters on right-hand pages, justification, chapter sink. Missing = defaults. */
+  bookLayout?: Partial<BookLayoutOptions>
 }
 
 export interface ThunderDoc {

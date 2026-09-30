@@ -6,7 +6,9 @@ import {
   normalizeHeaderFooter,
   resolveHeaderFooter,
   runningHeadPresetId,
+  shortHeadOf,
   sideOfFolio,
+  withShortHead,
   type HeaderFooterSettings,
   type PageInfo,
 } from './headerFooter'
@@ -190,5 +192,28 @@ describe('normalize', () => {
   it('names the running-head preset', () => {
     expect(runningHeadPresetId(DEFAULT_HEADER_FOOTER)).toBe('author-title')
     expect(runningHeadPresetId({ versoHead: 'custom', rectoHead: 'title' })).toBe('custom')
+  })
+})
+
+describe('chapter titles that are Object.prototype names', () => {
+  const NAMES = ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']
+  it('resolve to the chapter title, not an inherited property', () => {
+    const s = S({ versoHead: 'chapter', rectoHead: 'chapter' })
+    for (const t of NAMES) {
+      expect(resolveHeaderFooter(s, doc, P({ chapterTitle: t })).headerText).toBe(t)
+      expect(resolveHeaderFooter(s, doc, P({ chapterTitle: t, side: 'verso' })).headerText).toBe(t)
+      expect(shortHeadOf(s.shortHeads, t)).toBe('')
+    }
+  })
+  it('can be given a short head that survives normalizing (as an own key)', () => {
+    let heads: Record<string, string> = {}
+    for (const t of NAMES) heads = withShortHead(heads, t, `short ${t}`)
+    const s = normalizeHeaderFooter(JSON.parse(JSON.stringify({ rectoHead: 'chapter', shortHeads: heads })))
+    for (const t of NAMES) {
+      expect(Object.hasOwn(s.shortHeads, t)).toBe(true)
+      expect(resolveHeaderFooter(s, doc, P({ chapterTitle: t })).headerText).toBe(`short ${t}`)
+    }
+    expect(Object.getPrototypeOf(s.shortHeads)).toBe(Object.prototype)
+    expect(shortHeadOf(withShortHead(s.shortHeads, '__proto__', '  '), '__proto__')).toBe('')
   })
 })

@@ -13,6 +13,51 @@ export interface PaginationInput {
   lineHeightPx: number
   /** CSS transform scale applied to the page stack (fit-to-width). Default 1. */
   scale?: number
+  /** Called after each pass with what each sheet holds (for running heads). */
+  onSheets?: (sheets: SheetInfo[]) => void
+}
+
+/** What a manuscript sheet holds, for its running head. */
+export interface SheetInfo {
+  /** Title of the chapter in effect on the sheet ('' before the first chapter). */
+  chapterTitle: string
+  /** The sheet begins with a chapter heading. */
+  isChapterOpener: boolean
+}
+
+/**
+ * Chapter in effect and chapter openings per sheet, from the measured blocks
+ * and the page breaks (pure; `breaks` in document order).
+ */
+export function sheetsOf(
+  blocks: readonly { kind: BlockKind; title?: string }[],
+  breaks: readonly { blockIndex: number; lineIndex: number }[],
+  pageCount: number,
+): SheetInfo[] {
+  const n = Math.max(1, pageCount)
+  const starts: { page: number; title: string }[] = []
+  const openers = new Set<number>()
+  let page = 0
+  let b = 0
+  blocks.forEach((block, i) => {
+    let startsPage = i === 0
+    while (b < breaks.length && breaks[b].blockIndex === i) {
+      if (breaks[b].lineIndex === 0) startsPage = true
+      page++
+      b++
+    }
+    if (block.kind !== 'chapter') return
+    const p = Math.min(page, n - 1)
+    starts.push({ page: p, title: (block.title ?? '').replace(/\s+/g, ' ').trim() })
+    if (startsPage) openers.add(p)
+  })
+  const sheets: SheetInfo[] = []
+  let c = -1
+  for (let p = 0; p < n; p++) {
+    while (c + 1 < starts.length && starts[c + 1].page <= p) c++
+    sheets.push({ chapterTitle: c >= 0 ? starts[c].title : '', isChapterOpener: openers.has(p) })
+  }
+  return sheets
 }
 
 /**
@@ -101,6 +146,19 @@ interface Measured extends MeasuredBlock {
   pos: number
   node: PMNode
   el: HTMLElement
+  /** Inside a blockquote or list (not a top-level block). */
+  nested: boolean
+}
+
+/**
+ * The sheets' view of the measured blocks: only a top-level Heading 1 starts a
+ * chapter. An H1 inside a quote or list is an ordinary heading there, as in the
+ * Book preview and the exports (which split chapters on top-level blocks only).
+ */
+export function sheetBlocksOf(blocks: readonly { kind: BlockKind; nested: boolean; node: { textContent: string } }[]): { kind: BlockKind; title?: string }[] {
+  return blocks.map((b) =>
+    b.kind === 'chapter' && !b.nested ? { kind: 'chapter', title: b.node.textContent } : { kind: b.kind === 'chapter' ? 'heading' : b.kind },
+  )
 }
 
 function kindOf(node: PMNode): BlockKind {
@@ -186,7 +244,7 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
   }
 
   const blocks: Measured[] = []
-  const measure = (node: PMNode, pos: number, el: HTMLElement) => {
+  const measure = (node: PMNode, pos: number, el: HTMLElement, nested = false) => {
     const r = rel(el)
     const top = map.toNatural(r.top)
     const bottom = map.toNatural(r.top + r.height)
@@ -198,6 +256,7 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
       height: Math.max(0, bottom - top),
       lineHeight: lineHeightOf(node, el),
       kind: kindOf(node),
+      nested,
     })
   }
   const visitNested = (node: PMNode, pos: number) => {
@@ -205,7 +264,7 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
       if (!child.isTextblock && !(child.isBlock && child.isAtom)) return true
       const p = pos + 1 + rel
       const el = view.nodeDOM(p)
-      if (el instanceof HTMLElement) measure(child, p, el)
+      if (el instanceof HTMLElement) measure(child, p, el, true)
       return false
     })
   }
@@ -226,6 +285,7 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
     pagePitch: input.pagePitch,
     chapterStartsNewPage: input.chapterStartsNewPage,
   })
+  input.onSheets?.(sheetsOf(sheetBlocksOf(blocks), breaks, pageCount))
 
   const spacers: PageSpacer[] = []
   for (const br of breaks) {

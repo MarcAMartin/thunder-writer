@@ -1,375 +1,272 @@
 # Thunder Writer
 
-An **idea processor**, not a word processor. Thunder Writer is a browser-only
-manuscript editor for novelists. You write on page-shaped sheets sized to a real
-book trim (6 × 9, 5 × 8, standard manuscript…), and a quiet side pane offers one
-or two AI suggestions at a time: grammar and spelling, contextual ideas drawn
-from the whole manuscript and your reference files, and relevant trivia,
-including current-events trivia that the AI looks up with its own web search
-tool and shows with source links. You accept, decline, mark done or hide each
-one.
+**Write your novel on real book pages, with a quiet AI editor in the margin.**
 
-There is **no backend**. Manuscripts live in your browser (IndexedDB) and,
-optionally, your own Google Drive. AI calls go straight from your browser to
-Claude or OpenAI with your own key.
+Thunder Writer is an **idea processor, not a word processor**. A word processor
+waits for you to finish a thought and then helps you format it. Thunder Writer
+reads along while you draft and, now and then, offers what a good editor
+would: a typo fixed, a sharper phrase, a detail that doesn't match your
+opening chapters or your series notes, a real-world detail that fits the scene. One or two ideas at a time, never a
+wall of red ink. You decide what stays.
 
-## Quick start
+It runs entirely in your browser. There is no account to create and no
+Thunder Writer server holding your book.
 
-Requires Node 20+.
+<!-- SCREENSHOT: the writer page, a 6 × 9 page on the left and two suggestion cards on the right. -->
+<!-- GIF: a Book Preview page turn. -->
 
-```bash
-npm install
-npm run dev          # http://localhost:5173
-```
+## Why an idea processor?
 
-Other scripts:
+Most writing tools help with the last mile: spelling, formatting, page
+numbers. The hard part of a novel comes earlier. You have to keep 90,000 words
+of people, places and promises straight, and you have to keep the momentum
+going while you do it.
 
-| Command             | What it does                                   |
-| ------------------- | ---------------------------------------------- |
-| `npm run build`     | Type-check (`tsc -b`) and build to `dist/`     |
-| `npm run preview`   | Serve the production build locally            |
-| `npm test`          | Run the Vitest suite once                      |
-| `npm run typecheck` | Type-check only                                |
+Thunder Writer puts its effort there:
 
-`dist/` is a static site; host it anywhere that serves files (with SPA
-fallback to `index.html` so `/write` and `/settings` resolve).
+- **It reads more than the sentence under your cursor.** Suggestions draw on
+  the scene around it, the opening of your book and reference files you add,
+  like a series bible, an earlier book or a poem that sets the mood. A short
+  draft (up to about 2,500 words) is sent whole. For a longer book it sees the
+  opening pages and a few pages around where you're writing, not every chapter,
+  so keep names and facts it should check against in a reference file.
+- **It respects your attention.** It waits until you pause, keeps at most two
+  suggestions open, and leaves you alone for a while after each one.
+- **It never edits on its own.** Every suggestion is a card you can take or
+  leave. Nothing changes in your manuscript until you press Accept.
 
-## Routes
+## What writing with Thunder Writer feels like
 
-- `/`: home page with an animated demo, the **Start Writing** call to action,
-  and **Import a manuscript** / **Open from Google Drive** secondary actions.
-- `/write`: the writing app: toolbar, page sheets, suggestions pane, status bar.
-  - `/write?open=drive` opens the "Open from Google Drive" dialog on arrival.
-  - `/write?import=local` shows a "Choose a file to import" prompt.
-  - `/write?open=picker` shows an "Import from Google Drive" prompt.
-  Browsers only open a file chooser or the Google Picker from a click, so the
-  last two show a button rather than opening the chooser themselves.
-- `/settings`: AI keys and models, suggestion cadence, Google Drive, theme,
-  and "Clear all local data". Sections can be deep-linked, e.g. `/settings#ai`
-  and `/settings#drive`.
+You open your novel and it's laid out the way it will be printed: a 6 × 9
+trade paperback, Palatino, with Chapter 12 starting at the top of a fresh page.
+You write for twenty minutes. The margin stays empty.
 
-## Adding an AI key
+You stop to think. A few seconds later a small card appears in the margin:
+**Spelling: "recieved"**. You hover over it and it opens to show the sentence,
+before and after. You click Accept. The word is fixed, and Cmd+Z would bring it
+back if you wanted.
 
-Suggestions need a key from one provider. Without one, the suggestions pane
-links you to Settings.
+A second card is a **Context** note. Your series bible, added as a reference
+file, calls the lighthouse keeper's daughter Maren, but in this scene she's
+Marin. You click the card, the passage lights up on the page, and you fix it
+yourself. Mark Done.
 
-1. Get a key:
-   - **Claude:** create one in the [Anthropic Console](https://console.anthropic.com/) (API keys).
-   - **OpenAI:** create one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-2. Open **Settings → AI provider**, choose Claude or OpenAI, and paste the key
-   into that provider's section. **Test key** makes a free model-lookup call to
-   confirm it works.
-3. The models default to the cheapest suitable ones: `claude-haiku-4-5` for
-   Claude and `gpt-6-luna` for OpenAI. You can type any other model id.
-   Known models are priced in `src/features/suggestions/pricing.ts`. The status
-   bar keeps a running cost total for the session.
+Later, a **Trivia** card, marked "Possibly relevant", mentions a recent news
+story about the coastline your book is set on, with links to its sources. You
+don't need it today, so you hide it and keep going.
 
-The engine is deliberately quiet:
+When the chapter is done you press **Preview** and turn the pages of your book,
+with running heads and page numbers, the way a reader would see them.
 
-- It asks only after you pause typing (default 4 s).
-- It waits at least a cooldown between automatic requests (default 45 s), and
-  the cooldown doubles after errors.
-- It keeps at most 2 open suggestions.
-- It sends a request only after enough new writing.
-- It includes a web-searched trivia attempt at most once per trivia cooldown
-  (default 10 minutes; see below). The cooldown is remembered in this browser,
-  so reloading, visiting Settings or opening another tab doesn't reset it.
+*(The names above are an illustration of the kinds of cards you'll see, not a
+recording.)*
 
-Turn off **Suggest while I write** to get suggestions only when you press
-**Generate Suggestions**.
+## What you get
 
-### Current-events trivia (web search)
+### An AI editor that stays out of your way
 
-With **Settings → Suggestions → Current-events trivia (web search)** on (the
-default), the AI provider occasionally looks up one recent real-world item that
-may be relevant to your manuscript's themes, setting or subjects. The provider
-runs the search itself during the request; there is no news API, feed or
-server involved.
+| | |
+| --- | --- |
+| **Five kinds of help** | Grammar and spelling, style, context and continuity (checked against the scene you're in, your opening chapters and your reference files), story ideas, and trivia. |
+| **One or two at a time** | At most two open suggestions by default. You can allow up to five in Settings. |
+| **You stay in control** | Every card has **Accept**, **Decline**, **Mark Done** and **Hide**. Accepting an edit is one undoable change. |
+| **Pinned to your words** | Hover a card to see the full explanation and a before/after preview. Click it to highlight the passage it's about. A card whose passage you've since rewritten says so instead of changing the wrong text. |
+| **Quiet by design** | It asks only after you pause typing (4 seconds by default), waits at least 45 seconds between requests, and backs off further after errors. |
+| **Collapse when you're cruising** | **Hide Suggestions** folds the pane into a slim rail. Turn off automatic suggestions entirely and press **Generate Suggestions** only when you want a second opinion. |
+| **Current-events trivia, with sources** | Every so often (at most once every 10 minutes by default), the AI may look up one recent real-world item connected to your book's themes or setting. The card links its sources, labelled with each site's address, so you can check them. If nothing relevant turns up, you see nothing. |
+| **Reference files** | Add notes, an earlier manuscript, a series bible or a poem (text, Markdown, HTML, JSON or RTF) and suggestions take them into account. |
 
-- **Claude** uses Anthropic's server-side web search tool
-  (`web_search_20250305`, `max_uses: 1`). **OpenAI** uses the Responses API
-  `web_search` tool with `max_tool_calls: 1` on models that support it (not
-  `gpt-4.1-nano`).
-- Each trivia attempt normally runs one search. On Claude, if the search takes
-  long enough that the API pauses the turn, the app resumes it once, and the
-  resumed turn may search again, so the worst case is two searches per
-  attempt. Trivia requests are never retried automatically. If OpenAI ever
-  rejects `max_tool_calls`, the request is re-sent once without it; the model
-  may then search more than once, and every search is counted in the cost.
-- Only trivia searches. Grammar, spelling, style, context and general
-  suggestions keep their normal cadence and never search. A searched-trivia
-  attempt rides along with a normal request at most once per trivia cooldown
-  (default 600 s, so at most one every 10 minutes; range 120–86 400 s).
-- The trivia card links the pages the provider cited (http/https links only,
-  opened in a new tab), each labelled with its site's domain, so a misleading
-  page title can't disguise where a link goes. The card always frames the item
-  as "Possibly relevant". If the search finds nothing relevant, fails, or cites
-  nothing, no trivia card is shown and a normal suggestion fills the slot.
-- If web search is disabled for your Claude organization (an admin setting in
-  the Claude Console), you'll see a notice once and suggestions carry on
-  without search.
-- With the toggle off, trivia comes only from the model's training knowledge,
-  as before.
+### Real book pages
 
-**Cost:** Claude charges $10 per 1,000 searches ($0.01 each) plus normal token
-cost, and search results count as input tokens. OpenAI's `web_search` tool
-costs $10 per 1,000 calls ($0.01 each) on every model, plus search content
-tokens at the model's rates. For `gpt-4o-mini` and `gpt-4.1-mini`, OpenAI bills
-search content as a fixed 8,000 input tokens per call, which the estimate
-adds. (The $25 per 1,000 rate applies only to OpenAI's legacy
-`web_search_preview` tool, which this app doesn't use.) The status bar's cost
-includes searches, and its tooltip shows how many were made.
+- **Write at a real trim size.** Mass-market paperback, trade paperback
+  (5 × 8, 5.25 × 8, 5.5 × 8.5, 6 × 9), Royal, or a double-spaced 8.5 × 11
+  manuscript, each with sensible margins, font and spacing. You can change the
+  font, size and line spacing yourself.
+- **See where the pages fall** as you type, so you have a feel for your page
+  count long before you format anything.
+- **Chapters start on a new page**, and they keep doing so when you change the
+  font or trim size.
 
-## Importing a manuscript you've already started
+### Book Preview, with page turns
 
-Bring in a draft from Word, Google Docs, or a text editor. The draft becomes a
-new Thunder Writer manuscript that autosaves to this browser and, once Drive is
-connected, to your Drive like any other.
+Press **Preview** in the toolbar to see your manuscript typeset as a printed
+book:
 
-**The original file is only read, never changed.** This holds for files on
-your computer and for files picked in Google Drive.
+- Two-page spreads, with chapters opening on right-hand pages, and running
+  heads and page numbers in place.
+- Facing pages are balanced to end on the same line, and you won't find a
+  heading orphaned at the foot of a page, a scene break stranded at the bottom,
+  or a chapter that ends with a lonely line or two.
+- On a narrow window it shows one page at a time.
+- Pages turn with an animated 3D page flip. Use the arrow keys, Page Up/Down,
+  the side buttons, a click on a page's outer edge, a drag or swipe, or your
+  trackpad.
+- Jump anywhere with the slider along the bottom (hovering shows the chapter),
+  or use **Contents**, **Go to page** and **All pages** thumbnails.
+- **Headers & footers** sets the running heads (your name, once you enter it
+  in Headers & footers, on the left page and the title on the right by default,
+  or the chapter title, with short versions for long titles), a footer line,
+  where the page number goes, the first page number, and what chapter openings
+  and blank pages show. It warns you when a heading is too long for the page.
+  Your Word and print exports use the same running heads and page numbers.
+  Word does show heads on the blank pages it inserts before right-hand
+  chapters.
+- **Print / PDF** prints the book at its exact trim size.
 
-- **From your computer:** use **File › Import manuscript…**, drop a file
-  anywhere on the writer page, or use **Import a manuscript** on the home page.
-  If several files are dropped, only the first is imported (the result says so).
-- **From Google Drive:** use **File › Import from Google Drive…**, the
-  **Import it straight from Google Drive** link on the home page, or the
-  Google Drive button in the import prompt. Google Docs need no download
-  first. My Drive and Shared drives each have a tab. This needs the Picker
-  setup described below. A Google Drive for desktop `.gdoc` file on your
-  computer is only a shortcut; it is refused with a pointer to this route.
+### Bring the manuscript you already have
 
-| Format | What comes across |
-| ------ | ----------------- |
-| Word `.docx` | Paragraphs, Title and Heading 1–3 styles (Heading 4–6 become H3), bold, italic, underline, strikethrough, lists, quotes, typed spacing and tabs. Automatic heading numbers (Word's "Chapter 1" heading list numbering) are written into the heading text. The visible Title paragraph names the manuscript, ahead of the file's document properties. Footnotes are kept as a numbered list at the end. Images and comments are left out, and the result dialog says how many. |
-| Google Docs | Exported as HTML through the Picker, keeping the same formatting as `.docx`. A Doc too large for Google to export (about 10 MB) must first be downloaded as `.docx` and imported from your computer. |
-| `.html` | Headings, paragraphs, marks, lists, quotes and centre/right alignment. Scripts, frames, forms, styles and links are stripped; link text is kept. |
-| `.md` | Headings, emphasis, strikethrough, quotes, nested lists, scene breaks, and a `title:` in front matter. A leading `---` counts as front matter only if every line up to the next `---` is YAML; otherwise it is a scene break and nothing is dropped. A `---` under a sentence is a scene break, not a heading. A first `# Title` above the chapters names the manuscript and isn't counted as a chapter. |
-| `.txt` | Paragraphs split by blank lines, or one paragraph per line. Lines are joined only when the whole file is hard-wrapped at one width (the dialog says so). A longer gap than usual between paragraphs is kept as an empty line. A short first line above the chapters names the manuscript. |
+- **Import from Word, Google Docs, Markdown, HTML or plain text.** Drop a file
+  onto the page, choose one from your computer, or pick a Google Doc straight
+  from your Drive.
+- **Chapters are found for you.** Lines like "Chapter 1", "Chapter Twelve: The
+  Storm", "Part One", "Prologue" or "Epilogue" become chapter headings, and
+  `* * *` style lines become scene breaks. Bold, italics, lists and quotes come
+  across.
+- **Your original file is only read, never changed.** Afterwards you get a
+  summary: word count, chapter count, and anything that couldn't come across
+  (such as images).
 
-Text, Markdown and HTML files are read as UTF-8, UTF-16 (with a byte-order
-mark) or Windows-1252, and HTML honours its `<meta charset>`. A mostly UTF-8
-file with a few stray legacy bytes keeps its UTF-8, and only those bytes are
-read as Windows-1252. Files picked in Google Drive are decoded the same way.
+### Your manuscript, on your computer
 
-Files must be 25 MB or smaller, from your computer or from Drive. A larger
-Drive file is stopped during the download. Old `.doc`, password-protected `.docx`, PDF,
-RTF, ODT, Pages, EPUB and Scrivener projects are refused, with a message on how
-to export them as `.docx` or plain text.
+- **Save to computer** gives you a Word document laid out at your trim size,
+  with chapters on new pages, page numbers and your running heads. You can
+  also save Markdown, plain text, a print-ready page (for a book-sized PDF) or
+  a Thunder Writer backup of this manuscript.
+- **Keep a copy on my computer** (Chrome and Edge): choose a file once, for
+  example on your Desktop, and Thunder Writer keeps it up to date as you write.
+- **Cmd+S / Ctrl+S** does what you expect. It saves right away, updates your
+  desktop copy, and never opens the browser's "Save page" dialog.
 
-**Chapters and scene breaks.** A standalone line such as "Chapter 1",
-"CHAPTER ONE", "Chapter Twelve: The Storm", "Part One", "Prologue" or
-"Epilogue" becomes a Chapter heading (H1), so it starts on a new page when
-**Chapters start new page** is on. So does "Chapter 4" followed by its title on
-the next line (Shift+Enter) in the same paragraph. Bare numerals like "IV" or
-"12" are promoted only if at least two appear counting up (I, II, III), so a
-"XXX" to-do marker stays text. Paragraphs separated only by `<br><br>` in HTML
-are split into separate paragraphs. A sentence that just begins with
-"Chapter…" stays a paragraph. Lines such as `* * *`, `***`, `#`, `~~~` or `§`
-become the scene-break divider. Your words themselves are never changed; only
-empty paragraphs and trailing spaces are tidied.
+### Autosave, twice over
 
-After the import, a dialog shows the word count, the chapter count, and
-anything that was left out. A 120,000-word, 40-chapter `.docx` imports in
-about 0.3 s and is fully paginated (389 pages at 6 × 9) in well under a second.
+- **Every change is saved in your browser** about a second after you stop
+  typing.
+- **Connect your own Google Drive** and your manuscripts are also saved there,
+  in a "Thunder Writer" folder, within about a minute while you write (a few
+  seconds after you pause, at most once a minute by default), so you can pick
+  up on another computer. Before you switch computers, check that the status
+  says it's saved to Drive. (After reloading the page you reconnect with one
+  click.)
+  Thunder Writer can only see the files it created and the files you choose to
+  import. It can't see the rest of your Drive.
 
-## Google Drive setup (optional)
+### Private by design
 
-Drive gives you a cloud copy and lets you open manuscripts on another machine.
-You need a Google OAuth **Web** client id, which takes about 3 minutes:
+- **No accounts, no servers.** Thunder Writer is a web page that runs on your
+  machine. There is no Thunder Writer server to send your writing to.
+- **You bring your own AI key**, from Anthropic (Claude) or OpenAI. For
+  suggestions, your words go from your browser directly to the provider you
+  choose. If you connect Google Drive, your manuscripts are saved there too.
+- **Current-events trivia (on by default) uses web search.** The provider
+  may run a web search based on your book's topics or setting, so short search
+  queries drawn from your manuscript can reach its search service. Turn it
+  off under **Settings → Suggestions** if you'd rather it didn't.
+- **Your keys stay in this browser.** They are never uploaded, not even to
+  your Google Drive.
+- **Clear all local data** in Settings wipes everything Thunder Writer stored
+  in the browser. Your Drive files are left alone.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick
-   a project, then enable the **Google Drive API**.
-2. Open **Google Auth Platform** (older consoles: **APIs & Services → OAuth
-   consent screen**) and fill in **Branding**. External is fine. Add the scope
-   `https://www.googleapis.com/auth/drive.file`.
-3. Under **Google Auth Platform → Audience → Test users**, add every Google
-   account that will connect. While the app is in **Testing**, Google blocks
-   any other account with "Access blocked". Publishing the app (**Audience →
-   Publish app**) lifts that; `drive.file` is a non-sensitive scope.
-4. Under **Google Auth Platform → Clients** (older consoles: **APIs & Services →
-   Credentials → Create credentials → OAuth client ID**), create a client of
-   type **Web application**.
-5. Under **Authorized JavaScript origins**, add `http://localhost:5173` and the
-   origin where you host the build. No redirect URI is needed, because the app
-   uses Google Identity Services' token popup.
-6. Give the client id to the app in either of these ways:
-   - Copy `.env.example` to `.env.local` and set `VITE_GOOGLE_CLIENT_ID=…`, then
-     restart `npm run dev`. The value is baked in at build time.
-   - Paste it into **Settings → Google Drive → OAuth client ID**. This overrides
-     the env value for this browser.
+### A tiny AI bill, shown live
 
-### Importing existing files from Drive (Google Picker)
+- The defaults are the cheapest suitable models: **Claude Haiku 4.5** or
+  OpenAI's **GPT-6 Luna**.
+- The status bar shows your running AI cost for the session, next to your word
+  count, writing time and suggestions accepted.
+- A suggestion request to Haiku 4.5 costs about a cent or less (see the
+  [cost notes](tech_notes.md#what-a-session-costs) for the arithmetic). Each
+  current-events web search adds one cent. Lengthen the cooldown or switch to
+  on-demand suggestions to spend less.
 
-Opening Google Docs or Word files that Thunder Writer didn't create goes
-through Google's file picker. The picker needs a browser API key from the
-**same Cloud project** as the OAuth client:
+### And the small things
 
-1. In the same project, go to **APIs & Services → Library** and enable the
-   **Google Picker API**. The Google Drive API must stay enabled too.
-2. Go to **APIs & Services → Credentials → Create credentials → API key**.
-3. Edit the key and restrict it:
-   - **Application restrictions → Websites:** add `http://localhost:5173/*`,
-     your hosted origin (e.g. `https://writer.example.com/*`), and
-     `https://docs.google.com/*`. The picker runs in a frame on
-     docs.google.com, and Google rejects the key with "The API developer key
-     is invalid" without that entry.
-   - **API restrictions:** restrict the key to the **Google Picker API** only.
-4. Give the key to the app in one of two ways:
-   - Set `VITE_GOOGLE_API_KEY=…` in `.env.local` and restart.
-   - Paste the key into **Settings → Google Drive → Google API key**.
-5. The picker also needs the project **number** as its app id. Thunder Writer
-   reads it from the start of the client id (`698829428298-….apps.googleusercontent.com`
-   → `698829428298`), and **Settings → Google Drive** lets you override it. It
-   must match the project that owns the client id, or picked files can't be
-   read.
+Light and dark themes, or follow your system setting. A running word count
+and writing timer. Keep as many manuscripts as you like and switch between
+them from the File menu.
 
-This API key identifies the app to Google but doesn't unlock anyone's files.
-Access to files still needs the writer's own OAuth consent, so the key isn't a
-secret in the way AI keys are. Even so, it is kept out of the Drive settings
-sync, together with the project number override.
+## Try it
 
-**Why a picker instead of broad Drive access?** Listing or reading arbitrary
-Drive files would need the `drive.readonly` or `drive` scope. Google treats
-both as *restricted* scopes, which require an annual third-party security
-assessment before the app can be offered to other people. With `drive.file`
-and the Picker, the writer chooses exactly which file Thunder Writer may open,
-and the app can't see anything else in their Drive.
+1. **Open Thunder Writer** in a desktop browser. Chrome or Edge gets you every
+   feature; see [Which browsers?](#which-browsers) below.
+   **A hosted version is coming soon.** For now you need to run your own copy,
+   which takes a developer setup (Node.js and a terminal): see the
+   [technical notes](tech_notes.md#getting-started).
+   <!-- TODO: link the hosted app here once the production URL is final, and reword step 4 for hosted users (the host does the Google setup). -->
+2. **Add your AI key** under **Settings → AI provider**: a
+   [Claude key](https://console.anthropic.com/) or an
+   [OpenAI key](https://platform.openai.com/api-keys). **Test key** checks it
+   without spending anything.
+3. **Start writing**, or **Import a manuscript** you already have.
+4. *(Optional)* Connect **Google Drive** from the File menu for a cloud copy.
+   Your copy of Thunder Writer needs a one-time
+   [Google setup](tech_notes.md#google-cloud-setup) first.
 
-Scope and behaviour:
+You can write without an AI key. The suggestion pane will just point you to
+Settings.
 
-- The app asks only for `drive.file`. That gives access only to two kinds of
-  file: those Thunder Writer created, and those you pick in the Google Picker
-  to import. The app can't see anything else in your Drive.
-- An imported file is read once and never written to. The manuscript made from
-  it is saved as a new `.thunder.json` file in the **Thunder Writer** folder.
-- Manuscripts are saved as `<title>.thunder.json` in a **Thunder Writer**
-  folder. Non-secret preferences (including the trivia toggle and cooldown)
-  can be synced as `thunder-writer.config.json`.
-  API keys, the client id, the Google API key and the project number are
-  never uploaded.
-- The access token is kept in memory only. After a reload, press **Connect** in
-  the File menu again.
-- Autosave to Drive runs about 5 s after you pause, and at most once per
-  interval (default 60 s) while there are unsaved changes. Local browser saves
-  happen about half a second after every change.
+## Questions
 
-## Privacy model
+### Is my writing used to train AI?
 
-- **No server.** Nothing about your writing is sent to Thunder Writer, because
-  there is nothing to send it to.
-- **Manuscripts:** stored in IndexedDB (`thunder-writer` database) in this
-  browser, and in your Google Drive if you connect it. Reference ("context")
-  files are stored in the `thunder-writer-context` database.
-- **Keys:** your Claude/OpenAI keys are stored in this browser's
-  `localStorage` (`thunder-writer:settings`) and sent only to their own
-  provider. The trivia cooldown keeps only a timestamp in `localStorage`, and a
-  "web search unavailable" note for this tab stores the provider, model and a
-  short non-reversible fingerprint of the key, never the key itself.
-- **AI requests:** these go directly from the browser to `api.anthropic.com`
-  or `api.openai.com`. They contain the manuscript (or, for long books, the
-  opening plus the region around your cursor), your context files (capped), and
-  recent suggestion titles.
-- **Web-searched trivia:** when it's on, the provider may send short search
-  queries derived from your manuscript to its search backend (Anthropic's or
-  OpenAI's search provider). The prompt asks the model to search by topic or
-  place, not your sentences or character names, but it writes the query itself.
-  Turn the toggle off to prevent this.
-- **Tradeoff:** a key in `localStorage` can be read by any script running on
-  the page's origin, such as a malicious browser extension or an XSS bug. That
-  is the price of having no backend to hide it behind. To limit the risk:
-  - Use a dedicated key with a low spending limit.
-  - Don't use Thunder Writer on shared machines.
-  - Revoke the key if in doubt.
-  - Use **Settings → Clear all local data** to wipe everything this app stored
-    in the browser. Your Drive files are not touched.
+Thunder Writer never receives your writing. When suggestions are on, your
+browser sends the relevant part of your manuscript (and your reference files)
+directly to Anthropic or OpenAI, using your own API key. With current-events
+trivia on (the default), the provider may also run web searches based on your
+book's topics or setting; turn it off under **Settings → Suggestions** to stop
+that. What happens to your text at the provider is governed by that
+provider's terms and privacy policy for API customers, not by Thunder Writer.
+Read them before you start: Anthropic's
+[Commercial Terms](https://www.anthropic.com/legal/commercial-terms) and
+[Privacy Policy](https://www.anthropic.com/legal/privacy), and OpenAI's
+[data controls for the API](https://developers.openai.com/api/docs/guides/your-data).
+If you'd rather
+send nothing, leave the key blank. You can still write, import, preview and
+save.
 
-## Architecture
+### What does it cost?
 
-React 19 + TypeScript + Vite, with TipTap 3 (ProseMirror) for the editor,
-zustand for state, zod for validating anything loaded from storage or the
-network, and idb-keyval for IndexedDB.
+There is no Thunder Writer subscription or account. You pay your AI provider
+directly for what you use, at their published rates. The status bar shows the running total
+as you go. If a model's price isn't known to the app, the suggestion pane says
+the cost is unknown.
 
-```
-src/
-  main.tsx, App.tsx        Router + routes; StorageProvider wraps everything
-  types.ts                 Shared domain types (ThunderDoc, DocFormat, Suggestion, …)
-  contracts.ts             EditorBridge: how the suggestions pane talks to the editor
-  store/
-    settings.ts            Persisted settings (localStorage), default models
-    documents.ts           In-memory documents; storage hydrates and subscribes
-    session.ts             Suggestions, accepted count, AI usage/cost for this session
-  shell/                   EditorContext, theme hook, ThemeToggle
-  styles/theme.css         Design tokens (light/dark) and base button styles
-  features/
-    home/                  Landing page + animated demo (demoScript.ts is a pure timeline)
-    editor/                /write layout (WriterPage), Toolbar, StatusBar,
-                           book presets, pagination (pure page-break math) and
-                           PageView, bridge.ts/textIndex.ts (quote find/highlight/replace)
-    suggestions/           SuggestionsPane + cards, scheduling/cooldown (scheduler.ts),
-                           prompt building, response sanitising, pricing,
-                           trivia.ts (parsing web-searched trivia + sources),
-                           providers/ (Claude + OpenAI browser clients), context files
-    storage/               IndexedDB persistence, Google auth (GIS token model),
-                           Drive client, Drive autosave scheduler, FileMenu and dialogs,
-                           Google Picker loader and Drive import (picker.ts, driveImport.ts)
-    import/                importManuscript(): .docx (mammoth, lazy-loaded), HTML/Google
-                           Docs, Markdown and text → TipTap JSON; chapter/scene-break
-                           detection; ImportHost (progress/result dialogs), drag-and-drop
-    settings/              SettingsPage, key testing, "Clear all local data"
-```
+### Does it work offline?
 
-Data flow:
+Partly. Once the page is open, you can keep writing, and every change is still
+saved in your browser. Suggestions, Google Drive saving and importing from
+Drive need a connection, and Drive catches up when you reconnect. Book
+Preview, Headers & footers, Word import, and saving to your computer (every
+format, including the desktop copy and Cmd+S / Ctrl+S when you have one) load
+extra code the first time you use them in a session, so they may need a
+connection too. Try each once while you're online if you plan to work offline.
+If Thunder Writer was updated while your tab was open, reload the page before
+using them. There is no installable offline app yet, so you need a connection
+to open Thunder Writer in the first place.
 
-1. `StorageProvider` loads documents from IndexedDB into `useDocuments` and
-   writes changes back.
-2. `WriterPage` opens the current document in TipTap and debounces edits into
-   the store (400 ms).
-3. The suggestions engine reads text through the `EditorBridge`, calls the
-   provider, and keeps only suggestions whose quoted passage is actually in the
-   document.
-4. Accept replaces that passage as one undoable edit.
+### Which browsers?
 
-Web-searched trivia is a separate, small request made alongside a normal one:
-it has the search tool on and no structured-output schema (web search always
-returns citations, and citations with `output_config.format` are not documented
-as compatible), so the model replies with one JSON object or `NONE`, which is
-parsed leniently and validated with the same zod schema and sanitiser.
+Thunder Writer is built for current desktop browsers. So far it has been
+checked only in Chromium-based browsers (Chrome, Edge). Safari and Firefox
+should work but haven't been tested yet. **Keep a copy on my computer**, and
+the Save dialog that opens on your Desktop, need Chrome or Edge. In other
+browsers, saved files go to your Downloads folder. Page numbers in the
+print-ready web page need Chrome 131 or newer. Book Preview's Print / PDF has
+been checked only in Chrome.
 
-Tests are colocated as `*.test.ts(x)` and run in jsdom. The pagination,
-scheduler, prompt, pricing, Drive and autosave logic are covered as pure units.
+### What happens to my book if I clear my browser?
 
-## Saving to your computer
+Anything stored only in the browser goes with it. So connect Google Drive,
+keep a desktop copy, or use **Save to computer** for a backup now and then. A
+backup covers the one manuscript you have open, so save one for each book
+(Drive, when connected, keeps all of them). Reference files and your AI keys
+live only in this browser and are never uploaded or included in a backup, so
+keep your own copies of your reference files.
 
-Code: `src/features/export/` (mounted by `WriterPage` via `<ExportHost />`).
+### Will it rewrite my book?
 
-- **Save to computer ▾** (writer header, next to **File**; also **File › Save to
-  computer…**) saves a one-off copy of the open manuscript as Word `.docx`
-  (recommended: book trim size, margins, font, chapters as Heading 1 starting
-  new pages, page numbers), Markdown, plain text, a print-ready `.html` page
-  (Print → Save as PDF gives a book-sized PDF) or a `.thunder.json` backup.
-  The `docx` library is loaded lazily, only when a Word file is built.
-- In Chrome and Edge the native Save dialog (`showSaveFilePicker`) opens on the
-  Desktop. Elsewhere, or if the dialog is blocked, the file is downloaded
-  through a temporary link and lands in Downloads (turn on "Ask where to save
-  each file" in the browser to pick the Desktop).
-- **Keep a copy on my computer** (Chrome/Edge, File System Access API): choose
-  a file once; it is rewritten about 15 s after you pause (at least every 30 s
-  while typing), when the tab is hidden, when you switch to another manuscript,
-  and on Cmd/Ctrl+S. The file handle is kept per manuscript in IndexedDB
-  (`thunder-writer-export`). After a reload the browser asks for write
-  permission again: click **Resume copy** in the header or press Cmd/Ctrl+S.
-  Deleting a manuscript stops its copy and forgets the handle (the file on
-  disk is left alone); **Clear all local data** removes the handles too.
-- **Cmd/Ctrl+S** is caught everywhere on `/write`, including inside the editor,
-  so the browser's "Save page" dialog never opens. It pushes the editor's
-  debounced keystrokes into the store, writes IndexedDB immediately and waits
-  for it before saying "Saved in your browser", then writes the desktop copy
-  if there is one (or opens **Save to your computer** the first time).
-  Cmd/Ctrl+**Shift**+S is left to the editor (strikethrough).
-- Round trips are tested (`src/features/export/roundtrip.test.ts`): a saved
-  `.docx`, `.md` or `.txt` re-imported with **File › Import manuscript…** comes
-  back with the same words, chapters, sections and scene breaks, and (Word and
-  Markdown) the same bold, italic, underline, strikethrough, highlight, lists
-  and block quotes. The importer reads Word's Quote style as a block quote and
-  its highlighter as highlight, and Markdown's `<u>…</u>` and `==…==`.
+No. It suggests. Nothing in your manuscript changes unless you press Accept on
+a specific card, and each accepted change can be undone.
+
+---
+
+Setting it up, hosting your own copy, the Google Cloud and Vercel steps, the
+privacy model in detail and how it's built: see **[tech_notes.md](tech_notes.md)**.

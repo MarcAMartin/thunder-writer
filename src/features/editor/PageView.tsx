@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { EditorContent, type Editor } from '@tiptap/react'
+import type { HeaderFooterSettings } from '../../types'
+import { folioOf, normalizeHeaderFooter, resolveHeaderFooter, sideOfFolio, type PageFurniture } from '../preview/headerFooter'
 import { pageGeometry, trimLabel, FONT_OPTIONS, type ResolvedFormat } from './presets'
-import { usePagination } from './usePagination'
+import { usePagination, type SheetInfo } from './usePagination'
 
 /** Visual gap between sheets, in unscaled px. */
 export const SHEET_GAP = 28
@@ -35,14 +37,61 @@ const fontLabel = (family: string) => FONT_OPTIONS.find((f) => f.value === famil
  * trim's text-block width; sheets are drawn behind it, and page-break spacers
  * (see usePagination) push text past the margins/gap onto the next sheet.
  */
-export function PageView({ editor, format }: { editor: Editor | null; format: ResolvedFormat }) {
+/**
+ * Running head, footer line and page number of one manuscript sheet, drawn
+ * faintly in the margins so the writer sees what the printed page carries.
+ * Same rules as the Book preview (resolveHeaderFooter): odd folios are
+ * right-hand pages, the first page opens the book, a sheet that begins with a
+ * chapter heading is a chapter opening, and chapter heads show the chapter in
+ * effect. (The editor's sheets are manuscript pages: the book adds blank left
+ * pages and balances spreads, so its page numbers differ.)
+ */
+export function sheetFurniture(settings: HeaderFooterSettings, title: string, index: number, sheet?: SheetInfo): PageFurniture {
+  return resolveHeaderFooter(settings, { title }, {
+    index,
+    side: sideOfFolio(folioOf(settings, index)),
+    chapterTitle: sheet?.chapterTitle ?? '',
+    isChapterOpener: index === 0 || (sheet?.isChapterOpener ?? false),
+    isBlank: false,
+  })
+}
+
+const sameSheets = (a: SheetInfo[], b: SheetInfo[]) =>
+  a.length === b.length && a.every((s, i) => s.chapterTitle === b[i].chapterTitle && s.isChapterOpener === b[i].isChapterOpener)
+
+function Band({ slots, className, style }: { slots: PageFurniture['header']; className: string; style: CSSProperties }) {
+  if (!slots.left && !slots.center && !slots.right) return null
+  return (
+    <div className={className} style={style}>
+      <span className="ed-band-l">{slots.left}</span>
+      <span className="ed-band-c">{slots.center}</span>
+      <span className="ed-band-r">{slots.right}</span>
+    </div>
+  )
+}
+
+export function PageView({
+  editor,
+  format,
+  headerFooter,
+  title = '',
+}: {
+  editor: Editor | null
+  format: ResolvedFormat
+  /** The manuscript's header/footer settings (DocFormat.headerFooter); missing = defaults. */
+  headerFooter?: Partial<HeaderFooterSettings>
+  title?: string
+}) {
   const geo = useMemo(() => pageGeometry(format), [format])
+  const hf = useMemo(() => normalizeHeaderFooter(headerFooter), [headerFooter])
   const pitch = geo.pageHeight + SHEET_GAP
   const [scrollRef, scrollSize] = useElementSize<HTMLDivElement>()
   const [flowRef, flowSize] = useElementSize<HTMLDivElement>()
   const scale = fitScale(scrollSize.width, geo.pageWidth)
 
+  const [sheetInfo, setSheetInfo] = useState<SheetInfo[]>([])
   const pageCount = usePagination(editor, {
+    onSheets: (next) => setSheetInfo((prev) => (sameSheets(prev, next) ? prev : next)),
     contentHeight: geo.contentHeight,
     pagePitch: pitch,
     chapterStartsNewPage: format.chapterStartsNewPage,
@@ -67,6 +116,7 @@ export function PageView({ editor, format }: { editor: Editor | null; format: Re
     '--ed-lh': String(format.lineHeight),
     '--ed-page-h': `${geo.pageHeight}px`,
     '--ed-pitch': `${pitch}px`,
+    '--ed-band-size': `${Math.max(9, Math.round(geo.fontSizePx * hf.fontScale * 10) / 10)}px`,
   } as CSSProperties
 
   /** Clicks in the margins or below the text put the caret at the nearest spot. */
@@ -102,13 +152,25 @@ export function PageView({ editor, format }: { editor: Editor | null; format: Re
       <div className="ed-zoom" style={{ width: geo.pageWidth * scale, height: stackHeight * scale }}>
         <div className="ed-stack" style={stackStyle} onMouseDown={onMouseDown}>
           <div className="ed-sheets" aria-hidden="true">
-            {Array.from({ length: sheets }, (_, i) => (
-              <div key={i} className="ed-sheet" style={{ top: i * pitch, height: geo.pageHeight }}>
-                <span className="ed-folio" style={{ bottom: Math.max(8, geo.margin.bottom / 2 - 8) }}>
-                  {i + 1}
-                </span>
-              </div>
-            ))}
+            {Array.from({ length: sheets }, (_, i) => {
+              const fur = sheetFurniture(hf, title, i, sheetInfo[i])
+              const side = { left: geo.margin.left, right: geo.margin.right }
+              return (
+                <div key={i} className={`ed-sheet ed-sheet-${sideOfFolio(folioOf(hf, i))}`} style={{ top: i * pitch, height: geo.pageHeight }}>
+                  <Band
+                    slots={fur.header}
+                    className={`ed-band ed-head${fur.smallCaps ? ' ed-head-caps' : ''}`}
+                    style={{ ...side, top: Math.max(6, geo.margin.top / 2 - 8) }}
+                  />
+                  <Band slots={fur.footer} className="ed-band ed-folio" style={{ ...side, bottom: Math.max(8, geo.margin.bottom / 2 - 8) }} />
+                  {fur.footerNote && (
+                    <span className="ed-band ed-folio ed-footnote" style={{ ...side, bottom: Math.max(2, geo.margin.bottom / 2 - 22) }}>
+                      {fur.footerNote}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
           <div
             className="ed-flow"

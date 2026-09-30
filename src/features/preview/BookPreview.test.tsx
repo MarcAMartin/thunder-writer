@@ -212,7 +212,7 @@ describe('BookPreview', () => {
         docId="d1"
         onClose={() => {}}
         layoutEnv={counting}
-        onHeaderFooterChange={(hf) => useDocuments.getState().updateFormat('d1', { headerFooter: hf } as never)}
+        onHeaderFooterChange={(hf) => useDocuments.getState().updateFormat('d1', { headerFooter: hf })}
       />
     )
     const user = userEvent.setup()

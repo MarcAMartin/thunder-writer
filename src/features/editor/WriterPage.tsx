@@ -48,6 +48,7 @@ function useEnsureCurrentDoc() {
 export function WriterPage() {
   const { hydrated, currentId } = useEnsureCurrentDoc()
   const format = useDocuments((s) => (s.currentId ? s.docs[s.currentId]?.format : undefined))
+  const title = useDocuments((s) => (s.currentId ? (s.docs[s.currentId]?.title ?? '') : ''))
   const resolved = useMemo(() => resolveFormat(format), [format])
   const { editor, contentError } = useManuscriptEditor(hydrated ? currentId : null)
   const startWritingSession = useSession((s) => s.startWritingSession)
@@ -119,7 +120,7 @@ export function WriterPage() {
           {ready && contentError ? (
             <UnreadableManuscript message={contentError} />
           ) : ready ? (
-            <PageView editor={editor} format={resolved} />
+            <PageView editor={editor} format={resolved} headerFooter={format?.headerFooter} title={title} />
           ) : (
             <div className="ed-loading" role="status">
               <Bolt />
