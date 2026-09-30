@@ -1,0 +1,218 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="CpIj_cxXAWdupIrwGE7Q">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-2" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="760" width="760" x="-180" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-3" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="770" width="770" x="1270" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-4" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;" value="" vertex="1">
+          <mxGeometry height="760" width="760" x="1275" y="-870" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-8" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="1800" y="630" />
+              <mxPoint x="1800" y="520" />
+            </Array>
+            <mxPoint x="1800" y="870" as="sourcePoint" />
+            <mxPoint x="1800" y="110" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="ChatGPT/Claude Suggestion Previews Pane" vertex="1">
+          <mxGeometry height="60" width="120" x="1860" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Standard Word Editing Tool Bar.&amp;nbsp;" vertex="1">
+          <mxGeometry height="60" width="490" x="1290" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Word Count&lt;br&gt;Total Time Elapsed&lt;br&gt;Suggestions Available&lt;br&gt;Suggestions Accepted" vertex="1">
+          <mxGeometry height="60" width="130" x="1660" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-17" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;" value="Word Process - Text here" vertex="1">
+          <mxGeometry height="500" width="500" x="1280" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Suggestion #1&lt;br&gt;&lt;br&gt;(Hover should expand it fully) Should click and highlight text or mark in file of suggestions&lt;br&gt;&lt;br&gt;Accept/Decline/Mark Done/Hide" vertex="1">
+          <mxGeometry height="100" width="220" x="1815" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Suggestion #2&lt;br&gt;&lt;br&gt;(Hover should expand it fully) Should click and highlight text or mark in file of suggestions&lt;br&gt;&lt;br&gt;Accept/Decline/Mark Done/Hide" vertex="1">
+          <mxGeometry height="100" width="220" x="1810" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Suggestion #2&lt;br&gt;&lt;br&gt;(Hover should expand it fully) Should click and highlight text or mark in file of suggestions&lt;br&gt;&lt;br&gt;Accept/Decline/Mark Done/Hide" vertex="1">
+          <mxGeometry height="100" width="220" x="1815" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-22" edge="1" parent="1" style="shape=flexArrow;endArrow=classic;startArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="100" relative="1" width="100" as="geometry">
+            <mxPoint x="2110" y="620" as="sourcePoint" />
+            <mxPoint x="2110" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-23" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Scrollable" vertex="1">
+          <mxGeometry height="30" width="60" x="2120" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-24" edge="1" parent="1" style="shape=flexArrow;endArrow=classic;startArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="100" relative="1" width="100" as="geometry">
+            <mxPoint x="1180" y="685" as="sourcePoint" />
+            <mxPoint x="1180" y="325" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-25" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Scrollable" vertex="1">
+          <mxGeometry height="30" width="60" x="1190" y="535" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-26" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1270" y="470" as="sourcePoint" />
+            <mxPoint x="1320" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-27" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;entryX=-0.025;entryY=0.617;entryDx=0;entryDy=0;entryPerimeter=0;" target="o7ogJCZnkSTeiIzotsDi-28" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="2035" y="235" as="sourcePoint" />
+            <mxPoint x="2280" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-28" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Default setting should link them to their settings to insert claude/openai key" vertex="1">
+          <mxGeometry height="60" width="120" x="2280" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-29" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Thunder Writer Title" vertex="1">
+          <mxGeometry height="60" width="120" x="-90" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-31" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Thunder Writer Gif of Operation" vertex="1">
+          <mxGeometry height="60" width="120" x="340" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-32" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Exaplanation Call to Action" vertex="1">
+          <mxGeometry height="60" width="170" x="10" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-50" edge="1" parent="1" source="o7ogJCZnkSTeiIzotsDi-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="o7ogJCZnkSTeiIzotsDi-49" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-34" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Google Drive&amp;nbsp;&lt;br&gt;&lt;br&gt;Should load Files and any config" vertex="1">
+          <mxGeometry height="60" width="160" x="760" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-35" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;entryX=0.488;entryY=1.004;entryDx=0;entryDy=0;entryPerimeter=0;" target="o7ogJCZnkSTeiIzotsDi-4" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1650" y="120" as="sourcePoint" />
+            <mxPoint x="1700" y="70" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-36" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Settings View" vertex="1">
+          <mxGeometry height="60" width="600" x="1340" y="-840" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-37" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Open AI Key / Claude Key" vertex="1">
+          <mxGeometry height="60" width="600" x="1340" y="-740" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-40" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Technical Notes:&lt;br&gt;&lt;br&gt;1) Written In React&lt;br&gt;2) All files stored in browser/Google drive&lt;br&gt;3) Nothing stored on backend&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="200" width="250" x="300" y="-260" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-41" edge="1" parent="1" source="o7ogJCZnkSTeiIzotsDi-4" style="endArrow=classic;html=1;rounded=0;exitX=0.005;exitY=0.714;exitDx=0;exitDy=0;exitPerimeter=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1195" y="-210" as="sourcePoint" />
+            <mxPoint x="890" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-42" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Save Load Files from Google Drive / Current Browser Session" vertex="1">
+          <mxGeometry height="30" width="150" x="950" y="-50" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-44" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Autosave Docs to google drive on changes or on a duration" vertex="1">
+          <mxGeometry height="60" width="145" x="1580" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-45" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="2020" y="605" as="sourcePoint" />
+            <mxPoint x="2240" y="710" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-46" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="The Suggestions should be&lt;br&gt;&lt;br&gt;1) Contextually driven by the overall context of the text, words, phrases etc&lt;br&gt;2) Gramatical checks and selling&lt;br&gt;3) General Suggestiojns&lt;div&gt;4) Trivia of current events etc that might be relevant&lt;/div&gt;&lt;div&gt;5) Use the cheapest possible model to minimize cost&lt;br&gt;6) have a timeout so it&#39;s not too chatty&lt;/div&gt;" vertex="1">
+          <mxGeometry height="200" width="170" x="2250" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-47" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Total AI Cost if Possible goes here" vertex="1">
+          <mxGeometry height="40" width="95" x="1940" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-48" edge="1" parent="1" source="o7ogJCZnkSTeiIzotsDi-34" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="o7ogJCZnkSTeiIzotsDi-17" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="920" y="470" as="sourcePoint" />
+            <mxPoint x="970" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-49" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Load File" vertex="1">
+          <mxGeometry height="30" width="60" x="980" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-54" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Start Writing CTA ( Do not use log in or sign up terms" vertex="1">
+          <mxGeometry height="60" width="120" x="150" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-56" parent="1" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Free_Colorful_Icons-2337/google_drive-1337.png" value="" vertex="1">
+          <mxGeometry height="128" width="128" x="776" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-55" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="o7ogJCZnkSTeiIzotsDi-34" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="280" y="400" as="sourcePoint" />
+            <mxPoint x="330" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-57" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Dark and Light Themes" vertex="1">
+          <mxGeometry height="60" width="120" x="1140" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-58" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Application" vertex="1">
+          <mxGeometry height="30" width="150" x="1490" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-59" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Settings View" vertex="1">
+          <mxGeometry height="30" width="150" x="1550" y="-920" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-60" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Home Page" vertex="1">
+          <mxGeometry height="30" width="150" x="-30" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-61" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Talk about how this is an idea processor, not word processor" vertex="1">
+          <mxGeometry height="60" width="170" x="10" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-62" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1960" y="160" as="sourcePoint" />
+            <mxPoint x="2190" y="30" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-63" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Alowing&amp;nbsp; uploading files for context, like the previous works or a poem&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="160" x="2190" y="-20" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-64" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" target="o7ogJCZnkSTeiIzotsDi-65" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1330" y="280" as="sourcePoint" />
+            <mxPoint x="1320" y="50" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-65" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="The format of this word document should be specified by the size of the book. It should have presets given size, text size etc so writers understand page breaks if they wanna start their chapter on a new page&lt;br&gt;&lt;br&gt;Or make it a selectable checkbox so if the font changes it preserveres the page/chapter breaks" vertex="1">
+          <mxGeometry height="130" width="330" x="1160" y="-30" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-66" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Description of app:&lt;br&gt;&lt;br&gt;A word processor thats dedicated for writing novels with AI integration for suggestions/grammar etc. I tshould also have presets for book sizes etc. It should use browser cache and google drive only.&amp;nbsp;" vertex="1">
+          <mxGeometry height="150" width="280" x="-230" y="-180" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-69" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Generate Suggestions" vertex="1">
+          <mxGeometry height="60" width="140" x="1850" y="755" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-70" edge="1" parent="1" source="o7ogJCZnkSTeiIzotsDi-69" style="endArrow=classic;html=1;rounded=0;" target="o7ogJCZnkSTeiIzotsDi-71" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1890" y="1150" as="sourcePoint" />
+            <mxPoint x="1890" y="960" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-71" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="This should process suggestions, only 1-2 at a time. Do not overwhelm" vertex="1">
+          <mxGeometry height="90" width="140" x="1870" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-72" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Hide Suggestions" vertex="1">
+          <mxGeometry height="30" width="140" x="1810" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-73" edge="1" parent="1" source="o7ogJCZnkSTeiIzotsDi-72" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="o7ogJCZnkSTeiIzotsDi-74" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1890" y="-30" as="sourcePoint" />
+            <mxPoint x="1890" y="20" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o7ogJCZnkSTeiIzotsDi-74" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="&lt;div&gt;Allow the ability to collapse them if the writer is locked in and cruising&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="160" x="1800" y="-40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
