@@ -39,11 +39,14 @@ export type DriveErrorCode =
 export class DriveError extends Error {
   readonly code: DriveErrorCode
   readonly status?: number
-  constructor(code: DriveErrorCode, message: string, status?: number) {
+  /** Google's error reason (e.g. "exportSizeLimitExceeded"), when the response had one. */
+  readonly reason?: string
+  constructor(code: DriveErrorCode, message: string, status?: number, reason?: string) {
     super(message)
     this.name = 'DriveError'
     this.code = code
     this.status = status
+    if (reason) this.reason = reason
   }
   /** True when the fix is for the writer to (re)connect Google Drive. */
   get needsReconnect() {
@@ -76,9 +79,10 @@ export async function mapHttpError(res: Response): Promise<DriveError> {
     // Non-JSON body; keep the status-based message.
   }
   const s = res.status
-  if (s === 401) return new DriveError('auth', 'Your Google Drive session expired. Reconnect Drive to continue.', s)
+  const r = reason || undefined
+  if (s === 401) return new DriveError('auth', 'Your Google Drive session expired. Reconnect Drive to continue.', s, r)
   if (s === 429 || reason === 'rateLimitExceeded' || reason === 'userRateLimitExceeded')
-    return new DriveError('rate_limited', 'Google Drive is rate limiting requests. Trying again shortly.', s)
+    return new DriveError('rate_limited', 'Google Drive is rate limiting requests. Trying again shortly.', s, r)
   if (s === 403)
     return new DriveError(
       'forbidden',
@@ -86,10 +90,11 @@ export async function mapHttpError(res: Response): Promise<DriveError> {
         ? 'Your Google Drive is full.'
         : `Google Drive refused the request${detail ? `: ${detail}` : '.'}`,
       s,
+      r,
     )
-  if (s === 404) return new DriveError('not_found', 'That file no longer exists in Google Drive.', s)
-  if (s >= 500) return new DriveError('unavailable', 'Google Drive is temporarily unavailable. Try again in a moment.', s)
-  return new DriveError('unknown', `Google Drive error ${s}${detail ? `: ${detail}` : ''}`, s)
+  if (s === 404) return new DriveError('not_found', 'That file no longer exists in Google Drive.', s, r)
+  if (s >= 500) return new DriveError('unavailable', 'Google Drive is temporarily unavailable. Try again in a moment.', s, r)
+  return new DriveError('unknown', `Google Drive error ${s}${detail ? `: ${detail}` : ''}`, s, r)
 }
 
 export interface DriveFileInfo {

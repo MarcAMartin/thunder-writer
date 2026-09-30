@@ -7,6 +7,15 @@ import { useSettings } from '../../store/settings'
 import { FileMenu } from './FileMenu'
 import { makeDoc } from './testDocs'
 
+// Owned by features/import; FileMenu only reaches it through the Drive import flow.
+vi.mock('../import/importManuscript', () => ({
+  importManuscript: vi.fn(async () => {
+    throw new Error('not used here')
+  }),
+  IMPORT_ACCEPT: ['.docx', '.txt', '.md', '.html'],
+  IMPORT_MIME_TYPES: ['text/plain'],
+}))
+
 function Where() {
   const l = useLocation()
   return <div data-testid="where">{l.pathname + l.search + l.hash}</div>
@@ -24,7 +33,8 @@ describe('FileMenu', () => {
   beforeEach(() => {
     // A developer's .env.local may set a client id; these tests control it explicitly.
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
-    useSettings.setState({ googleClientId: '' })
+    vi.stubEnv('VITE_GOOGLE_API_KEY', '')
+    useSettings.setState({ googleClientId: '', googleApiKey: '', googleProjectNumber: '' })
     const doc = makeDoc({ id: 'a', title: 'Alpha', updatedAt: 10 })
     useDocuments.setState({
       docs: { a: doc, b: makeDoc({ id: 'b', title: 'Beta', updatedAt: 5 }) },
@@ -49,6 +59,24 @@ describe('FileMenu', () => {
     await vi.waitFor(() => expect(Object.keys(useDocuments.getState().docs)).toHaveLength(3))
     expect(useDocuments.getState().docs[useDocuments.getState().currentId!].title).toBe('Untitled Manuscript')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('offers "Import manuscript…" for local Word, text and Markdown files, opening a file chooser', async () => {
+    const user = userEvent.setup()
+    const clicked: HTMLInputElement[] = []
+    const spy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement) {
+      clicked.push(this)
+    })
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    const menu = screen.getByRole('menu', { name: 'File' })
+    await user.click(within(menu).getByRole('menuitem', { name: /import manuscript/i }))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(clicked).toHaveLength(1)
+    expect(clicked[0].type).toBe('file')
+    expect(clicked[0].accept).toContain('.docx')
+    spy.mockRestore()
+    clicked[0].remove()
   })
 
   it('supports keyboard navigation and Escape', async () => {
@@ -120,6 +148,53 @@ describe('FileMenu', () => {
     await user.click(within(dialog).getByRole("button", { name: /^Beta/ }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     confirm.mockRestore()
+  })
+
+  it('offers "Import from Google Drive…" separately from "Open from Drive…" when the Picker is set up', async () => {
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
+    const user = userEvent.setup()
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    const menu = screen.getByRole('menu', { name: 'File' })
+    expect(within(menu).getByRole('menuitem', { name: 'Open from Drive…' })).toBeInTheDocument()
+    const item = within(menu).getByRole('menuitem', { name: 'Import from Google Drive…' })
+    expect(item.tagName).toBe('BUTTON')
+    expect(within(menu).queryByText(/needs a Google API key/)).not.toBeInTheDocument()
+  })
+
+  it('explains the missing Google API key and links the import item to Settings', async () => {
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: '' })
+    const user = userEvent.setup()
+    renderAt()
+    await user.click(screen.getByRole('button', { name: /file/i }))
+    const item = screen.getByRole('menuitem', { name: 'Import from Google Drive…' })
+    expect(item).toHaveAttribute('href', '/settings#drive')
+    expect(item).toHaveAccessibleDescription(/needs a Google API key/)
+    expect(screen.getByText(/Importing Google Docs and Word files needs a Google API key/)).toBeInTheDocument()
+  })
+
+  it('opens the import prompt from ?open=picker without opening the Picker, and clears the param', async () => {
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com', googleApiKey: 'AIza-test' })
+    renderAt('/write?open=picker')
+    const dialog = await screen.findByRole('dialog', { name: 'Import from Google Drive' })
+    expect(within(dialog).getByRole('button', { name: 'Choose a file from Google Drive…' })).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/write$/)
+  })
+
+  it('?open=picker without a Google API key points to Settings', async () => {
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
+    renderAt('/write?open=picker')
+    const dialog = await screen.findByRole('dialog', { name: 'Import from Google Drive' })
+    expect(within(dialog).getByText(/needs a Google API key/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings#drive')
+  })
+
+  it('shows the Drive import action in the Open from Drive dialog', async () => {
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
+    renderAt('/write?open=drive')
+    const dialog = await screen.findByRole('dialog', { name: 'Open from Google Drive' })
+    // No API key yet: the action leads to Settings.
+    expect(within(dialog).getByRole('link', { name: /Import from Google Drive…/ })).toHaveAttribute('href', '/settings#drive')
   })
 
   it('imports a backup without its Drive link, so it can never autosave over the Drive file', async () => {

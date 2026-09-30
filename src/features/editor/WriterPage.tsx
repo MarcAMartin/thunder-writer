@@ -7,6 +7,8 @@ import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
 import { SuggestionsPane } from '../suggestions/SuggestionsPane'
 import { FileMenu } from '../storage/FileMenu'
+import { ImportHost } from '../import/ImportHost'
+import { useManuscriptDrop } from '../import/useManuscriptDrop'
 import { createEditorBridge } from './bridge'
 import { sanitizeContent } from './contentCheck'
 import { PageView } from './PageView'
@@ -46,6 +48,9 @@ export function WriterPage() {
   const resolved = useMemo(() => resolveFormat(format), [format])
   const { editor, contentError } = useManuscriptEditor(hydrated ? currentId : null)
   const startWritingSession = useSession((s) => s.startWritingSession)
+  // Dropping a .docx/.txt/.md/.html file on the pages imports it as a new manuscript.
+  const mainRef = useRef<HTMLElement>(null)
+  const dragging = useManuscriptDrop(mainRef)
 
   // The session clock starts the first time the writer opens the editor. Coming
   // back from Settings (a remount) must not zero the time, cost or open cards.
@@ -104,7 +109,7 @@ export function WriterPage() {
           </div>
           <Toolbar />
         </header>
-        <main className="ed-main" id="manuscript" aria-label="Manuscript pages" aria-busy={!ready}>
+        <main ref={mainRef} className="ed-main" id="manuscript" aria-label="Manuscript pages" aria-busy={!ready}>
           {ready && contentError ? (
             <UnreadableManuscript message={contentError} />
           ) : ready ? (
@@ -120,6 +125,7 @@ export function WriterPage() {
           <SuggestionsPane />
         </div>
         <StatusBar />
+        <ImportHost dragging={dragging} />
       </div>
     </EditorContext.Provider>
   )

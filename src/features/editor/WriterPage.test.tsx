@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { TiptapEditorHTMLElement } from '@tiptap/core'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
+import { useImportFlow } from '../import/importFlow'
 import type { ThunderDoc } from '../../types'
 
 // Sibling features are built independently; isolate the editor from them.
@@ -21,9 +22,9 @@ if (typeof Range.prototype.getClientRects !== 'function') {
 
 const initialDocs = useDocuments.getState()
 
-function renderPage() {
+function renderPage(url = '/write') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <WriterPage />
     </MemoryRouter>,
   )
@@ -47,6 +48,7 @@ const docWith = (text: string): ThunderDoc => ({
 beforeEach(() => {
   useDocuments.setState({ ...initialDocs, docs: {}, currentId: null, hydrated: false, dirtyForDrive: {} }, true)
   useSession.getState().resetSession()
+  useImportFlow.setState({ phase: { kind: 'idle' }, prompt: false })
 })
 
 afterEach(() => {
@@ -237,5 +239,31 @@ describe('WriterPage', () => {
     await waitFor(() => expect(getEditor().getText()).toBe('Another tale.'))
     const byId = Object.fromEntries(useSession.getState().suggestions.map((x) => [x.id, x.status]))
     expect(byId).toEqual({ s1: 'hidden', s2: 'accepted' })
+  })
+
+  it('shows the "Choose a file to import" prompt for ?import=local', async () => {
+    useDocuments.getState().hydrate([docWith('Once upon a time.')], 'doc-1')
+    renderPage('/write?import=local')
+    expect(await screen.findByRole('dialog', { name: 'Import a manuscript' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose a file to import' })).toBeInTheDocument()
+  })
+
+  it('imports a manuscript dropped on the pages as a new, opened document', async () => {
+    useDocuments.getState().hydrate([docWith('Once upon a time.')], 'doc-1')
+    renderPage()
+    await waitFor(() => expect(getEditor().getText()).toBe('Once upon a time.'))
+    const file = new File(['Chapter 1\n\nThe rain came early.\n\nChapter 2\n\nIt did not stop.'], 'draft.txt', {
+      type: 'text/plain',
+    })
+    const main = document.getElementById('manuscript')!
+    const dataTransfer = { types: ['Files'], files: [file], dropEffect: 'none' }
+    fireEvent.dragEnter(main, { dataTransfer })
+    fireEvent.drop(main, { dataTransfer })
+    expect(await screen.findByRole('dialog', { name: 'Manuscript imported' })).toBeInTheDocument()
+    await waitFor(() => expect(getEditor().getText()).toContain('The rain came early.'))
+    const s = useDocuments.getState()
+    expect(s.currentId).not.toBe('doc-1')
+    expect(s.docs['doc-1'].content).toEqual(docWith('Once upon a time.').content)
+    expect(s.dirtyForDrive[s.currentId!]).toBe(true)
   })
 })

@@ -15,7 +15,7 @@ import {
   SpellIcon,
   StoryIcon,
 } from './icons'
-import { OPEN_FROM_DRIVE_PATH, SETTINGS_PATH, WRITE_PATH } from './routes'
+import { IMPORT_LOCAL_PATH, OPEN_FROM_DRIVE_PATH, SETTINGS_PATH, WRITE_PATH } from './routes'
 import './home.css'
 
 interface Item {
@@ -123,6 +123,9 @@ export function HomePage() {
                   <span aria-hidden="true" className="hm-cta-arrow">
                     →
                   </span>
+                </Link>
+                <Link to={IMPORT_LOCAL_PATH} className="tw-btn hm-cta">
+                  Import a manuscript
                 </Link>
                 <Link to={OPEN_FROM_DRIVE_PATH} className="tw-btn hm-cta">
                   Open from Google Drive

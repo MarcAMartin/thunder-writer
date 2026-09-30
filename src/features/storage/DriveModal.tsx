@@ -10,6 +10,7 @@ import {
   connectDrive,
   downloadDriveDoc,
   isDriveConfigured,
+  isPickerConfigured,
   listDriveDocs,
   openDownloadedDoc,
   useStorageStatus,
@@ -24,9 +25,14 @@ type View =
   | { kind: 'error'; message: string; reconnect: boolean }
   | { kind: 'conflict'; files: DriveFileInfo[]; local: ThunderDoc; remote: ThunderDoc }
 
-/** "Load from Drive": lists manuscripts in the Thunder Writer Drive folder. */
-export function DriveModal({ onClose }: { onClose: () => void }) {
+/**
+ * "Load from Drive": lists manuscripts in the Thunder Writer Drive folder.
+ * `onImport` starts "Import from Google Drive…" (any other Drive file, via the
+ * Google Picker); it must be called straight from the click.
+ */
+export function DriveModal({ onClose, onImport }: { onClose: () => void; onImport?: () => void }) {
   const configured = isDriveConfigured()
+  const pickerReady = configured && isPickerConfigured()
   const connected = useStorageStatus((s) => s.driveConnected)
   const [view, setView] = useState<View>(() => (connected || auth.hasValidToken ? { kind: 'loading' } : { kind: 'connect' }))
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -165,18 +171,41 @@ export function DriveModal({ onClose }: { onClose: () => void }) {
     )
   }
 
-  return (
-    <Modal
-      title="Open from Google Drive"
-      onClose={onClose}
-      footer={
-        configured && view.kind === 'list' ? (
+  const importAction =
+    !configured || !onImport || view.kind === 'conflict' ? null : pickerReady ? (
+      <button type="button" className="tw-btn" onClick={onImport}>
+        Import from Google Drive…
+      </button>
+    ) : (
+      <Link
+        to="/settings#drive"
+        className="tw-btn"
+        onClick={onClose}
+        title="Importing Google Docs and Word files needs a Google API key. Add it in Settings."
+      >
+        Import from Google Drive… (set up)
+      </Link>
+    )
+
+  const footer =
+    importAction || (configured && view.kind === 'list') ? (
+      <>
+        {importAction && (
+          <span className="fm-foot-start">
+            {importAction}
+            <span className="fm-foot-hint">A Google Doc, Word or text draft from anywhere in your Drive</span>
+          </span>
+        )}
+        {configured && view.kind === 'list' && (
           <button type="button" className="tw-btn tw-btn-ghost" onClick={refresh}>
             Refresh
           </button>
-        ) : undefined
-      }
-    >
+        )}
+      </>
+    ) : undefined
+
+  return (
+    <Modal title="Open from Google Drive" onClose={onClose} footer={footer}>
       {body}
     </Modal>
   )

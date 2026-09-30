@@ -67,6 +67,12 @@ describe('HomePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/write?open=drive')
   })
 
+  it('"Import a manuscript" navigates to /write?import=local', () => {
+    renderHome()
+    fireEvent.click(screen.getByRole('link', { name: /import a manuscript/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/write?import=local')
+  })
+
   it('links to Settings and includes the theme toggle', () => {
     renderHome()
     const settings = screen.getAllByRole('link', { name: /^settings$/i })

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,7 +90,34 @@ describe('SettingsPage', () => {
     expect(screen.getByText('http://localhost:5173')).toBeInTheDocument()
   })
 
-  it('restores the default model if the field is left empty', () => {
+  it('saves the Google Picker API key and shows the project number derived from the client id', async () => {
+    vi.stubEnv('VITE_GOOGLE_API_KEY', '')
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
+    useSettings.setState({ googleClientId: '698829428298-abc.apps.googleusercontent.com' })
+    const user = userEvent.setup()
+    renderPage()
+    const drive = screen.getByRole('region', { name: 'Google Drive' })
+    const key = within(drive).getByLabelText('Google API key (for importing from Drive)')
+    expect(key).toHaveAttribute('type', 'password')
+    await user.type(key, ' AIza-picker ')
+    expect(useSettings.getState().googleApiKey).toBe('AIza-picker')
+    expect(key).toHaveAccessibleDescription(/never synced to Drive/)
+
+    const project = within(drive).getByLabelText('Google Cloud project number')
+    expect(project).toHaveValue('')
+    expect(project).toHaveAccessibleDescription(/Using 698829428298, the number at the start of your client ID/)
+    fireEvent.change(project, { target: { value: ' 111 222 ' } })
+    expect(useSettings.getState().googleProjectNumber).toBe('111222')
+    expect(project).toHaveAccessibleDescription(/Using 111222\. Leave blank/)
+
+    // Setup help: enable the Picker API and restrict the key to this origin and docs.google.com.
+    expect(within(drive).getByText('Google Picker API', { selector: 'li:first-child strong' })).toBeInTheDocument()
+    expect(within(drive).getByText('https://docs.google.com/*')).toBeInTheDocument()
+    expect(within(drive).getAllByText(/^http:\/\/localhost:\d+\/\*$/).length).toBeGreaterThan(0)
+    vi.unstubAllEnvs()
+  })
+
+    it('restores the default model if the field is left empty', () => {
     renderPage()
     const model = screen.getAllByLabelText('Model')[0]
     fireEvent.change(model, { target: { value: '' } })

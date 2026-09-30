@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeConfigEnvelope, makeEnvelope, parseConfig, parseDoc, parseEnvelope, pickConfig } from './schema'
+import { CONFIG_KEYS, makeConfigEnvelope, makeEnvelope, parseConfig, parseDoc, parseEnvelope, pickConfig } from './schema'
 import { makeDoc } from './testDocs'
 
 describe('doc envelope', () => {
@@ -97,6 +97,23 @@ describe('config sync', () => {
     // Below the floor (searches are billed) or the wrong type: dropped individually.
     expect(parseConfig(env({ triviaWebSearch: 'yes', triviaCooldownSec: 10, theme: 'dark' }))).toEqual({ theme: 'dark' })
     expect(parseConfig(env({ triviaCooldownSec: 999_999 }))).toEqual({})
+  })
+
+  it('never syncs the Google Picker API key or project number', () => {
+    expect(CONFIG_KEYS).not.toContain('googleApiKey' as never)
+    expect(CONFIG_KEYS).not.toContain('googleProjectNumber' as never)
+    const settings = {
+      theme: 'dark' as const,
+      googleApiKey: 'AIzaSECRETKEY',
+      googleProjectNumber: '698829428298',
+      googleClientId: '698829428298-x.apps.googleusercontent.com',
+    }
+    const json = JSON.stringify(makeConfigEnvelope(settings))
+    expect(json).not.toContain('AIzaSECRETKEY')
+    expect(json).not.toContain('698829428298')
+    expect(
+      parseConfig({ app: 'thunder-writer', kind: 'config', version: 1, settings: { theme: 'light', googleApiKey: 'AIza-evil' } }),
+    ).toEqual({ theme: 'light' })
   })
 
   it('returns null for non-config files', () => {

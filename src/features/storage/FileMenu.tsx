@@ -7,14 +7,19 @@ import {
   connectDrive,
   disconnectDrive,
   isDriveConfigured,
+  isPickerConfigured,
   loadConfigFromDrive,
+  pickDriveFile,
   saveConfigToDrive,
   saveDocToDrive,
   useStorageStatus,
 } from './driveSession'
+import { ImportButton } from '../import/ImportButton'
+import { DriveImportFlow } from './DriveImportFlow'
 import { DriveModal } from './DriveModal'
 import { loadGis } from './googleAuth'
 import { OpenLocalModal } from './OpenLocalModal'
+import { loadPickerApi, type PickedFile } from './picker'
 import { makeEnvelope, parseEnvelope, withoutDriveLink } from './schema'
 import { ResolveConflictModal } from './ResolveConflictModal'
 import './storage.css'
@@ -27,6 +32,9 @@ export function FileMenu() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [modal, setModal] = useState<ModalKind>(null)
   const [note, setNote] = useState<Note>(null)
+  /** Import from Google Drive in progress; `pick` null = show a prompt button first (?open=picker). */
+  const [driveImport, setDriveImport] = useState<{ pick: Promise<PickedFile | null> | null; run: number } | null>(null)
+  const importRun = useRef(0)
   const [searchParams, setSearchParams] = useSearchParams()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -37,6 +45,7 @@ export function FileMenu() {
   const createDoc = useDocuments((s) => s.createDoc)
   const connected = useStorageStatus((s) => s.driveConnected)
   const configured = isDriveConfigured()
+  const pickerReady = configured && isPickerConfigured()
 
   const flash = useCallback((text: string, tone: 'ok' | 'error' = 'ok') => {
     if (noteTimer.current) clearTimeout(noteTimer.current)
@@ -47,20 +56,33 @@ export function FileMenu() {
     if (noteTimer.current) clearTimeout(noteTimer.current)
   }, [])
 
-  // Home page "Load File" deep link: /write?open=drive
+  // Deep links: /write?open=drive (home page "Load File") and /write?open=picker (import from Drive).
+  // The Picker needs a click to open, so ?open=picker shows a prompt button rather than the Picker itself.
   useEffect(() => {
-    if (searchParams.get('open') === 'drive') {
-      setModal('drive')
+    const open = searchParams.get('open')
+    if (open === 'drive' || open === 'picker') {
+      if (open === 'drive') setModal('drive')
+      else setDriveImport({ pick: null, run: ++importRun.current })
       const next = new URLSearchParams(searchParams)
       next.delete('open')
       setSearchParams(next, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
-  // Warm up Google's script so the consent popup opens straight from the click.
+  // Warm up Google's scripts so the consent popup and Picker open straight from the click.
   useEffect(() => {
     if (configured) loadGis().catch(() => undefined)
   }, [configured])
+  useEffect(() => {
+    if (pickerReady) loadPickerApi().catch(() => undefined)
+  }, [pickerReady])
+
+  /** Opens the Google Picker. Must run from a click (consent popup + Picker). */
+  const startDriveImport = () => {
+    const pick = pickDriveFile()
+    pick.catch(() => undefined) // Reported by the import dialog.
+    setDriveImport({ pick, run: ++importRun.current })
+  }
 
   // Close the menu on outside click.
   useEffect(() => {
@@ -180,6 +202,9 @@ export function FileMenu() {
           <div id="fm-file-menu" ref={menuRef} className="fm-menu" role="menu" aria-label="File" onKeyDown={onMenuKey}>
             <MenuItem onClick={act(() => createDoc())}>New manuscript</MenuItem>
             <MenuItem onClick={act(() => setModal('open'))}>Open manuscript…</MenuItem>
+            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)}>
+              Import manuscript (Word, text, Markdown)…
+            </ImportButton>
             <MenuItem onClick={act(() => fileInput.current?.click())}>Import .thunder.json…</MenuItem>
             <MenuItem onClick={act(exportBackup)} disabled={!doc}>
               Download backup
@@ -213,6 +238,25 @@ export function FileMenu() {
                   {doc?.driveFileId ? 'Save to Drive now' : 'Save to Drive'}
                 </MenuItem>
                 <MenuItem onClick={act(() => setModal('drive'))}>Open from Drive…</MenuItem>
+                {pickerReady ? (
+                  <MenuItem onClick={act(startDriveImport)}>Import from Google Drive…</MenuItem>
+                ) : (
+                  <>
+                    <Link
+                      to="/settings#drive"
+                      role="menuitem"
+                      className="fm-item"
+                      tabIndex={-1}
+                      aria-describedby="fm-import-hint"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Import from Google Drive…
+                    </Link>
+                    <p id="fm-import-hint" className="fm-menu-hint">
+                      Importing Google Docs and Word files needs a Google API key. Add it in Settings.
+                    </p>
+                  </>
+                )}
                 <MenuItem
                   onClick={act(async () => {
                     const cfg = await loadConfigFromDrive()
@@ -266,7 +310,16 @@ export function FileMenu() {
       />
 
       {modal === 'open' && <OpenLocalModal onClose={() => setModal(null)} />}
-      {modal === 'drive' && <DriveModal onClose={() => setModal(null)} />}
+      {modal === 'drive' && (
+        <DriveModal
+          onClose={() => setModal(null)}
+          onImport={() => {
+            setModal(null)
+            startDriveImport()
+          }}
+        />
+      )}
+      {driveImport && <DriveImportFlow key={driveImport.run} pick={driveImport.pick} onClose={() => setDriveImport(null)} />}
       {modal === 'conflict' && doc && <ResolveConflictModal docId={doc.id} onClose={() => setModal(null)} />}
     </div>
   )

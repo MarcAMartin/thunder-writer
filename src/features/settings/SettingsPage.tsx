@@ -4,6 +4,8 @@ import {
   DEFAULT_CLAUDE_MODEL,
   DEFAULT_OPENAI_MODEL,
   SETTING_BOUNDS,
+  googleClientId,
+  projectNumberFromClientId,
   useSettings,
   type SettingsState,
 } from '../../store/settings'
@@ -18,6 +20,7 @@ import './settings.css'
 type Patch = Partial<Omit<SettingsState, 'set'>>
 
 const ENV_CLIENT_ID = ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? '').trim()
+const envApiKey = () => ((import.meta.env.VITE_GOOGLE_API_KEY as string | undefined) ?? '').trim()
 
 /** "Settings View": every change saves immediately to this browser. */
 export function SettingsPage() {
@@ -233,6 +236,14 @@ export function SettingsPage() {
               rest of your Drive. Access lasts for this browser session.
             </p>
           </details>
+          <PickerFields
+            apiKey={s.googleApiKey}
+            projectNumber={s.googleProjectNumber}
+            clientId={googleClientId(s)}
+            origin={origin}
+            onApiKey={(googleApiKey) => save({ googleApiKey })}
+            onProjectNumber={(googleProjectNumber) => save({ googleProjectNumber })}
+          />
           <DriveConfigSync enabled={!!(s.googleClientId.trim() || ENV_CLIENT_ID)} />
           <NumberField
             label="Autosave to Drive at most every"
@@ -612,6 +623,87 @@ function ProviderFields(props: {
           <option key={m} value={m} />
         ))}
       </datalist>
+    </>
+  )
+}
+
+/** Google Picker credentials, for importing existing Drive files (Google Docs, Word, text). */
+function PickerFields(props: {
+  apiKey: string
+  projectNumber: string
+  clientId: string
+  origin: string
+  onApiKey: (v: string) => void
+  onProjectNumber: (v: string) => void
+}) {
+  const envKey = envApiKey()
+  const derived = projectNumberFromClientId(props.clientId)
+  const effective = props.projectNumber.trim() || derived
+  const origins = [props.origin, ...(props.origin !== 'http://localhost:5173' ? ['http://localhost:5173'] : [])]
+  return (
+    <>
+      <SecretField
+        label="Google API key (for importing from Drive)"
+        value={props.apiKey}
+        placeholder={envKey ? `Using built-in key ${envKey.slice(0, 8)}…` : 'AIza…'}
+        onChange={props.onApiKey}
+        hint={
+          <>
+            Lets you pick an existing Google Doc, Word, text, Markdown or HTML file from anywhere in your Drive and import
+            it as a new manuscript (the original is never changed). Stored only in this browser and never synced to Drive.
+            {envKey && ' Leave blank to use the key this copy of Thunder Writer was built with.'}
+          </>
+        }
+      />
+      <TextField
+        label="Google Cloud project number"
+        value={props.projectNumber}
+        placeholder={derived ? `${derived} (from your client ID)` : '123456789012'}
+        onChange={(v) => props.onProjectNumber(v.replace(/\s+/g, ''))}
+        autoComplete="off"
+        hint={
+          effective
+            ? props.projectNumber.trim()
+              ? `Using ${effective}. Leave blank to use the number from your client ID${derived ? ` (${derived})` : ''}.`
+              : `Using ${effective}, the number at the start of your client ID. Only change this if your client ID comes from a different project.`
+            : 'Found at the start of your OAuth client ID, or on the Cloud Console dashboard.'
+        }
+      />
+      <details className="st-details">
+        <summary>How to set up importing from Drive (about 2 minutes)</summary>
+        <ol>
+          <li>
+            In the same{' '}
+            <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">
+              Google Cloud Console
+            </a>{' '}
+            project as your client ID, open <em>APIs &amp; Services → Library</em> and enable the{' '}
+            <strong>Google Picker API</strong>.
+          </li>
+          <li>
+            Under <em>Credentials</em>, choose <em>Create credentials → API key</em>.
+          </li>
+          <li>
+            Edit the key. Under <em>Application restrictions</em> pick <strong>Websites</strong> and add{' '}
+            {origins.map((o) => (
+              <span key={o}>
+                <code>{o}/*</code>,{' '}
+              </span>
+            ))}
+            and <code>https://docs.google.com/*</code> (the Picker runs in a frame on docs.google.com, and Google rejects
+            the key without it).
+          </li>
+          <li>
+            Under <em>API restrictions</em>, choose <em>Restrict key</em> and select only the <strong>Google Picker API</strong>.
+          </li>
+          <li>Paste the key above. The project number fills itself in from your client ID.</li>
+        </ol>
+        <p className="st-hint">
+          The Picker keeps the <code>drive.file</code> permission: Thunder Writer can open only the files you pick, never
+          browse the rest of your Drive. The key identifies the app to Google; it can&apos;t read your files by itself.
+          You can also set <code>VITE_GOOGLE_API_KEY</code> in <code>.env.local</code> at build time.
+        </p>
+      </details>
     </>
   )
 }

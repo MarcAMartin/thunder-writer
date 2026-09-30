@@ -1,10 +1,13 @@
 import { create } from 'zustand'
 import { useDocuments } from '../../store/documents'
-import { googleClientId, useSettings } from '../../store/settings'
+import { googleApiKey, googleClientId, googleProjectNumber, useSettings } from '../../store/settings'
 import type { ThunderDoc } from '../../types'
+import { importManuscript } from '../import/importManuscript'
 import type { DriveStatus, LocalStatus } from './autosave'
 import { DriveClient, DriveError, driveErrorMessage, isDriveError, type DriveFileInfo } from './drive'
+import { importPickedFile, type DriveImportOutcome } from './driveImport'
 import { GoogleAuth } from './googleAuth'
+import { loadPickerApi, openPicker, type PickedFile } from './picker'
 import { withoutDriveLink, type SyncedConfig } from './schema'
 
 /** Save/connection status shown in the header. In-memory only. */
@@ -216,6 +219,69 @@ export function loadConfigFromDrive(): Promise<SyncedConfig | null> {
     if (cfg && Object.keys(cfg).length > 0) useSettings.getState().set(cfg)
     return cfg
   })
+}
+
+// ---------------------------------------------------------------------------
+// Importing an existing Drive file (Google Picker). Read-only against the
+// picked file; the result is a brand-new manuscript.
+
+/** The Picker needs a browser API key and the Cloud project number, on top of the OAuth client id. */
+export const isPickerConfigured = () => {
+  const s = useSettings.getState()
+  return isDriveConfigured() && googleApiKey(s).length > 0 && googleProjectNumber(s).length > 0
+}
+
+/**
+ * Opens the Google Picker. Call from a click: it may first show Google's
+ * consent popup. Resolves with the picked file, or null if the writer cancels.
+ */
+export function pickDriveFile(opts: { includeThunderFiles?: boolean } = {}): Promise<PickedFile | null> {
+  return interactive(async () => {
+    const s = useSettings.getState()
+    if (!isDriveConfigured()) {
+      throw new DriveError('not_configured', 'Add a Google OAuth client ID in Settings to use Google Drive.')
+    }
+    const developerKey = googleApiKey(s)
+    const appId = googleProjectNumber(s)
+    if (!developerKey || !appId) {
+      throw new DriveError(
+        'not_configured',
+        developerKey
+          ? 'Add your Google Cloud project number in Settings → Google Drive to import from Drive.'
+          : 'Add a Google API key in Settings → Google Drive to import from Drive.',
+      )
+    }
+    // Token first: the consent popup (if needed) must open straight from the click.
+    const [token, ns] = await Promise.all([auth.getToken({ interactive: true }), loadPickerApi()])
+    useStorageStatus.getState().patch({ driveNeedsReconnect: false })
+    return openPicker(ns, {
+      token,
+      developerKey,
+      appId,
+      origin: window.location.origin,
+      includeThunderFiles: opts.includeThunderFiles ?? true,
+    })
+  })
+}
+
+/** Downloads a picked file and converts it (does not create a manuscript yet). */
+export function importPickedDriveFile(file: PickedFile): Promise<DriveImportOutcome> {
+  return interactive(() => importPickedFile(file, { client: driveClient, importManuscript }))
+}
+
+/**
+ * Turns an import into a new, unlinked manuscript and opens it. It is marked
+ * unsynced, so Drive autosave uploads it to the Thunder Writer folder as a new
+ * file; the picked original is never written.
+ */
+export function createImportedManuscript(outcome: DriveImportOutcome): ThunderDoc {
+  const docs = useDocuments.getState()
+  const doc =
+    outcome.kind === 'thunder'
+      ? docs.createDoc({ title: outcome.doc.title, content: outcome.doc.content, format: outcome.doc.format })
+      : docs.createDoc({ title: outcome.result.title, content: outcome.result.content })
+  useDocuments.setState((st) => ({ dirtyForDrive: { ...st.dirtyForDrive, [doc.id]: true } }))
+  return doc
 }
 
 export { isDriveError }
