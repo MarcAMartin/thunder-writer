@@ -3,7 +3,7 @@ import { checkContent, sanitizeContent } from '../editor/contentCheck'
 import { decodeText, ENCODING_WARNING } from './decode'
 import { docxToHtml } from './docx'
 import { htmlToDoc, type HtmlStats } from './html'
-import { formatMB, MAX_IMPORT_BYTES } from './limits'
+import { MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
 import { markdownToDoc } from './markdown'
 import { sniffFormat, stripKnownExtension } from './sniff'
 import { shapeManuscript } from './structure'
@@ -43,10 +43,7 @@ function byteSize(data: ArrayBuffer | string): number {
 export async function importManuscript(source: ImportSource): Promise<ImportResult> {
   const size = byteSize(source.data)
   if (size > MAX_IMPORT_BYTES) {
-    throw new ImportError(
-      'too_large',
-      `“${source.name}” is ${formatMB(size)}; the largest file Thunder Writer can import is ${formatMB(MAX_IMPORT_BYTES)}. If it contains pictures, save a copy without them and try again.`,
-    )
+    throw new ImportError('too_large', tooLargeMessage(source.name, size))
   }
   if (size === 0) throw new ImportError('empty', `“${source.name}” is empty.`)
 

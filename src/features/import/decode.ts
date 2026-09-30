@@ -46,9 +46,69 @@ function htmlCharset(bytes: Uint8Array): string | null {
 }
 
 /**
+ * Length of the well-formed UTF-8 sequence starting at `i`, or 0 when the byte
+ * there doesn't start one (the WHATWG/Unicode definition: no overlongs, no
+ * surrogates, nothing above U+10FFFF). ASCII counts as a 1-byte sequence.
+ */
+function utf8SeqLength(b: Uint8Array, i: number): number {
+  const c = b[i]
+  if (c < 0x80) return 1
+  const cont = (k: number, lo = 0x80, hi = 0xbf) => i + k < b.length && b[i + k] >= lo && b[i + k] <= hi
+  if (c >= 0xc2 && c <= 0xdf) return cont(1) ? 2 : 0
+  if (c === 0xe0) return cont(1, 0xa0) && cont(2) ? 3 : 0
+  if ((c >= 0xe1 && c <= 0xec) || c === 0xee || c === 0xef) return cont(1) && cont(2) ? 3 : 0
+  if (c === 0xed) return cont(1, 0x80, 0x9f) && cont(2) ? 3 : 0
+  if (c === 0xf0) return cont(1, 0x90) && cont(2) && cont(3) ? 4 : 0
+  if (c >= 0xf1 && c <= 0xf3) return cont(1) && cont(2) && cont(3) ? 4 : 0
+  if (c === 0xf4) return cont(1, 0x80, 0x8f) && cont(2) && cont(3) ? 4 : 0
+  return 0
+}
+
+/**
+ * A file that is mostly UTF-8 with a few stray legacy bytes (a passage pasted
+ * from an old ANSI file): the valid UTF-8 is read as UTF-8 and only the
+ * invalid bytes as Windows-1252. Returns null when the file is essentially
+ * legacy text (fewer valid multi-byte sequences than invalid bytes), which is
+ * then read as Windows-1252 throughout.
+ */
+function decodeMixed(bytes: Uint8Array): string | null {
+  let multi = 0
+  let invalid = 0
+  for (let i = 0; i < bytes.length; ) {
+    const n = utf8SeqLength(bytes, i)
+    if (n === 0) {
+      invalid++
+      i++
+    } else {
+      if (n > 1) multi++
+      i += n
+    }
+  }
+  if (multi <= invalid) return null
+  const utf8 = new TextDecoder('utf-8')
+  let out = ''
+  let runStart = 0
+  for (let i = 0; i < bytes.length; ) {
+    const n = utf8SeqLength(bytes, i)
+    if (n > 0) {
+      i += n
+      continue
+    }
+    if (i > runStart) out += utf8.decode(bytes.subarray(runStart, i))
+    out += decodeWindows1252(bytes.subarray(i, i + 1))
+    i++
+    runStart = i
+  }
+  if (runStart < bytes.length) out += utf8.decode(bytes.subarray(runStart))
+  return out
+}
+
+/**
  * UTF-8 (the norm) with a byte-order mark honoured for UTF-16. A file that isn't
  * valid UTF-8 was most likely saved by an older Windows/Word install, so it is
- * read as Windows-1252 (or the charset an HTML file declares). Never throws.
+ * read as Windows-1252 (or the charset an HTML file declares). A UTF-8 file
+ * with only a few stray legacy bytes keeps its UTF-8 and has just those bytes
+ * read as Windows-1252. Never throws.
  */
 export function decodeText(data: ArrayBuffer | string, opts: { html?: boolean } = {}): DecodedText {
   if (typeof data === 'string') return { text: stripBom(data), encoding: 'utf-16', guessed: false }
@@ -71,8 +131,22 @@ export function decodeText(data: ArrayBuffer | string, opts: { html?: boolean } 
       if (text !== null) return { text: stripBom(text), encoding: declared, guessed: false }
     }
   }
+  const mixed = decodeMixed(bytes)
+  if (mixed !== null) return { text: stripBom(mixed), encoding: MIXED_ENCODING, guessed: true }
   return { text: stripBom(decodeWindows1252(bytes)), encoding: 'windows-1252', guessed: true }
 }
 
+/** `encoding` of a mostly-UTF-8 file with a few Windows-1252 bytes. */
+export const MIXED_ENCODING = 'utf-8+windows-1252'
+
 export const ENCODING_WARNING =
   'This file wasn’t saved as UTF-8, so it was read as Western (Windows-1252). If any accented letters or quotation marks look wrong, re-save the file as UTF-8 and import it again.'
+
+export const MIXED_ENCODING_WARNING =
+  'Most of this file is UTF-8, but a few characters weren’t (perhaps a passage pasted from an older file). Those were read as Western (Windows-1252); check any curly quotes or accented letters near them.'
+
+/** The writer-facing note for a guessed encoding, or null when the file decoded cleanly. */
+export function encodingWarning(d: DecodedText): string | null {
+  if (!d.guessed) return null
+  return d.encoding === MIXED_ENCODING ? MIXED_ENCODING_WARNING : ENCODING_WARNING
+}

@@ -1,3 +1,4 @@
+import { MAX_IMPORT_BYTES, tooLargeMessage } from '../import/limits'
 import { ImportError, type ImportResult, type ImportSource } from '../import/types'
 import type { ThunderDoc } from '../../types'
 import { DRIVE_API, DOC_SUFFIX, DriveError, isDriveError, type DriveClient } from './drive'
@@ -12,9 +13,6 @@ import { parseEnvelope } from './schema'
 
 /** Google Docs are exported as HTML; the export endpoint stops at about 10 MB. */
 export const GDOC_EXPORT_MIME = 'text/html'
-
-/** Generous cap for a single manuscript file download. */
-export const MAX_IMPORT_BYTES = 50 * 1024 * 1024
 
 const TEXT_MIMES = new Set(['text/plain', 'text/markdown', 'text/x-markdown', 'text/html'])
 const TEXT_EXT = /\.(txt|text|md|markdown|html?)$/i
@@ -42,7 +40,8 @@ export function downloadKind(f: Pick<PickedFile, 'name' | 'mimeType'>): Download
 export function downloadUrl(f: Pick<PickedFile, 'id'>, kind: DownloadKind): string {
   const id = encodeURIComponent(f.id)
   if (kind === 'gdoc') return `${DRIVE_API}/${id}/export?mimeType=${encodeURIComponent(GDOC_EXPORT_MIME)}`
-  return `${DRIVE_API}/${id}?alt=media`
+  // supportsAllDrives: files picked from a Shared drive are otherwise reported as not found.
+  return `${DRIVE_API}/${id}?alt=media&supportsAllDrives=true`
 }
 
 export const CANT_OPEN_MESSAGE = 'Thunder Writer can’t open that file — pick it again from Google Drive.'
@@ -65,26 +64,79 @@ export function mapImportDownloadError(e: unknown, kind: DownloadKind): unknown 
   return e
 }
 
-/** Downloads a picked file into the shape importManuscript() takes. */
+const tooLarge = (name: string, bytes?: number) => new ImportError('too_large', tooLargeMessage(name, bytes))
+
+/**
+ * Reads a download's body, stopping as soon as more than `limit` bytes have
+ * arrived (a Content-Length over the limit stops it before anything is read),
+ * so an oversized file is never held in memory in full.
+ */
+export async function readBodyLimited(res: Response, name: string, limit = MAX_IMPORT_BYTES): Promise<ArrayBuffer> {
+  const declared = Number(res.headers.get('Content-Length'))
+  if (Number.isFinite(declared) && declared > limit) {
+    await res.body?.cancel().catch(() => undefined)
+    throw tooLarge(name, declared)
+  }
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const buf = await res.arrayBuffer()
+    if (buf.byteLength > limit) throw tooLarge(name, buf.byteLength)
+    return buf
+  }
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined)
+      throw tooLarge(name)
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(size)
+  let at = 0
+  for (const c of chunks) {
+    out.set(c, at)
+    at += c.byteLength
+  }
+  return out.buffer
+}
+
+/** Body read with the size limit; an interrupted download becomes a friendly network error. */
+async function readPicked(res: Response, file: PickedFile): Promise<ArrayBuffer> {
+  try {
+    return await readBodyLimited(res, file.name)
+  } catch (e) {
+    if (e instanceof ImportError) throw e
+    throw new DriveError('network', 'The download from Google Drive was interrupted. Try again.')
+  }
+}
+
+/**
+ * Downloads a picked file into the shape importManuscript() takes. Text,
+ * Markdown and HTML files stay as bytes, so the importer can detect their
+ * encoding (UTF-16, Windows-1252, an HTML <meta charset>) exactly as for a
+ * file from the computer; only Google's own HTML export is decoded here, as
+ * Google always serves it as UTF-8.
+ */
 export async function downloadPickedFile(client: Pick<DriveClient, 'request'>, file: PickedFile): Promise<ImportSource> {
   const kind = downloadKind(file)
   if (!kind || kind === 'thunder') throw new ImportError('unsupported', `${file.name}: ${UNSUPPORTED}`)
-  if (file.sizeBytes && file.sizeBytes > MAX_IMPORT_BYTES) {
-    throw new ImportError('too_large', `${file.name} is larger than 50 MB, too big to import as one manuscript.`)
-  }
+  if (file.sizeBytes && file.sizeBytes > MAX_IMPORT_BYTES) throw tooLarge(file.name, file.sizeBytes)
   let res: Response
   try {
     res = await client.request(downloadUrl(file, kind))
   } catch (e) {
     throw mapImportDownloadError(e, kind)
   }
-  try {
-    if (kind === 'gdoc') return { name: file.name, mimeType: GDOC_EXPORT_MIME, data: await res.text(), format: 'gdoc-html' }
-    if (kind === 'binary') return { name: file.name, mimeType: file.mimeType || DOCX_MIME, data: await res.arrayBuffer() }
-    return { name: file.name, mimeType: file.mimeType || undefined, data: await res.text() }
-  } catch {
-    throw new DriveError('network', 'The download from Google Drive was interrupted. Try again.')
+  const data = await readPicked(res, file)
+  if (kind === 'gdoc') {
+    return { name: file.name, mimeType: GDOC_EXPORT_MIME, data: new TextDecoder('utf-8').decode(data), format: 'gdoc-html' }
   }
+  if (kind === 'binary') return { name: file.name, mimeType: file.mimeType || DOCX_MIME, data }
+  return { name: file.name, mimeType: file.mimeType || undefined, data }
 }
 
 export type DriveImportOutcome =
@@ -102,12 +154,18 @@ export interface ImportPickedDeps {
  */
 export async function importPickedFile(file: PickedFile, deps: ImportPickedDeps): Promise<DriveImportOutcome> {
   if (downloadKind(file) === 'thunder') {
+    if (file.sizeBytes && file.sizeBytes > MAX_IMPORT_BYTES) throw tooLarge(file.name, file.sizeBytes)
+    let res: Response
+    try {
+      res = await deps.client.request(downloadUrl(file, 'thunder'))
+    } catch (e) {
+      throw mapImportDownloadError(e, 'thunder')
+    }
+    const bytes = await readPicked(res, file)
     let data: unknown
     try {
-      const res = await deps.client.request(downloadUrl(file, 'thunder'))
-      data = await res.json()
-    } catch (e) {
-      if (isDriveError(e)) throw mapImportDownloadError(e, 'thunder')
+      data = JSON.parse(new TextDecoder('utf-8').decode(bytes))
+    } catch {
       throw new DriveError('invalid_file', `${file.name} is not a readable Thunder Writer file.`)
     }
     const parsed = parseEnvelope(data)

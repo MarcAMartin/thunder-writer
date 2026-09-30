@@ -62,11 +62,50 @@ export function isChapterHeading(line: string): boolean {
 
 /**
  * A Roman numeral or number alone on a line. Only promoted when a manuscript
- * has at least two of them, so a stray "I" or "1" is never mistaken for a chapter.
+ * has at least two of them counting up (see bareChapterValue), so a stray "I"
+ * or "1", or a "XXX" to-do marker, is never mistaken for a chapter.
  */
 export function isBareChapterNumber(line: string): boolean {
+  return bareChapterValue(line) !== null
+}
+
+const ROMAN_VALUES: Record<string, number> = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
+
+/** The number a bare chapter line stands for ("IV" → 4, "12." → 12), or null if it isn't one. */
+export function bareChapterValue(line: string): number | null {
   const t = line.trim()
-  return BARE_ROMAN.test(t) || BARE_NUMBER.test(t)
+  if (BARE_NUMBER.test(t)) return parseInt(t, 10)
+  if (!BARE_ROMAN.test(t)) return null
+  const letters = t.replace(/\.$/, '')
+  let total = 0
+  for (let i = 0; i < letters.length; i++) {
+    const v = ROMAN_VALUES[letters[i]]
+    const next = ROMAN_VALUES[letters[i + 1]] ?? 0
+    total += v < next ? -v : v
+  }
+  return total
+}
+
+/**
+ * Of a manuscript's bare chapter numbers (in order), the indexes of the longest
+ * run counting up one at a time (I, II, III or 3, 4, 5), skipping strays in
+ * between. Two "XXX" markers, or "MIX" and "DIV", never form a run.
+ */
+export function bareChapterSequence(values: number[]): number[] {
+  let best: number[] = []
+  for (let start = 0; start < values.length; start++) {
+    if (values.length - start <= best.length) break
+    const run = [start]
+    let expect = values[start] + 1
+    for (let i = start + 1; i < values.length; i++) {
+      if (values[i] === expect) {
+        run.push(i)
+        expect++
+      }
+    }
+    if (run.length > best.length) best = run
+  }
+  return best.length >= 2 ? best : []
 }
 
 /**

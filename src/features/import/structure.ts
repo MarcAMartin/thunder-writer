@@ -1,10 +1,13 @@
 import type { JSONContent } from '@tiptap/core'
-import { isBareChapterNumber, isChapterHeading, isSceneBreak } from './chapters'
+import { bareChapterSequence, bareChapterValue, isChapterHeading, isSceneBreak } from './chapters'
 
 /**
  * The manuscript-aware pass every import goes through, on TipTap JSON:
- * - standalone chapter lines ("Chapter 1", "Prologue"…) become H1 (Chapter)
- *   headings, so book-size page breaks work; "## Chapter 3" is raised to H1;
+ * - paragraphs separated only by blank lines inside one block (HTML's
+ *   `<br><br>`) are split into real paragraphs;
+ * - standalone chapter lines ("Chapter 1", "Prologue"…, or "Chapter 4" with
+ *   its title on the next line) become H1 (Chapter) headings, so book-size
+ *   page breaks work; "## Chapter 3" is raised to H1;
  * - scene-break lines ("* * *", "#", "§"…) become the editor's scene break
  *   (StarterKit's horizontalRule, the toolbar's "Scene break" button);
  * - runs of empty paragraphs collapse to one, and none are kept around
@@ -87,19 +90,84 @@ export function countWords(doc: JSONContent): number {
   return text.split(/\s+/u).filter((w) => /[\p{L}\p{N}]/u.test(w)).length
 }
 
+const isBlankText = (n: JSONContent) => n.type === 'text' && !(n.text ?? '').trim()
+
+/**
+ * Splits a paragraph at every blank line inside it (two or more hard breaks in
+ * a row, as `<br><br>` paragraphs in HTML), keeping its attributes and marks.
+ * A longer run (a blank line more than the separator) leaves an empty
+ * paragraph, like extra space between paragraphs in a text file.
+ */
+export function splitAtBlankLines(node: JSONContent): JSONContent[] {
+  if (node.type !== 'paragraph' || !node.content) return [node]
+  const inline = node.content
+  const pieces: JSONContent[][] = [[]]
+  let i = 0
+  while (i < inline.length) {
+    const c = inline[i]
+    if (c.type !== 'hardBreak') {
+      pieces[pieces.length - 1].push(c)
+      i++
+      continue
+    }
+    // A run of hard breaks, with only whitespace between them.
+    let j = i
+    let breaks = 0
+    const run: JSONContent[] = []
+    while (j < inline.length && (inline[j].type === 'hardBreak' || isBlankText(inline[j]))) {
+      if (inline[j].type === 'hardBreak') breaks++
+      run.push(inline[j])
+      j++
+    }
+    if (breaks < 2) pieces[pieces.length - 1].push(...run)
+    else {
+      if (breaks > 2) pieces.push([])
+      pieces.push([])
+    }
+    i = j
+  }
+  if (pieces.length === 1) return [node]
+  return pieces.map((content) => {
+    const out: JSONContent = { ...node }
+    if (content.length) out.content = content
+    else delete out.content
+    return out
+  })
+}
+
+/** "The Calm", "A Storm at Sea": a short line that can be a chapter title under "Chapter 4". */
+const isTitleLine = (l: string) => l.length > 0 && l.length <= 60 && l.split(/\s+/).length <= 10 && !/[,;:]$/.test(l)
+
+/**
+ * "Chapter 4" + a line break + "The Calm" typed as one paragraph: the first
+ * line is a chapter heading and the rest is a short title (three lines at most).
+ */
+function isBrokenChapterHeading(text: string): boolean {
+  if (text.length > 120) return false
+  const lines = text.split('\n').map((l) => l.trim())
+  if (lines.length > 3 || !isChapterHeading(lines[0])) return false
+  return lines.slice(1).every(isTitleLine)
+}
+
 export function shapeManuscript(doc: JSONContent, opts: { titleText?: string } = {}): ShapeResult {
-  const blocks = (doc.content ?? []).map(trimTrailing)
+  const blocks = (doc.content ?? []).flatMap(splitAtBlankLines).map(trimTrailing)
   let promotedChapters = 0
   let sceneBreaks = 0
 
   // 1. Classify top-level blocks.
-  const bare: number[] = []
+  const bare: Array<{ index: number; value: number }> = []
   const shaped: JSONContent[] = blocks.map((b, i) => {
     if (b.type === 'paragraph') {
       const text = blockText(b)
       const t = text.trim()
       if (!t) return { type: 'paragraph' }
-      if (text.includes('\n')) return b
+      if (text.includes('\n')) {
+        if (isBrokenChapterHeading(t)) {
+          promotedChapters++
+          return toChapter(b)
+        }
+        return b
+      }
       if (isSceneBreak(t)) {
         sceneBreaks++
         return { type: 'horizontalRule' }
@@ -108,25 +176,25 @@ export function shapeManuscript(doc: JSONContent, opts: { titleText?: string } =
         promotedChapters++
         return toChapter(b)
       }
-      if (isBareChapterNumber(t)) bare.push(i)
+      const value = bareChapterValue(t)
+      if (value !== null) bare.push({ index: i, value })
       return b
     }
     if (b.type === 'heading') {
       const t = blockText(b).trim()
       if (!t) return { type: 'paragraph' }
       const level = Number(b.attrs?.level ?? 1)
-      if (level > 1 && isChapterHeading(t)) return toChapter(b)
+      if (level > 1 && (isChapterHeading(t) || (t.includes('\n') && isBrokenChapterHeading(t)))) return toChapter(b)
       return b
     }
     return b
   })
 
-  // 2. "I", "II", "III" (or "1", "2") alone on lines: chapters only when there are several.
-  if (bare.length >= 2) {
-    for (const i of bare) {
-      shaped[i] = toChapter(shaped[i])
-      promotedChapters++
-    }
+  // 2. "I", "II", "III" (or "1", "2") alone on lines: chapters only when several count up in order.
+  for (const k of bareChapterSequence(bare.map((x) => x.value))) {
+    const i = bare[k].index
+    shaped[i] = toChapter(shaped[i])
+    promotedChapters++
   }
 
   // 3. Collapse empty paragraphs and doubled breaks.

@@ -1,5 +1,5 @@
 import { DOMSerializer, type Node as PMNode, type Schema } from '@tiptap/pm/model'
-import { checkContent, editorSchema, sanitizeContent } from '../editor/contentCheck'
+import { editorSchema, sanitizeContent } from '../editor/contentCheck'
 import type { BookBlockKind } from './paginateBook'
 
 /**
@@ -45,13 +45,16 @@ function kindOf(node: PMNode): BookBlockKind {
 }
 
 export function buildRenderModel(content: unknown, schema: Schema = editorSchema()): RenderModel {
-  const json = checkContent(content, schema).ok && content ? content : sanitizeContent(content, schema)
-  let doc: PMNode
-  try {
-    doc = schema.nodeFromJSON(json)
-  } catch {
-    doc = schema.nodeFromJSON(sanitizeContent(content, schema))
+  let doc: PMNode | null = null
+  if (isDocJson(content)) {
+    try {
+      doc = schema.nodeFromJSON(content)
+      doc.check() // content expressions too, not just known node/mark names
+    } catch {
+      doc = null
+    }
   }
+  if (!doc) doc = schema.nodeFromJSON(sanitizeContent(content, schema))
   const blocks: RenderBlock[] = []
   let prev: PMNode | null = null
   let words = 0
@@ -71,6 +74,9 @@ export function buildRenderModel(content: unknown, schema: Schema = editorSchema
   })
   return { schema, blocks, wordCount: words }
 }
+
+const isDocJson = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && (v as { type?: unknown }).type === 'doc'
 
 function countWords(s: string): number {
   let n = 0

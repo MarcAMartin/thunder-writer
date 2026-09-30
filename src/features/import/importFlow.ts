@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { DEFAULT_FORMAT, useDocuments } from '../../store/documents'
 import type { ThunderDoc } from '../../types'
 import { IMPORT_ACCEPT, IMPORT_MIME_TYPES, importManuscript } from './importManuscript'
-import { formatMB, MAX_IMPORT_BYTES } from './limits'
+import { MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
 import { ImportError, type ImportResult } from './types'
 
 /**
@@ -56,10 +56,7 @@ export async function importLocalFile(file: File): Promise<ThunderDoc | null> {
   useImportFlow.setState({ phase: { kind: 'importing', name: file.name }, prompt: false })
   try {
     if (file.size > MAX_IMPORT_BYTES) {
-      throw new ImportError(
-        'too_large',
-        `“${file.name}” is ${formatMB(file.size)}; the largest file Thunder Writer can import is ${formatMB(MAX_IMPORT_BYTES)}. If it contains pictures, save a copy without them and try again.`,
-      )
+      throw new ImportError('too_large', tooLargeMessage(file.name, file.size))
     }
     const data = await file.arrayBuffer()
     const result = await importManuscript({ name: file.name, mimeType: file.type || undefined, data })
