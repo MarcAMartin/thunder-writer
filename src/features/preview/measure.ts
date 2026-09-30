@@ -1,4 +1,4 @@
-import type { Schema } from '@tiptap/pm/model'
+import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import type { LineBox, MeasuredBookBlock } from './paginateBook'
 import { leafElements, renderBlockElement, type RenderBlock } from './renderModel'
 
@@ -89,12 +89,34 @@ export const createDomMeasurer: MeasurerFactory = (setup) => {
           }
         }
         let cached: LineBox[] | null = null
+        const live = () => gen === generation && el.isConnected
         const lines = () => {
           if (cached) return cached
-          cached = gen === generation && el.isConnected ? measureLines(el) : approximateLines(height, linePitch())
+          cached = live() ? measureLines(el) : approximateLines(height, linePitch())
           return cached
         }
         const m: MeasuredBookBlock = { kind: b.kind, height, lines }
+        // A very long paragraph: where its lines start, so each page can render only its own lines.
+        // Looked up only where a page breaks, and only while the block is mounted here.
+        if (b.kind === 'text' && b.node.type.name === 'paragraph' && height > LONG_PARAGRAPH_LINES * linePitch()) {
+          let finder: LineStartFinder | null | undefined
+          const known = new Map<number, number>([[0, 0]])
+          m.lineStart = (k) => {
+            const hit = known.get(k)
+            if (hit !== undefined) return hit
+            const ls = lines()
+            if (k <= 0 || k >= ls.length || !live()) return undefined
+            if (finder === undefined) finder = createLineStartFinder(el, b.node)
+            if (!finder) return undefined
+            // Start the search from the nearest known line before k.
+            let after = 0
+            for (const [j, pos] of known) if (j < k && pos > after) after = pos
+            const pos = finder(ls[k].top, after)
+            if (pos === null) return undefined
+            known.set(k, pos)
+            return pos
+          }
+        }
         if (b.title !== undefined) m.title = b.title
         if (padTop !== undefined) m.padTop = padTop
         return m
@@ -105,6 +127,101 @@ export const createDomMeasurer: MeasurerFactory = (setup) => {
       host.remove()
     },
   }
+}
+
+/**
+ * Paragraphs longer than this (in lines) can report where a line starts
+ * (MeasuredBookBlock.lineStart), and each page renders just its own lines of
+ * them rather than the whole paragraph clipped (a bad import can produce a
+ * 15,000-word paragraph).
+ */
+export const LONG_PARAGRAPH_LINES = 60
+
+type LineStartFinder = (y: number, after: number) => number | null
+
+/**
+ * Finds, in a mounted paragraph, the content position of the first character
+ * whose vertical centre is at or below `y` (searching from content position
+ * `after`). Null if the DOM text doesn't map one-to-one onto the paragraph's
+ * text nodes; then pages fall back to clipping the whole paragraph.
+ */
+function createLineStartFinder(el: HTMLElement, node: PMNode): LineStartFinder | null {
+  const pm: { pos: number; text: string }[] = []
+  node.descendants((n, pos) => {
+    if (n.isText && n.text) pm.push({ pos, text: n.text })
+    return true
+  })
+  const dom: Text[] = []
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  for (let t = walker.nextNode(); t; t = walker.nextNode()) if ((t as Text).data) dom.push(t as Text)
+  if (dom.length !== pm.length || dom.some((t, i) => t.data !== pm[i].text)) return null
+  const range = document.createRange()
+  const runs = dom.map((t, i) => ({ length: t.data.length, pos: pm[i].pos }))
+  return (y, after) => {
+    const top = el.getBoundingClientRect().top
+    const centre = (run: number, offset: number): number | null => {
+      range.setStart(dom[run], offset)
+      range.setEnd(dom[run], offset + 1)
+      const rs = range.getClientRects()
+      for (let i = 0; i < rs.length; i++) if (rs[i].height > 0) return (rs[i].top + rs[i].bottom) / 2 - top
+      return null
+    }
+    // Resume in the run holding `after`.
+    let r = 0
+    while (r + 1 < runs.length && runs[r + 1].pos <= after) r++
+    const from = Math.max(0, Math.min(runs[r].length, after - runs[r].pos))
+    return findLineStarts(runs, [y], centre, { run: r, offset: from })[0]
+  }
+}
+
+/**
+ * For each boundary y (ascending), the content position of the first
+ * character whose vertical centre is at or below it. `centre(run, offset)` is
+ * the centre of one character (null if it has no box). Text runs are in reading
+ * order, so positions only move forward: a narrowing binary search per boundary.
+ */
+export function findLineStarts(
+  runs: readonly { length: number; pos: number }[],
+  boundaries: readonly number[],
+  centre: (run: number, offset: number) => number | null,
+  startAt: { run: number; offset: number } = { run: 0, offset: 0 },
+): (number | null)[] {
+  // A character's centre, or the next measurable one's (a zero-width character has no box).
+  const at = (r: number, o: number): number | null => {
+    for (let k = o; k < runs[r].length && k < o + 4; k++) {
+      const c = centre(r, k)
+      if (c !== null) return c
+    }
+    return null
+  }
+  const out: (number | null)[] = []
+  let r = startAt.run
+  let from = startAt.offset
+  for (const y of boundaries) {
+    let found: number | null = null
+    while (r < runs.length) {
+      const len = runs[r].length
+      const last = at(r, Math.max(from, len - 1))
+      if (from >= len || last === null || last < y) {
+        r++
+        from = 0
+        continue
+      }
+      let lo = from
+      let hi = len - 1
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        const c = at(r, mid)
+        if (c !== null && c >= y) hi = mid
+        else lo = mid + 1
+      }
+      found = runs[r].pos + lo
+      from = lo
+      break
+    }
+    out.push(found)
+  }
+  return out
 }
 
 /** Evenly spaced lines when the DOM is gone (stale call) or unmeasurable. */

@@ -1,5 +1,7 @@
 import { useId, useState } from 'react'
+import { NO_FIT_ISSUES, shortHeadCandidates, type FitReport } from './fitText'
 import {
+  chapterKey,
   resolveHeaderFooter,
   RUNNING_HEAD_PRESETS,
   runningHeadPresetId,
@@ -9,6 +11,8 @@ import {
   type PageFurniture,
   type PageNumberPosition,
 } from './headerFooter'
+// The panel can be used outside the preview (e.g. on a settings page); its styles and paper tokens come with it.
+import './preview.css'
 
 const HEAD_OPTIONS: { value: HeadContent; label: string }[] = [
   { value: 'author', label: 'Author name' },
@@ -41,6 +45,10 @@ export interface HeaderFooterPanelProps {
   title?: string
   /** A chapter title for the diagram. */
   sampleChapter?: string
+  /** The book's chapter titles, for short running heads. */
+  chapterTitles?: readonly string[]
+  /** Which heads / footer lines are too long for the trim size (see fitText.ts). */
+  fit?: FitReport
   className?: string
 }
 
@@ -48,12 +56,30 @@ export interface HeaderFooterPanelProps {
  * Header & footer options for the printed book, with a live diagram of a
  * spread. Controlled: value + onChange, so it can be bound to DocFormat.
  */
-export function HeaderFooterPanel({ value, onChange, title = 'Book title', sampleChapter = 'Chapter One', className }: HeaderFooterPanelProps) {
+export function HeaderFooterPanel({
+  value,
+  onChange,
+  title = 'Book title',
+  sampleChapter = 'Chapter One',
+  chapterTitles = [],
+  fit = NO_FIT_ISSUES,
+  className,
+}: HeaderFooterPanelProps) {
   const id = useId()
   const [diagramOpener, setDiagramOpener] = useState(false)
   const set = <K extends keyof HeaderFooterSettings>(k: K, v: HeaderFooterSettings[K]) => onChange({ ...value, [k]: v })
   const presetId = runningHeadPresetId(value)
   const usesAuthor = [value.versoHead, value.rectoHead, value.footer].includes('author')
+  const usesChapter = value.versoHead === 'chapter' || value.rectoHead === 'chapter'
+  const shortHeadRows = usesChapter ? shortHeadCandidates(value, chapterTitles, fit.chapters) : []
+  const setShortHead = (chapter: string, text: string) => {
+    const next = { ...value.shortHeads }
+    const k = chapterKey(chapter)
+    if (text.trim()) next[k] = text
+    else delete next[k]
+    set('shortHeads', next)
+  }
+  const tooLongNote = 'Too long for the head line at this trim size, so it prints smaller. A shorter text reads better.'
 
   return (
     <fieldset className={`bp-hf${className ? ` ${className}` : ''}`}>
@@ -107,6 +133,11 @@ export function HeaderFooterPanel({ value, onChange, title = 'Book title', sampl
               onChange={(e) => set('versoCustom', e.target.value)}
             />
           )}
+          {fit.verso && (
+            <p className="bp-hf-warn" role="note">
+              {tooLongNote}
+            </p>
+          )}
         </div>
         <div className="bp-hf-row">
           <label htmlFor={`${id}-recto`}>Right pages</label>
@@ -126,8 +157,53 @@ export function HeaderFooterPanel({ value, onChange, title = 'Book title', sampl
               onChange={(e) => set('rectoCustom', e.target.value)}
             />
           )}
+          {fit.recto && (
+            <p className="bp-hf-warn" role="note">
+              {tooLongNote}
+            </p>
+          )}
         </div>
       </div>
+
+      {usesChapter && chapterTitles.length > 0 && (
+        <div className="bp-hf-row">
+          <span className="bp-hf-label" id={`${id}-short`}>
+            Short running heads
+          </span>
+          {shortHeadRows.length === 0 ? (
+            <p className="bp-hf-hint">Every chapter title fits the running head.</p>
+          ) : (
+            <>
+              <p className="bp-hf-hint">
+                {fit.chapters.length > 0
+                  ? `${fit.chapters.length === 1 ? 'One chapter title is' : `${fit.chapters.length} chapter titles are`} too long for the running head. Give ${fit.chapters.length === 1 ? 'it' : 'them'} a short head:`
+                  : 'Short heads used in place of these chapter titles:'}
+              </p>
+              <ul className="bp-hf-short" aria-labelledby={`${id}-short`}>
+                {shortHeadRows.map((t) => {
+                  const long = fit.chapters.includes(t)
+                  return (
+                    <li key={chapterKey(t)}>
+                      <span className="bp-hf-short-title" title={t}>
+                        {t}
+                      </span>
+                      <input
+                        type="text"
+                        aria-label={`Short running head for “${t}”`}
+                        aria-invalid={long || undefined}
+                        value={value.shortHeads[chapterKey(t)] ?? ''}
+                        maxLength={200}
+                        placeholder="Short head"
+                        onChange={(e) => setShortHead(t, e.target.value)}
+                      />
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="bp-hf-row">
         <label htmlFor={`${id}-author`}>Author name</label>
@@ -185,6 +261,11 @@ export function HeaderFooterPanel({ value, onChange, title = 'Book title', sampl
             placeholder="e.g. Advance reader copy, not for sale"
             onChange={(e) => set('footerCustom', e.target.value)}
           />
+        )}
+        {fit.footer && (
+          <p className="bp-hf-warn" role="note">
+            Too long for one line at the foot of the page, so it prints smaller. A shorter text reads better.
+          </p>
         )}
       </div>
 
@@ -257,13 +338,17 @@ function PageNumberInput({ id, value, onChange, describedBy }: { id: string; val
 const PW = 96
 const PH = 138
 const GAP = 0
+/** Room kept for a folio beside a centred head in the diagram (viewBox units). */
+const FOLIO_ROOM = 11
+/** Rough width of 7-unit serif text: about 0.55 em a character, wider in spaced small caps. */
+const estimateWidth = (t: string, smallCaps: boolean) => t.length * (smallCaps ? 4.5 : 3.9)
 
 function describe(side: string, f: PageFurniture) {
   const parts: string[] = []
   parts.push(f.headerText ? `running head “${f.headerText}”` : 'no running head')
   if (f.numberText) parts.push(`page number at the ${f.numberIn === 'header' ? 'top' : 'bottom'} ${f.align === 'center' ? 'centre' : f.align}`)
   else parts.push('no page number')
-  if (f.footerText) parts.push(`footer “${f.footerText}”`)
+  if (f.footerText) parts.push(`footer “${f.footerText}”${f.footerNote ? ' on its own line' : ''}`)
   return `${side}: ${parts.join(', ')}`
 }
 
@@ -299,23 +384,39 @@ export function SpreadDiagram({
     const lines: number[] = []
     const start = isOpener ? 62 : 26
     for (let y = start; y < PH - 22; y += 6) lines.push(y)
-    const text = (slots: PageFurniture['header'], y: number, cls: string) =>
-      (['left', 'center', 'right'] as const).map((k) =>
-        slots[k] ? (
-          <text key={k} x={tx(k)} y={y} textAnchor={anchor(k)} className={cls}>
-            {slots[k].length > 18 ? `${slots[k].slice(0, 17)}…` : slots[k]}
+    const text = (slots: PageFurniture['header'], y: number, cls: string, smallCaps: boolean) => {
+      // Like the page bands: the centre text gets the width between the folio columns and is squeezed, never overprinted.
+      const side = slots.left || slots.right ? FOLIO_ROOM : 0
+      return (['left', 'center', 'right'] as const).map((k) => {
+        const t = slots[k]
+        if (!t) return null
+        const shown = t.length > 60 ? `${t.slice(0, 59)}…` : t
+        const room = k === 'center' ? w - 2 * side : w
+        const squeeze = k === 'center' && estimateWidth(shown, smallCaps) > room
+        return (
+          <text
+            key={k}
+            x={tx(k)}
+            y={y}
+            textAnchor={anchor(k)}
+            className={cls}
+            {...(squeeze ? { textLength: room, lengthAdjust: 'spacingAndGlyphs' } : {})}
+          >
+            {shown}
           </text>
-        ) : null,
-      )
+        )
+      })
+    }
     return (
       <g>
         <rect x={x} y={0} width={PW} height={PH} className="bp-dg-page" />
-        {text(f.header, 14, `bp-dg-head${f.smallCaps ? ' bp-dg-sc' : ''}`)}
+        {text(f.header, 14, `bp-dg-head${f.smallCaps ? ' bp-dg-sc' : ''}`, f.smallCaps)}
         {isOpener && <rect x={inner + w / 2 - 18} y={46} width={36} height={4} rx={1} className="bp-dg-chapter" />}
         {lines.map((y, i) => (
           <rect key={y} x={inner} y={y} width={i % 7 === 6 ? w * 0.6 : w} height={2} className="bp-dg-line" />
         ))}
-        {text(f.footer, PH - 8, 'bp-dg-foot')}
+        {text(f.footer, f.footerNote ? PH - 12 : PH - 8, 'bp-dg-foot', false)}
+        {f.footerNote && text({ left: '', center: f.footerNote, right: '' }, PH - 4, 'bp-dg-foot', false)}
       </g>
     )
   }

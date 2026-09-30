@@ -91,6 +91,7 @@ export function useBookLayout(input: UseBookLayoutInput, env?: Partial<LayoutEnv
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
-  // The previous layout stays on screen until the new one's first pages arrive.
+  // This is always the newest layout. BookPreview keeps the previous one on screen until the new
+  // one reaches the text the reader is looking at (see anchor.ts).
   return state
 }

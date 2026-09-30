@@ -86,3 +86,12 @@ describe('runFlipAnimation', () => {
     expect(t.under.style.transform).toMatch(/^translateX\(141\.4\d*px\)$/)
   })
 })
+
+describe('stack edges that come or go with the leaf', () => {
+  it('appear as the leaf lands and vanish as it lifts', () => {
+    expect(flipStyleAt(0)).toMatchObject({ appear: 0, vanish: 1 })
+    expect(flipStyleAt(0.25)).toMatchObject({ appear: 0, vanish: 0.5 })
+    expect(flipStyleAt(0.75)).toMatchObject({ appear: 0.5, vanish: 0 })
+    expect(flipStyleAt(1)).toMatchObject({ appear: 1, vanish: 0 })
+  })
+})

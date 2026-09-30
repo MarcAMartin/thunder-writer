@@ -46,6 +46,11 @@ export interface HeaderFooterSettings {
   /** Running head / folio size relative to body text. */
   fontScale: number
   smallCapsRunningHeads: boolean
+  /**
+   * Short running heads for chapters whose title is too long for the head line,
+   * keyed by the chapter title as written. Used wherever a head shows the chapter.
+   */
+  shortHeads: Record<string, string>
 }
 
 export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
@@ -63,6 +68,7 @@ export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
   suppressOnBlankPages: true,
   fontScale: 0.8,
   smallCapsRunningHeads: true,
+  shortHeads: {},
 }
 
 export const RUNNING_HEAD_PRESETS: { id: string; label: string; verso: HeadContent; recto: HeadContent }[] = [
@@ -101,6 +107,25 @@ const oneOf = <T extends string>(v: unknown, all: readonly T[], d: T): T =>
   typeof v === 'string' && (all as readonly string[]).includes(v) ? (v as T) : d
 const str = (v: unknown, d: string, max = 200) => (typeof v === 'string' ? v.slice(0, max) : d)
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d)
+const MAX_SHORT_HEADS = 500
+
+/** Chapter title → short head, as stored: only non-empty string pairs, bounded. */
+function shortHeadsOf(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return out
+  let n = 0
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (n >= MAX_SHORT_HEADS) break
+    const key = chapterKey(k)
+    if (!key || typeof val !== 'string' || !val.trim()) continue
+    out[key] = val.slice(0, 200)
+    n++
+  }
+  return out
+}
+
+/** The key a chapter's short head is stored under: its title, whitespace collapsed. */
+export const chapterKey = (title: string) => title.replace(/\s+/g, ' ').trim().slice(0, 300)
 
 /** Settings from storage (possibly old, partial or hand-edited) with every field valid. */
 export function normalizeHeaderFooter(raw: unknown): HeaderFooterSettings {
@@ -123,6 +148,7 @@ export function normalizeHeaderFooter(raw: unknown): HeaderFooterSettings {
     suppressOnBlankPages: bool(r.suppressOnBlankPages, d.suppressOnBlankPages),
     fontScale: Number.isFinite(scale) && scale >= 0.5 && scale <= 1.2 ? scale : d.fontScale,
     smallCapsRunningHeads: bool(r.smallCapsRunningHeads, d.smallCapsRunningHeads),
+    shortHeads: shortHeadsOf(r.shortHeads),
   }
 }
 
@@ -160,6 +186,11 @@ export interface PageFurniture {
   headerText: string
   /** Footer line text other than the page number ('' = none). */
   footerText: string
+  /**
+   * The footer line when it can't share the footer's row with a centred page
+   * number: printed on its own full-width row below it, never squeezed into a corner.
+   */
+  footerNote: string
   /** Printed page number ('' = none). */
   numberText: string
   /** Band the page number sits in. */
@@ -188,6 +219,7 @@ export function resolveHeaderFooter(
   const none: PageFurniture = {
     headerText: '',
     footerText: '',
+    footerNote: '',
     numberText: '',
     numberIn: null,
     align: 'center',
@@ -202,7 +234,6 @@ export function resolveHeaderFooter(
   const chapter = page.chapterTitle.trim()
   const verso = page.side === 'verso'
   const outside: 'left' | 'right' = verso ? 'left' : 'right'
-  const inside: 'left' | 'right' = verso ? 'right' : 'left'
 
   const headFor = (c: HeadContent, custom: string): string => {
     switch (c) {
@@ -211,7 +242,7 @@ export function resolveHeaderFooter(
       case 'author':
         return author || title
       case 'chapter':
-        return chapter || title
+        return (chapter && s.shortHeads[chapterKey(chapter)]?.trim()) || chapter || title
       case 'custom':
         return custom.trim()
       default:
@@ -240,11 +271,12 @@ export function resolveHeaderFooter(
   const footer: Slots = { ...EMPTY }
   if (numberIn === 'header') header[outside] = numberText
   if (numberIn === 'footer') footer[align] = numberText
+  let footerNote = ''
   if (footerText) {
-    // The note takes the centre unless the number is there; then it moves to the gutter side.
+    // The line takes the centre unless the number is there; then it gets a row of its own.
     if (!footer.center) footer.center = footerText
-    else footer[inside] = footerText
+    else footerNote = footerText
   }
 
-  return { headerText, footerText, numberText, numberIn, align, header, footer, smallCaps: s.smallCapsRunningHeads }
+  return { headerText, footerText, footerNote, numberText, numberIn, align, header, footer, smallCaps: s.smallCapsRunningHeads }
 }

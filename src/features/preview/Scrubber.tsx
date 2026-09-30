@@ -55,6 +55,13 @@ export function Scrubber({ count, value, label, valueText, ticks, describe, onSc
           aria-label="Position in book"
           aria-valuetext={valueText}
           onChange={(e) => onScrub(Number(e.target.value))}
+          onKeyDown={(e) => {
+            // A native range moves *back* on Page Down; in a book, Page Down goes on.
+            if (e.key !== 'PageDown' && e.key !== 'PageUp') return
+            e.preventDefault()
+            const next = Math.min(max, Math.max(0, value + (e.key === 'PageDown' ? 1 : -1)))
+            if (next !== value) onScrub(next)
+          }}
         />
         {hover && count > 1 && (
           <div className="bp-scrub-tip" style={{ left: `${hover.x * 100}%` }} role="presentation">

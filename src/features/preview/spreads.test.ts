@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildViews, chapterAtPage, fractionOfView, pagesOfView, viewAtFraction, viewCount, viewLabel, viewOfPage } from './spreads'
+import { buildViews, chapterAtPage, fractionOfView, pagesOfView, viewAtFraction, viewCount, viewLabel, viewOfPage, viewPages } from './spreads'
 
 describe('buildViews (spreads)', () => {
   it('page 1 sits alone on the right; then verso/recto pairs', () => {
@@ -56,6 +56,9 @@ describe('labels and mapping', () => {
     expect(viewLabel([44, 45], 389)).toBe('Pages 44–45 of 389')
     expect(viewLabel([1], 389)).toBe('Page 1 of 389')
     expect(viewLabel([], 3)).toBe('')
+    // Numbering from 2: 401 pages numbered 2–402, so the range is named rather than "of 402".
+    expect(viewLabel([8, 9], 402, 2)).toBe('Pages 8–9 (2–402)')
+    expect(viewPages([8, 9])).toBe('Pages 8–9')
   })
 
   it('finds the chapter running on a page', () => {

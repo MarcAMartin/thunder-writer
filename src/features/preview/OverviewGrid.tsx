@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { memo, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import type { BookLayout } from './layout'
 import type { View } from './spreads'
 
@@ -25,6 +25,9 @@ export function OverviewGrid({ layout, views, current, labelOf, onPick }: Overvi
   const geo = layout.geometry
   const scroller = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ width: 900, height: 600, top: 0 })
+  /** Roving focus: the one thumbnail in the tab order, moved with the arrow keys. */
+  const [focus, setFocus] = useState(() => Math.min(Math.max(0, current), Math.max(0, views.length - 1)))
+  const wantFocus = useRef(false)
   const pagesPerView = views.some((v) => v.left !== null && v.right !== null) || views.length === 0 ? 2 : 1
   const thumbPageW = (THUMB_H * geo.pageWidth) / geo.pageHeight
   const cellW = thumbPageW * pagesPerView + 12
@@ -57,6 +60,49 @@ export function OverviewGrid({ layout, views, current, labelOf, onPick }: Overvi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // After an arrow key: scroll the new thumbnail into view (mounting its row), then focus it.
+  useLayoutEffect(() => {
+    if (!wantFocus.current) return
+    const el = scroller.current
+    if (!el) return
+    const top = Math.floor(focus / cols) * rowH
+    const viewH = el.clientHeight || box.height
+    let st = el.scrollTop
+    if (top < st) st = top
+    // Bottom-align a row below the view (top-align it if it's taller than the view).
+    else if (top + rowH > st + viewH) st = Math.min(top, top + rowH - viewH)
+    if (st !== el.scrollTop) el.scrollTop = st
+    if (Math.abs(el.scrollTop - box.top) >= rowH / 3) {
+      setBox((b) => ({ ...b, top: el.scrollTop }))
+      return // focus once the row is mounted
+    }
+    wantFocus.current = false
+    el.querySelector<HTMLElement>(`[data-v="${focus}"]`)?.focus({ preventScroll: true })
+  }, [focus, cols, rowH, box.top])
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return
+    const n = views.length
+    const moves: Record<string, number> = {
+      ArrowRight: 1,
+      ArrowLeft: -1,
+      ArrowDown: cols,
+      ArrowUp: -cols,
+      PageDown: cols * Math.max(1, Math.floor((box.height || rowH) / rowH)),
+      PageUp: -cols * Math.max(1, Math.floor((box.height || rowH) / rowH)),
+    }
+    let to: number
+    if (e.key === 'Home') to = 0
+    else if (e.key === 'End') to = n - 1
+    else if (e.key in moves) to = focus + moves[e.key]
+    else return
+    e.preventDefault()
+    e.stopPropagation()
+    to = Math.min(n - 1, Math.max(0, to))
+    wantFocus.current = true
+    setFocus(to)
+  }
+
   const cells = []
   for (let r = first; r <= last; r++) {
     for (let c = 0; c < cols; c++) {
@@ -68,6 +114,9 @@ export function OverviewGrid({ layout, views, current, labelOf, onPick }: Overvi
           key={v}
           type="button"
           className="bp-thumb"
+          data-v={v}
+          tabIndex={v === focus ? 0 : -1}
+          onFocus={() => v !== focus && setFocus(v)}
           aria-current={v === current ? 'true' : undefined}
           aria-label={labelOf(v)}
           style={{ top: r * rowH, left: GAP + c * (cellW + GAP), width: cellW, height: THUMB_H + LABEL_H }}
@@ -87,6 +136,9 @@ export function OverviewGrid({ layout, views, current, labelOf, onPick }: Overvi
     <div
       className="bp-overview"
       ref={scroller}
+      role="group"
+      aria-label="All pages. Use the arrow keys to move between spreads."
+      onKeyDown={onKeyDown}
       onScroll={(e) => {
         const top = e.currentTarget.scrollTop
         setBox((b) => (Math.abs(b.top - top) < rowH / 3 ? b : { ...b, top }))

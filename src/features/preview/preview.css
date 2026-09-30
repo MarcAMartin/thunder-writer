@@ -6,7 +6,10 @@
  * and inverted pages would misrepresent the printed book.
  */
 
-.bp-overlay {
+/* Paper and ink tokens: on the preview, and on the Headers & footers panel wherever it is used (its diagram draws paper). */
+.bp-overlay,
+.bp-hf,
+.bp-tokens {
   --bp-paper: #fbf7ee;
   --bp-paper-edge: #e8dfcb;
   --bp-paper-edge-2: #d3c8b0;
@@ -18,7 +21,7 @@
   --bp-page-shadow: 0 1px 2px rgba(45, 32, 15, 0.16), 0 12px 32px rgba(45, 32, 15, 0.22);
   --bp-spine: rgba(40, 28, 10, 0.16);
 }
-:root[data-theme='dark'] .bp-overlay {
+:root[data-theme='dark'] :is(.bp-overlay, .bp-hf, .bp-tokens) {
   --bp-paper: #e3dbc9;
   --bp-paper-edge: #c9bfa9;
   --bp-paper-edge-2: #aca18a;
@@ -125,7 +128,7 @@ html.bp-open body {
   cursor: pointer;
   white-space: nowrap;
 }
-.bp-btn:hover:not(:disabled),
+.bp-btn:hover:not(:disabled, [aria-disabled='true']),
 .bp-seg button:hover,
 .bp-hf-seg button:hover {
   background: var(--tw-surface-2);
@@ -138,7 +141,8 @@ html.bp-open body {
   border-color: var(--tw-border);
   color: var(--tw-accent);
 }
-.bp-btn:disabled {
+.bp-btn:disabled,
+.bp-btn[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -196,7 +200,8 @@ html.bp-open body {
   overflow: auto;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 32px 48px;
+  /* Room above and below for a turning leaf, which looks taller than the page (TURN_GROWTH in flip.ts). */
+  padding: 56px 48px;
 }
 .bp-stage-actual .bp-book-frame {
   margin: 0 auto;
@@ -232,10 +237,10 @@ html.bp-open body {
   cursor: pointer;
   opacity: 0.82;
 }
-.bp-turn:hover:not(:disabled) {
+.bp-turn:hover:not([aria-disabled='true']) {
   opacity: 1;
 }
-.bp-turn:disabled {
+.bp-turn[aria-disabled='true'] {
   opacity: 0.25;
   cursor: default;
 }
@@ -258,7 +263,7 @@ html.bp-open body {
   left: 0;
   display: flex;
   transform-origin: 0 0;
-  perspective: 2800px;
+  /* perspective: set inline from the page width (PERSPECTIVE_PAGES in flip.ts) */
   user-select: none;
   -webkit-user-select: none;
 }
@@ -310,11 +315,18 @@ html.bp-open body {
   will-change: transform;
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.18);
 }
-.bp-book-spread .bp-sheet-left {
+/* Click-to-turn zones (see CLICK_ZONE in FlipBook.tsx): only they show the turn cursor. */
+.bp-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+}
+.bp-edge-l {
+  left: 0;
   cursor: w-resize;
 }
-.bp-book-spread .bp-sheet-right,
-.bp-book-single .bp-sheet-right {
+.bp-edge-r {
   cursor: e-resize;
 }
 .bp-sheet .bp-page {
@@ -323,9 +335,7 @@ html.bp-open body {
 }
 
 /* Page-block thickness: pages read pile up on the left, pages to come on the right. */
-.bp-book-spread.bp-has-left::before,
-.bp-book.bp-has-right::after {
-  content: '';
+.bp-stack {
   position: absolute;
   top: 2px;
   bottom: -2px;
@@ -333,12 +343,12 @@ html.bp-open body {
   background: repeating-linear-gradient(to right, var(--bp-paper-edge) 0 1px, var(--bp-paper-edge-2) 1px 2px);
   box-shadow: var(--bp-page-shadow);
 }
-.bp-book-spread.bp-has-left::before {
+.bp-stack-l {
   left: calc(-1 * var(--bp-stack-l));
   width: var(--bp-stack-l);
   border-radius: 3px 0 0 3px;
 }
-.bp-book.bp-has-right::after {
+.bp-stack-r {
   left: calc(var(--bp-right-x) + var(--bp-page-w));
   width: var(--bp-stack-r);
   border-radius: 0 3px 3px 0;
@@ -433,10 +443,16 @@ html.bp-open body {
 
 /* ------------------------------ page content ------------------------------ */
 
+/*
+ * Head and footer rows: the outer columns keep room for a folio (up to 4
+ * digits) and stay equal, so the centre text is centred on the measure and gets
+ * all the width between them. Text never ends in an ellipsis: BookPage shrinks a
+ * line that doesn't fit, and the panel flags it.
+ */
 .bp-band {
   position: absolute;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(2.6em, 1fr) minmax(0, max-content) minmax(2.6em, 1fr);
   align-items: baseline;
   font-family: var(--bp-font, var(--tw-font-serif));
   color: var(--bp-ink-soft);
@@ -445,9 +461,15 @@ html.bp-open body {
   font-variant-numeric: oldstyle-nums proportional-nums;
   z-index: 1;
 }
-.bp-slot {
+.bp-slot,
+.bp-note {
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
+}
+/* The footer line when a centred page number has the row: a full-width row of its own below it. */
+.bp-note {
+  grid-column: 1 / -1;
+  text-align: center;
 }
 .bp-slot-l {
   text-align: left;
@@ -520,6 +542,10 @@ html.bp-open body {
 .bp-justify p:not([style*='text-align']) {
   text-align: justify;
 }
+/* A page's part of a very long paragraph (BookPage): its last line is a middle line of the paragraph. */
+.bp-justify p.bp-cut-end:not([style*='text-align']) {
+  text-align-last: justify;
+}
 .bp-text h1 {
   font-size: 1.7em;
   font-weight: 500;
@@ -544,13 +570,25 @@ html.bp-open body {
   line-height: inherit;
   padding: 0.8em 0 0.2em;
 }
+/*
+ * Baseline grid: everything that can split across pages keeps its lines on the
+ * body line pitch, so lines on facing pages (and show-through) line up. A quote
+ * gets exactly one line of space above and below; lists sit in the text.
+ * Headings and scene breaks may be any height: the paginator snaps the text
+ * after them back onto the grid.
+ */
 .bp-text blockquote {
-  padding: 0.5em 0 0.5em 1.4em;
+  padding: calc(var(--bp-lh, 1.4) * 1em) 0 calc(var(--bp-lh, 1.4) * 1em) 1.4em;
   font-style: italic;
 }
 .bp-text ul,
 .bp-text ol {
-  padding: 0.25em 0 0.25em 1.6em;
+  padding: 0 0 0 1.6em;
+}
+.bp-text blockquote :is(ul, ol),
+.bp-text :is(ul, ol) blockquote {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .bp-text hr {
   border: 0;
@@ -730,6 +768,39 @@ html.bp-open body {
   font-size: 12px;
   color: var(--tw-text-muted);
   margin: 0;
+}
+.bp-hf-warn {
+  font-size: 12px;
+  color: var(--tw-danger);
+  margin: 0;
+}
+.bp-hf-label {
+  color: var(--tw-text-muted);
+  font-size: 12px;
+}
+.bp-hf-short {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bp-hf-short li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.bp-hf-short-title {
+  font-family: var(--tw-font-serif);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-hf-short input[aria-invalid='true'] {
+  border-color: var(--tw-danger);
 }
 .bp-hf-seg {
   display: inline-flex;

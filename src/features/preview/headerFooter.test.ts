@@ -150,13 +150,26 @@ describe('resolveHeaderFooter: content choices and fallbacks', () => {
     expect(resolveHeaderFooter(s, doc, P()).headerText).toBe('')
   })
 
-  it('footer text takes the centre, or the gutter side when the folio is centred', () => {
+  it('footer text takes the centre, or a full-width row of its own when the folio is centred', () => {
     const a = resolveHeaderFooter(S({ footer: 'custom', footerCustom: 'ARC', pageNumbers: 'footer-outside' }), doc, P())
     expect(a.footer).toEqual({ left: '', center: 'ARC', right: '5' })
-    const b = resolveHeaderFooter(S({ footer: 'custom', footerCustom: 'ARC' }), doc, P())
-    expect(b.footer).toEqual({ left: 'ARC', center: '5', right: '' })
-    const c = resolveHeaderFooter(S({ footer: 'author' }), doc, P({ side: 'verso', index: 1 }))
-    expect(c.footer).toEqual({ left: '', center: '2', right: 'Mara Vance' })
+    expect(a.footerNote).toBe('')
+    const b = resolveHeaderFooter(S({ footer: 'custom', footerCustom: 'Advance reader copy, not for sale' }), doc, P())
+    expect(b.footer).toEqual({ left: '', center: '5', right: '' })
+    expect(b.footerNote).toBe('Advance reader copy, not for sale')
+    // A drop folio on a chapter opener with numbers at the top moves to the centre: the line still gets its own row.
+    const c = resolveHeaderFooter(S({ footer: 'author', pageNumbers: 'header-outside' }), doc, P({ isChapterOpener: true }))
+    expect(c.footer.center).toBe('5')
+    expect(c.footerNote).toBe('Mara Vance')
+  })
+
+  it('uses a short running head for a long chapter title', () => {
+    const title = 'A Very Long Chapter Title That Surely Wraps'
+    const s = S({ rectoHead: 'chapter', shortHeads: { [title]: 'A Long Title' } })
+    expect(resolveHeaderFooter(s, doc, P({ chapterTitle: title })).headerText).toBe('A Long Title')
+    // Whitespace in the stored title doesn't matter; other chapters keep their titles.
+    expect(resolveHeaderFooter(s, doc, P({ chapterTitle: `  A Very Long Chapter\nTitle That Surely  Wraps ` })).headerText).toBe('A Long Title')
+    expect(resolveHeaderFooter(s, doc, P()).headerText).toBe('Chapter 2: Ice')
   })
 })
 
@@ -170,6 +183,8 @@ describe('normalize', () => {
     expect(n.pageNumbers).toBe('header-outside')
     expect(n.authorName).toBe('')
     expect(normalizeBookLayout({ chaptersStartRecto: false, chapterSink: 5 })).toEqual({ ...DEFAULT_BOOK_LAYOUT, chaptersStartRecto: false })
+    expect(normalizeHeaderFooter({ shortHeads: { ' Long  title ': 'Short', empty: '  ', bad: 3 } }).shortHeads).toEqual({ 'Long title': 'Short' })
+    expect(normalizeHeaderFooter({ shortHeads: ['x'] }).shortHeads).toEqual({})
   })
 
   it('names the running-head preset', () => {

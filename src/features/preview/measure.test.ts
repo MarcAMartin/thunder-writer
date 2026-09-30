@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { approximateLines, groupLines } from './measure'
+import { approximateLines, findLineStarts, groupLines } from './measure'
 
 describe('groupLines', () => {
   it('merges rects on the same line (e.g. an italic span) and orders lines', () => {
@@ -39,5 +39,26 @@ describe('approximateLines', () => {
       { top: 40, bottom: 60, leaf: 0 },
     ])
     expect(approximateLines(0, 20)).toEqual([])
+  })
+})
+
+describe('findLineStarts', () => {
+  it('finds the first character of each line, across text runs (marks) and positions', () => {
+    // Two runs: "aaaa bbbb " (pos 0) and "cccc dddd" (pos 11, after a hard break). 5 characters a line, 20 px lines.
+    const runs = [
+      { length: 10, pos: 0 },
+      { length: 9, pos: 11 },
+    ]
+    const centre = (run: number, offset: number) => {
+      const global = run === 0 ? offset : 10 + offset
+      return Math.floor(global / 5) * 20 + 10
+    }
+    expect(findLineStarts(runs, [20, 40, 60], centre)).toEqual([5, 11, 16])
+  })
+
+  it('reports null where a boundary has no character after it, and skips characters without a box', () => {
+    const runs = [{ length: 6, pos: 0 }]
+    const centre = (_r: number, o: number) => (o === 3 ? null : o < 3 ? 10 : 30)
+    expect(findLineStarts(runs, [20, 100], centre)).toEqual([3, null])
   })
 })

@@ -62,14 +62,22 @@ describe('paginateBook: filling and splitting', () => {
     // the break falls between the paragraphs, after line 3.
     const quote = synth('container', 12, { pad: 5, padBottom: 5, leaves: [3, 3, 6] })
     const { pages } = paginateBook([text(4), quote], opts())
-    expect(pages[0].fragments[1]).toEqual({ block: 1, y: 4 * LINE, clipTop: 0, clipBottom: 5 + 3 * LINE })
-    expect(pages[1].fragments[0]).toEqual({ block: 1, y: 0, clipTop: 5 + 3 * LINE, clipBottom: quote.height })
+    expect(pages[0].fragments[1]).toMatchObject({ block: 1, y: 4 * LINE, clipTop: 0, clipBottom: 5 + 3 * LINE })
+    expect(pages[1].fragments[0]).toMatchObject({ block: 1, y: 0, clipTop: 5 + 3 * LINE, clipBottom: quote.height })
+    // Each slice names the paragraphs it shows, so the renderer can empty the rest.
+    expect(pages[0].fragments[1].leaves).toMatchObject({ from: 0, to: 0 })
+    expect(pages[1].fragments[0].leaves).toMatchObject({ from: 1, to: 2 })
+    expect(pages[1].fragments[0].leaves!.boxes).toEqual([
+      { top: 5, bottom: 5 + 3 * LINE },
+      { top: 5 + 3 * LINE, bottom: 5 + 6 * LINE },
+      { top: 5 + 6 * LINE, bottom: 5 + 12 * LINE },
+    ])
   })
 
   it('splits inside a list/quote paragraph with at least 2 lines on each side', () => {
     const quote = synth('container', 12, { pad: 5, padBottom: 5, leaves: [3, 6, 3] })
     const { pages } = paginateBook([text(4), quote], opts())
-    expect(pages[0].fragments[1]).toEqual({ block: 1, y: 4 * LINE, clipTop: 0, clipBottom: 5 + 5 * LINE })
+    expect(pages[0].fragments[1]).toMatchObject({ block: 1, y: 4 * LINE, clipTop: 0, clipBottom: 5 + 5 * LINE })
     expect(pages[1].fragments[0]).toMatchObject({ clipTop: 5 + 5 * LINE })
   })
 
@@ -97,6 +105,40 @@ describe('paginateBook: headings', () => {
     const { pages } = paginateBook([text(6), heading(), heading(), text(4)], opts({ chapterStartsNewPage: false }))
     expect(pages[0].fragments.map((f) => f.block)).toEqual([0])
     expect(pages[1].fragments.map((f) => f.block)).toEqual([1, 2, 3])
+  })
+
+  it('never leaves a heading alone at the foot of a page when the next paragraph cannot split after one line', () => {
+    // 7 lines used, heading 2 lines: 1 line would fit after it, but a paragraph can't break after its first line.
+    const { pages } = paginateBook([text(7), heading(), text(6)], opts({ chapterStartsNewPage: false }))
+    expect(pages[0].fragments.map((f) => f.block)).toEqual([0])
+    expect(pages[1].fragments.map((f) => f.block)).toEqual([1, 2])
+    // With room for 2 lines after it, the heading stays and the paragraph splits 2 / 4.
+    const r = paginateBook([text(6), heading(), text(6)], opts({ chapterStartsNewPage: false }))
+    expect(r.pages[0].fragments.map((f) => [f.block, f.clipBottom])).toEqual([
+      [0, 6 * LINE],
+      [1, 2 * LINE],
+      [2, 2 * LINE],
+    ])
+  })
+
+  it('keeps a short paragraph whole with its heading', () => {
+    // A 3-line paragraph can't split (1 + 2 or 2 + 1 strands a line), so heading + 3 lines must fit.
+    const { pages } = paginateBook([text(6), heading(), text(3)], opts({ chapterStartsNewPage: false }))
+    expect(pages[0].fragments.map((f) => f.block)).toEqual([0])
+  })
+
+  it('keeps a scene break with the next two lines, so no page ends on the ornament', () => {
+    // 8 lines + a 2-line break fills the page exactly: the break moves over with the paragraph.
+    const a = paginateBook([text(8), sceneBreak(), text(5)], opts())
+    expect(a.pages[0].fragments.map((f) => f.block)).toEqual([0])
+    expect(a.pages[1].fragments.map((f) => f.block)).toEqual([1, 2])
+    // 6 lines + break + 2 lines fits: the break stays, with two lines after it.
+    const b = paginateBook([text(6), sceneBreak(), text(5)], opts())
+    expect(b.pages[0].fragments.map((f) => [f.block, f.clipBottom])).toEqual([
+      [0, 6 * LINE],
+      [1, 2 * LINE],
+      [2, 2 * LINE],
+    ])
   })
 
   it('a heading at the very end is still placed', () => {
@@ -163,6 +205,135 @@ describe('paginateBook: chapters', () => {
     const { pages } = paginateBook([text(3), chapter('One'), text(25)], opts())
     expect(pages.map((p) => p.chapter)).toEqual([-1, -1, 0, 0, 0])
     expect(pages[1].isBlank).toBe(true)
+  })
+})
+
+describe('paginateBook: baseline grid and spreads (linePitch)', () => {
+  const grid = (p: Partial<BookPaginateOptions> = {}) => opts({ linePitch: LINE, ...p })
+  /** Depth in lines of every page. */
+  const depths = (pages: { depth: number }[]) => pages.map((p) => p.depth / LINE)
+
+  it('snaps text after a heading back onto the line grid', () => {
+    const odd = synth('heading', 1, { pad: 17 }) // 37 px: 1.85 lines
+    const { pages } = paginateBook([text(3), odd, text(4)], grid({ chapterStartsNewPage: false }))
+    const f = pages[0].fragments
+    expect(f[1]).toMatchObject({ y: 3 * LINE, clipBottom: 37 })
+    expect(f[2].y).toBe(5 * LINE) // not 3 × 20 + 37
+  })
+
+  it('balances a spread the widow rule left ragged: both pages end on the same line', () => {
+    // Page 1 alone (recto), then spread 2–3. Without balancing, page 2 ends a line short (the widow rule
+    // moves the 2nd line of a 3-line paragraph over) and page 3 is full.
+    const blocks = [text(10), text(9), text(3), text(30)]
+    const ragged = paginateBook(blocks, opts())
+    expect(depths(ragged.pages).slice(1, 3)).toEqual([9, 10])
+    const { pages } = paginateBook(blocks, grid())
+    expect(pages[1].depth).toBe(pages[2].depth)
+    expect(depths(pages).slice(1, 3)).toEqual([9, 9])
+    // Nothing lost: every block's slices tile it.
+    const total = pages.flatMap((p) => p.fragments).reduce((n, f) => n + f.clipBottom - f.clipTop, 0)
+    expect(total).toBe(52 * LINE)
+  })
+
+  it('every spread of a long run of mixed paragraphs backs up exactly', () => {
+    let seed = 3
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31
+    const blocks: MeasuredBookBlock[] = []
+    for (let i = 0; i < 400; i++) blocks.push(rnd() < 0.08 ? heading() : text(1 + Math.floor(rnd() * 8)))
+    const { pages } = paginateBook(blocks, grid({ chapterStartsNewPage: false }))
+    let checked = 0
+    let ragged = 0
+    for (let v = 1; v + 1 < pages.length - 1; v += 2) {
+      checked++
+      if (pages[v].depth !== pages[v + 1].depth) ragged++
+    }
+    expect(checked).toBeGreaterThan(50)
+    // Balancing runs at most 2 lines short, so a rare spread may stay ragged; nearly all must match.
+    expect(ragged / checked).toBeLessThan(0.05)
+  })
+
+  it('never leaves a chapter ending with a runt page of fewer than 5 lines', () => {
+    // Chapter One: opener (3-line heading) on page 1 + 7 + 10 + 10 lines, then 2 lines on page 4.
+    const blocks = [chapter('One'), text(7), text(10), text(10), text(2), chapter('Two'), text(4)]
+    const plain = paginateBook(blocks, opts())
+    expect(depths(plain.pages).slice(0, 4)).toEqual([10, 10, 10, 2])
+    const { pages } = paginateBook(blocks, grid())
+    const lastOfOne = pages.findIndex((p) => p.isChapterOpener && p.index > 0) - 1
+    const end = pages[lastOfOne].isBlank ? pages[lastOfOne - 1] : pages[lastOfOne]
+    expect(end.depth / LINE).toBeGreaterThanOrEqual(5)
+    // The facing verso gave up the lines; the spread before it is untouched or balanced.
+    expect(pages[1].depth).toBe(pages[2].depth)
+  })
+
+  it('pulls lines from the previous spread when the runt is on a left-hand page', () => {
+    // Page 1 (recto) + spread 2–3 full, then 2 lines on page 4 (verso) before chapter Two.
+    const blocks = [text(10), text(10), text(10), text(2), chapter('Two'), text(4)]
+    const plain = paginateBook(blocks, opts())
+    expect(depths(plain.pages).slice(0, 4)).toEqual([10, 10, 10, 2])
+    const { pages } = paginateBook(blocks, grid())
+    expect(depths(pages).slice(0, 4)).toEqual([10, 8, 8, 6])
+  })
+
+  it("drops a quote's space above at the top of a page and below at the foot of one", () => {
+    const quote = () => synth('container', 3, { pad: LINE, padBottom: LINE }) // 1 line space + 3 lines + 1 line space
+    // 6 lines + 3 quote lines fill the page once the space below is dropped.
+    const a = paginateBook([text(6), quote(), text(4)], grid())
+    expect(a.pages[0].fragments[1]).toMatchObject({ block: 1, clipTop: 0, clipBottom: 4 * LINE })
+    expect(a.pages[0].depth).toBe(10 * LINE)
+    expect(a.pages[1].fragments[0]).toMatchObject({ block: 2, y: 0 })
+    // At the top of a page it starts with its first line, not a blank one.
+    const b = paginateBook([text(10), quote(), text(4)], grid())
+    expect(b.pages[1].fragments[0]).toMatchObject({ block: 1, y: 0, clipTop: LINE, clipBottom: 5 * LINE })
+    expect(b.pages[1].fragments[1].y).toBe(4 * LINE)
+  })
+
+  it('may leave an orphan, as a last resort, to balance a spread', () => {
+    // Spread 2–3: 4-line paragraphs can only split 2 | 2, so the only way to end both pages on one line
+    // (within two lines of full) needs a paragraph's first line alone at the foot of page 2.
+    const blocks = [text(10), text(3), text(3), text(3), text(4), text(4), text(4), text(30)]
+    const strict = paginateBook(blocks, opts())
+    expect(depths(strict.pages).slice(1, 3)).not.toEqual([10, 10])
+    const { pages } = paginateBook(blocks, grid())
+    expect(pages[1].depth).toBe(pages[2].depth)
+  })
+
+  it('can be switched off', () => {
+    const blocks = [text(10), text(9), text(3), text(30)]
+    const { pages } = paginateBook(blocks, grid({ balanceSpreads: false, minLastPageLines: 0 }))
+    expect(depths(pages).slice(1, 3)).toEqual([9, 10])
+  })
+
+  it('streams the same pages as a batch run, committing a spread at a time', () => {
+    const blocks = [chapter('One'), text(7), heading(), text(5), sceneBreak(), text(12), text(9), text(3), chapter('Two'), text(30), text(2)]
+    const batch = paginateBook(blocks, grid()).pages
+    const p = new BookPaginator(grid())
+    const seen: number[] = []
+    for (const b of blocks) {
+      p.push(b)
+      seen.push(p.pages.length)
+    }
+    expect(p.finish()).toEqual(batch)
+    expect(seen).toEqual([...seen].sort((a, b) => a - b))
+  })
+})
+
+describe('paginateBook: very long paragraphs', () => {
+  it('records the text each page shows, cut at line starts, when the measurer can tell', () => {
+    // 25 lines of 10 characters each.
+    const long = { ...text(25), lineStart: (k: number) => k * 10 }
+    const { pages } = paginateBook([long], opts())
+    expect(pages.map((p) => p.fragments[0].text)).toEqual([
+      { from: 0, to: 100, top: 0 },
+      { from: 100, to: 200, top: 10 * LINE },
+      { from: 200, to: null, top: 20 * LINE },
+    ])
+  })
+
+  it('falls back to clipping the whole paragraph where a line start is unknown', () => {
+    const long = { ...text(25), lineStart: (k: number) => (k === 20 ? undefined : k * 10) }
+    const { pages } = paginateBook([long], opts())
+    expect(pages[1].fragments[0].text).toBeUndefined()
+    expect(pages[2].fragments[0].text).toBeUndefined()
   })
 })
 

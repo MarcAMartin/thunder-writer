@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent as RPointerEvent } from 'react'
 import { BookPage } from './BookPage'
-import { applyFlipStyle, clearFlipStyle, runFlipAnimation, type FlipTargets } from './flip'
+import { applyFlipStyle, clearFlipStyle, PERSPECTIVE_PAGES, runFlipAnimation, type FlipTargets } from './flip'
 import type { HeaderFooterSettings } from './headerFooter'
 import { setLayoutAnimating, type BookLayout } from './layout'
 import type { NavAction, NavState } from './navigation'
@@ -110,7 +110,18 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
   const shades = useRef(new Map<number, HTMLDivElement>())
   const underRef = useRef<HTMLDivElement>(null)
   const landRef = useRef<HTMLDivElement>(null)
+  const stackLRef = useRef<HTMLDivElement>(null)
+  const stackRRef = useRef<HTMLDivElement>(null)
   const lastTargets = useRef<FlipTargets>({})
+
+  // Page-block edges: pages read pile up on the left, pages to come on the right. Each is drawn only
+  // beside a page that is really there. During a turn, an edge that only the turning leaf brings (the
+  // first page's left, a last left page's right) fades with the leaf instead of floating by an empty slot.
+  const lo = flip ? views[flip.lo] : views[nav.current]
+  const hi = flip ? views[flip.hi] : views[nav.current]
+  const leftStack: 'static' | 'appear' | null = !spread ? null : lo?.left != null ? 'static' : hi?.left != null && flip ? 'appear' : null
+  const rightStack: 'static' | 'vanish' | null = hi?.right != null ? 'static' : lo?.right != null && flip ? 'vanish' : null
+
   const targets = (): FlipTargets => ({
     leaf: frontPage !== undefined ? sheets.current.get(frontPage) : null,
     backLeaf: backPage !== undefined ? sheets.current.get(backPage) : null,
@@ -118,6 +129,8 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
     back: backPage !== undefined ? shades.current.get(backPage) : null,
     under: underRef.current,
     land: landRef.current,
+    appear: leftStack === 'appear' ? stackLRef.current : null,
+    vanish: rightStack === 'vanish' ? stackRRef.current : null,
   })
 
   // A view change without a turn (scrubber, thumbnails, reduced motion, mode switch) fades new pages in.
@@ -230,8 +243,6 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
   }
 
   /* ------------------------------- render -------------------------------- */
-  const hasLeft = spread && entries.some(([, r]) => r === 'left' || r === 'back')
-  const hasRight = entries.some(([, r]) => r === 'right' || r === 'front')
   const rest = views[nav.current]
   const pageCount = layout.pages.length
   const shownRight = rest?.right ?? rest?.left ?? 0
@@ -244,7 +255,17 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
     '--bp-stack-r': `${Math.round(2 + (1 - readFraction) * 6)}px`,
     '--bp-page-w': `${W}px`,
     '--bp-right-x': spread ? `${W}px` : '0px',
+    perspective: `${W * PERSPECTIVE_PAGES}px`,
   } as CSSProperties
+
+  // Hover cues only where a click turns: the outer edge of each page (the whole page, one page at a time).
+  const canBack = nav.current > 0
+  const canOn = nav.current < views.length - 1
+  const edges = flip
+    ? null
+    : spread
+      ? { left: canBack && rest?.left != null, right: canOn && rest?.right != null, width: W * CLICK_ZONE }
+      : { left: canBack, right: canOn, width: W * 0.35 }
 
   // Stable callback refs per page, so memoized sheets don't re-render.
   const refCbs = useRef(new Map<number, { sheet: (el: HTMLDivElement | null) => void; shade: (el: HTMLDivElement | null) => void }>())
@@ -264,9 +285,7 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
     <div className="bp-book-frame" style={{ width: bookW * scale, height: H * scale }}>
       <div
         ref={bookRef}
-        className={`bp-book bp-book-${mode}${flip ? ' bp-turning' : ''}${reducedMotion ? ' bp-reduced' : ''}${hasLeft ? ' bp-has-left' : ''}${
-          hasRight ? ' bp-has-right' : ''
-        }`}
+        className={`bp-book bp-book-${mode}${flip ? ' bp-turning' : ''}${reducedMotion ? ' bp-reduced' : ''}`}
         style={bookStyle}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -274,6 +293,8 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
         onPointerCancel={onPointerCancel}
         data-view={nav.current}
       >
+        {leftStack && <div className="bp-stack bp-stack-l" ref={stackLRef} aria-hidden="true" />}
+        {rightStack && <div className="bp-stack bp-stack-r" ref={stackRRef} aria-hidden="true" />}
         {entries.map(([index, role]) => {
           const r = refsFor(index)
           return (
@@ -290,17 +311,24 @@ export function FlipBook({ layout, views, mode, nav, dispatch, scale, settings, 
             />
           )
         })}
-        {flip && (
-          <>
-            <div className="bp-clip bp-clip-right" aria-hidden="true">
-              <div className="bp-shadow bp-shadow-under" ref={underRef} />
-            </div>
-            {spread && (
-              <div className="bp-clip bp-clip-left" aria-hidden="true">
-                <div className="bp-shadow bp-shadow-land" ref={landRef} />
-              </div>
-            )}
-          </>
+        {edges?.left && <div className="bp-edge bp-edge-l" style={{ width: edges.width }} aria-hidden="true" />}
+        {edges?.right && (
+          <div
+            className="bp-edge bp-edge-r"
+            style={spread ? { width: edges.width, left: 2 * W - edges.width } : { left: edges.width, width: W - edges.width }}
+            aria-hidden="true"
+          />
+        )}
+        {/* The leaf's shadows fall only on pages that are there: the one revealed on the right, the one it lands on at the left. */}
+        {flip && hi?.right != null && (
+          <div className="bp-clip bp-clip-right" aria-hidden="true">
+            <div className="bp-shadow bp-shadow-under" ref={underRef} />
+          </div>
+        )}
+        {flip && spread && lo?.left != null && (
+          <div className="bp-clip bp-clip-left" aria-hidden="true">
+            <div className="bp-shadow bp-shadow-land" ref={landRef} />
+          </div>
         )}
       </div>
     </div>

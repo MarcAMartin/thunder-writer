@@ -6,6 +6,14 @@
  * layout work continues on the main thread).
  */
 
+/**
+ * Perspective depth of the page turn, in page widths. The leaf's outer edge
+ * swings toward the reader and looks up to TURN_GROWTH times taller than the
+ * page (at 90°: P / (P − W)), so the viewer leaves that much headroom.
+ */
+export const PERSPECTIVE_PAGES = 10
+export const TURN_GROWTH = PERSPECTIVE_PAGES / (PERSPECTIVE_PAGES - 1)
+
 export interface FlipStyle {
   /** rotateY of the leaf around the spine, degrees (0 → -180). */
   angle: number
@@ -22,6 +30,10 @@ export interface FlipStyle {
   /** The same on the left page as the leaf comes down onto it. */
   land: number
   landEdge: number
+  /** Opacity of what appears as the leaf lands (a page-stack edge that only the landing page brings). */
+  appear: number
+  /** Opacity of what leaves with the lifting leaf (a stack edge that only the leaf's page had). */
+  vanish: number
 }
 
 export const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * Math.min(1, Math.max(0, t))) / 2
@@ -38,6 +50,8 @@ export function flipStyleAt(pIn: number): FlipStyle {
     underEdge: p < 0.5 ? Math.max(0, cos) : 0,
     land: p > 0.5 ? 0.45 * lift : 0,
     landEdge: p > 0.5 ? Math.max(0, -cos) : 0,
+    appear: Math.min(1, Math.max(0, (p - 0.5) * 2)),
+    vanish: Math.min(1, Math.max(0, 1 - p * 2)),
   }
 }
 
@@ -49,11 +63,13 @@ export interface FlipFrames {
   back: Keyframe[]
   under: Keyframe[]
   land: Keyframe[]
+  appear: Keyframe[]
+  vanish: Keyframe[]
 }
 
 /** Keyframes from progress p0 to p1 with the ease baked in (use with linear timing). `width` = page width in px. */
 export function flipKeyframes(p0: number, p1: number, width: number, samples = 18): FlipFrames {
-  const out: FlipFrames = { leaf: [], backLeaf: [], front: [], back: [], under: [], land: [] }
+  const out: FlipFrames = { leaf: [], backLeaf: [], front: [], back: [], under: [], land: [], appear: [], vanish: [] }
   const n = Math.max(2, samples)
   for (let i = 0; i <= n; i++) {
     const offset = i / n
@@ -65,6 +81,8 @@ export function flipKeyframes(p0: number, p1: number, width: number, samples = 1
     out.back.push({ offset, opacity: round3(s.backShade) })
     out.under.push({ offset, opacity: round3(s.under), transform: underTransform(s, width) })
     out.land.push({ offset, opacity: round3(s.land), transform: landTransform(s, width) })
+    out.appear.push({ offset, opacity: round3(s.appear) })
+    out.vanish.push({ offset, opacity: round3(s.vanish) })
   }
   return out
 }
@@ -100,6 +118,8 @@ export interface FlipTargets {
   back?: HTMLElement | null
   under?: HTMLElement | null
   land?: HTMLElement | null
+  appear?: HTMLElement | null
+  vanish?: HTMLElement | null
 }
 
 /** Applies the look at progress p directly (drag). */
@@ -117,6 +137,8 @@ export function applyFlipStyle(t: FlipTargets, p: number, width: number) {
     t.land.style.opacity = String(s.land)
     t.land.style.transform = landTransform(s, width)
   }
+  if (t.appear) t.appear.style.opacity = String(s.appear)
+  if (t.vanish) t.vanish.style.opacity = String(s.vanish)
 }
 
 /**
@@ -161,6 +183,8 @@ export function runFlipAnimation(
   add(t.back, frames.back)
   add(t.under, frames.under)
   add(t.land, frames.land)
+  add(t.appear, frames.appear)
+  add(t.vanish, frames.vanish)
   anims[0].onfinish = done
   // Safety net if a finish event never arrives (tab hidden, element removed).
   const safety = setTimeout(done, duration + 400)

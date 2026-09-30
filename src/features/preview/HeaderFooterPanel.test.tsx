@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_HEADER_FOOTER, type HeaderFooterSettings } from './headerFooter'
-import { HeaderFooterPanel } from './HeaderFooterPanel'
+import { HeaderFooterPanel, type HeaderFooterPanelProps } from './HeaderFooterPanel'
 
-function Bound({ spy }: { spy: (v: HeaderFooterSettings) => void }) {
-  const [v, setV] = useState(DEFAULT_HEADER_FOOTER)
+function Bound({ spy, initial = DEFAULT_HEADER_FOOTER, ...rest }: { spy: (v: HeaderFooterSettings) => void; initial?: HeaderFooterSettings } & Partial<HeaderFooterPanelProps>) {
+  const [v, setV] = useState(initial)
   return (
     <HeaderFooterPanel
       value={v}
@@ -15,6 +15,7 @@ function Bound({ spy }: { spy: (v: HeaderFooterSettings) => void }) {
         setV(n)
         spy(n)
       }}
+      {...rest}
     />
   )
 }
@@ -74,5 +75,46 @@ describe('HeaderFooterPanel', () => {
     await userEvent.clear(input)
     await userEvent.type(input, '7')
     expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ firstPageNumber: 7 }))
+  })
+
+  it('offers short running heads for chapter titles that are too long, and saves them by title', async () => {
+    const spy = vi.fn()
+    const long = 'A Very Long Chapter Title That Surely Will Not Fit'
+    render(
+      <Bound
+        spy={spy}
+        initial={{ ...DEFAULT_HEADER_FOOTER, rectoHead: 'chapter' }}
+        chapterTitles={['One', long]}
+        fit={{ verso: false, recto: false, footer: false, chapters: [long] }}
+      />,
+    )
+    expect(screen.getByText(/One chapter title is too long/)).toBeInTheDocument()
+    const input = screen.getByLabelText(`Short running head for “${long}”`)
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    await userEvent.type(input, 'Long')
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ shortHeads: { [long]: 'Long' } }))
+    await userEvent.clear(input)
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ shortHeads: {} }))
+  })
+
+  it('warns when a head or the footer line is too long, and hides short heads when no head shows the chapter', () => {
+    render(
+      <Bound
+        spy={() => {}}
+        initial={{ ...DEFAULT_HEADER_FOOTER, footer: 'custom', footerCustom: 'x' }}
+        chapterTitles={['One']}
+        fit={{ verso: true, recto: false, footer: true, chapters: [] }}
+      />,
+    )
+    expect(screen.getAllByRole('note')).toHaveLength(2)
+    expect(screen.queryByText('Short running heads')).toBeNull()
+  })
+
+  it('the diagram squeezes a long head between the folios instead of printing over them', () => {
+    render(<Bound spy={() => {}} initial={{ ...DEFAULT_HEADER_FOOTER, pageNumbers: 'header-outside' }} title="The Frozen River of the North" />)
+    const heads = [...document.querySelectorAll('.bp-dg-head')]
+    const head = heads.find((t) => t.textContent === 'The Frozen River of the North')!
+    expect(head.getAttribute('textLength')).not.toBeNull()
+    expect(Number(head.getAttribute('textLength'))).toBeLessThan(96 - 28 - 2 * 10)
   })
 })

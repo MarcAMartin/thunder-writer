@@ -52,11 +52,22 @@ export function pagesOfView(v: Pick<View, 'left' | 'right'>): number[] {
 
 export const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
-/** Printed page label for a range, e.g. "Pages 44–45 of 389" or "Page 1 of 389". */
-export function viewLabel(folios: number[], lastFolio: number): string {
+/** Printed page numbers of a view, e.g. "Pages 44–45" or "Page 1". */
+export function viewPages(folios: number[]): string {
   if (folios.length === 0) return ''
-  if (folios.length === 1) return `Page ${folios[0]} of ${lastFolio}`
-  return `Pages ${folios[0]}–${folios[folios.length - 1]} of ${lastFolio}`
+  if (folios.length === 1) return `Page ${folios[0]}`
+  return `Pages ${folios[0]}–${folios[folios.length - 1]}`
+}
+
+/**
+ * Label for a view with where it sits in the book: "Pages 44–45 of 389". When
+ * numbering doesn't start at 1, the page count and the last number differ, so
+ * the range is spelled out instead: "Pages 8–9 (2–402)".
+ */
+export function viewLabel(folios: number[], lastFolio: number, firstFolio = 1): string {
+  const pages = viewPages(folios)
+  if (!pages) return ''
+  return firstFolio === 1 ? `${pages} of ${lastFolio}` : `${pages} (${firstFolio}–${lastFolio})`
 }
 
 export interface ChapterMark {

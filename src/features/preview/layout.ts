@@ -57,6 +57,19 @@ export function sideMargins(geo: BookGeometry, side: 'recto' | 'verso'): { left:
   return side === 'recto' ? { left: geo.inside, right: geo.outside } : { left: geo.outside, right: geo.inside }
 }
 
+/**
+ * How deep a spread set a line long may run: one line into the bottom margin,
+ * as long as it stays half a line clear of the page number (drawn at up to
+ * body size, centred in the bottom margin; see BookPage). Otherwise never long.
+ */
+export function longPageDepth(geo: BookGeometry): number {
+  const L = geo.lineHeightPx
+  const full = Math.floor(geo.contentHeight / L + 0.02) * L
+  const folioTop = geo.pageHeight - geo.bottom / 2 - geo.fontSizePx * 0.7
+  const room = folioTop - L / 2 - (geo.top + full + L)
+  return room >= 0 ? full + L : geo.contentHeight
+}
+
 export interface BookLayout {
   key: string
   model: RenderModel
@@ -185,6 +198,9 @@ export function runBookLayout(req: LayoutRequest, onUpdate: (l: BookLayout) => v
     chaptersStartRecto: req.options.chaptersStartRecto,
     isRecto: (i) => (i % 2 === 0) === firstIsRecto,
     chapterSink: req.options.chapterSink,
+    // Baseline grid, balanced spreads and no runt chapter endings.
+    linePitch: geometry.lineHeightPx,
+    maxDepth: longPageDepth(geometry),
   })
   const blocks = model.blocks
   const n = blocks.length
@@ -215,6 +231,8 @@ export function runBookLayout(req: LayoutRequest, onUpdate: (l: BookLayout) => v
       // Smaller chunks while a page turn animates, so no single measurement holds a frame.
       const size = animating ? Math.max(8, Math.floor(env.chunkSize / 4)) : env.chunkSize
       const end = Math.min(n, next + size)
+      // The next chunk replaces the measuring DOM: keep the line boxes the paginator may still need.
+      if (next > 0) paginator.retainLines()
       const measured = measurer.measure(blocks, next, end)
       for (const m of measured) paginator.push(m)
       next = end
