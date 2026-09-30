@@ -202,9 +202,7 @@ export function FileMenu() {
           <div id="fm-file-menu" ref={menuRef} className="fm-menu" role="menu" aria-label="File" onKeyDown={onMenuKey}>
             <MenuItem onClick={act(() => createDoc())}>New manuscript</MenuItem>
             <MenuItem onClick={act(() => setModal('open'))}>Open manuscript…</MenuItem>
-            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)}>
-              Import manuscript (Word, text, Markdown)…
-            </ImportButton>
+            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)} />
             <MenuItem onClick={act(() => fileInput.current?.click())}>Import .thunder.json…</MenuItem>
             <MenuItem onClick={act(exportBackup)} disabled={!doc}>
               Download backup

@@ -72,8 +72,12 @@ export function usePagination(editor: Editor | null, input: PaginationInput): nu
     editor.on('update', onUpdate)
     editor.on('mount', onMount)
     editor.on('create', onMount)
-    document.fonts?.ready.then(() => schedule(0)).catch(() => {})
-    const onFontsDone = () => schedule(0)
+    // A web font arriving changes line breaks without changing the computed font: forget cached line starts.
+    const onFontsDone = () => {
+      resetLineStartCache()
+      schedule(0)
+    }
+    document.fonts?.ready.then(onFontsDone).catch(() => {})
     document.fonts?.addEventListener?.('loadingdone', onFontsDone)
     schedule(0)
 
@@ -105,6 +109,47 @@ function kindOf(node: PMNode): BlockKind {
   return 'atom'
 }
 
+/**
+ * The rendered element of each top-level node, in document order, without
+ * `view.nodeDOM` (which walks the doc from the start on every call, making a
+ * full pass quadratic in the number of paragraphs). Page-break spacer widgets
+ * are skipped; each element is checked against ProseMirror's own view
+ * descriptor and `null` means "look it up with nodeDOM".
+ */
+function topLevelElements(view: EditorView): (HTMLElement | null)[] {
+  const out: (HTMLElement | null)[] = []
+  let el = (view.dom as HTMLElement).firstElementChild as HTMLElement | null
+  view.state.doc.forEach((node) => {
+    while (el && el.classList.contains(PAGE_SPACER_CLASS)) el = el.nextElementSibling as HTMLElement | null
+    const desc = el ? (el as HTMLElement & { pmViewDesc?: { node?: PMNode | null } }).pmViewDesc : undefined
+    if (el && desc?.node === node) {
+      out.push(el)
+      el = el.nextElementSibling as HTMLElement | null
+    } else {
+      out.push(null)
+    }
+  })
+  return out
+}
+
+/**
+ * Where line n of a paragraph starts, as an offset inside the paragraph.
+ * Finding it takes a posAtCoords hit test, the costliest step of a pass (a
+ * novel has hundreds of mid-paragraph page breaks). ProseMirror nodes are
+ * immutable and unchanged paragraphs keep their node object across edits, so
+ * the answer is cached per node, keyed by what else shapes its lines (column
+ * width, first-line indent, font). An edit re-tests only the paragraph it
+ * changed.
+ */
+let lineStartCache: { font: string; byNode: WeakMap<PMNode, Map<string, number>> } = {
+  font: '',
+  byNode: new WeakMap(),
+}
+
+export function resetLineStartCache() {
+  lineStartCache = { font: '', byNode: new WeakMap() }
+}
+
 /** One measurement + pagination pass. Returns null when layout isn't measurable (hidden, jsdom). */
 export function repaginate(view: EditorView, input: PaginationInput): number | null {
   const root = view.dom as HTMLElement
@@ -122,26 +167,58 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
   const gaps = Array.from(root.querySelectorAll<HTMLElement>(`.${PAGE_SPACER_CLASS}`)).map(rel)
   const map = createGapMap(gaps)
 
-  const blocks: Measured[] = []
-  view.state.doc.descendants((node, pos) => {
-    if (!node.isTextblock && !(node.isBlock && node.isAtom)) return true
-    const el = view.nodeDOM(pos)
-    if (el instanceof HTMLElement) {
-      const r = rel(el)
-      const top = map.toNatural(r.top)
-      const bottom = map.toNatural(r.top + r.height)
-      const lh = parseFloat(getComputedStyle(el).lineHeight)
-      blocks.push({
-        pos,
-        node,
-        el,
-        top,
-        height: Math.max(0, bottom - top),
-        lineHeight: Number.isFinite(lh) && lh > 0 ? lh : input.lineHeightPx,
-        kind: kindOf(node),
-      })
+  const rootStyle = getComputedStyle(root)
+  const font = `${rootStyle.font}|${rootStyle.lineHeight}|${rootStyle.letterSpacing}`
+  if (lineStartCache.font !== font) lineStartCache = { font, byNode: new WeakMap() }
+  const { byNode } = lineStartCache
+
+  // Line height depends only on the kind of block (paragraph, heading level…); read it once per kind.
+  const lineHeights = new Map<string, number>()
+  const lineHeightOf = (node: PMNode, el: HTMLElement) => {
+    const key = `${node.type.name}:${String(node.attrs.level ?? '')}:${el.parentElement === root ? 0 : 1}`
+    let lh = lineHeights.get(key)
+    if (lh === undefined) {
+      const v = parseFloat(getComputedStyle(el).lineHeight)
+      lh = Number.isFinite(v) && v > 0 ? v : input.lineHeightPx
+      lineHeights.set(key, lh)
     }
-    return false
+    return lh
+  }
+
+  const blocks: Measured[] = []
+  const measure = (node: PMNode, pos: number, el: HTMLElement) => {
+    const r = rel(el)
+    const top = map.toNatural(r.top)
+    const bottom = map.toNatural(r.top + r.height)
+    blocks.push({
+      pos,
+      node,
+      el,
+      top,
+      height: Math.max(0, bottom - top),
+      lineHeight: lineHeightOf(node, el),
+      kind: kindOf(node),
+    })
+  }
+  const visitNested = (node: PMNode, pos: number) => {
+    node.descendants((child, rel) => {
+      if (!child.isTextblock && !(child.isBlock && child.isAtom)) return true
+      const p = pos + 1 + rel
+      const el = view.nodeDOM(p)
+      if (el instanceof HTMLElement) measure(child, p, el)
+      return false
+    })
+  }
+  const elements = topLevelElements(view)
+  view.state.doc.forEach((node, pos, index) => {
+    const leaf = node.isTextblock || (node.isBlock && node.isAtom)
+    if (!leaf) {
+      visitNested(node, pos)
+      return
+    }
+    const known = elements[index]
+    const el = known ?? view.nodeDOM(pos)
+    if (el instanceof HTMLElement) measure(node, pos, el)
   })
 
   const { breaks, pageCount } = paginate(blocks, {
@@ -156,13 +233,22 @@ export function repaginate(view: EditorView, input: PaginationInput): number | n
     let pos = b.pos
     let inline = false
     if (br.lineIndex > 0) {
-      const y = map.toRendered(br.y + br.linePitch / 2)
-      const elRect = b.el.getBoundingClientRect()
-      const hit = view.posAtCoords({ left: elRect.left + 2, top: rootRect.top + y * scale })
-      const start = b.pos + 1
-      const end = b.pos + b.node.nodeSize - 1
-      if (hit && hit.pos > start && hit.pos < end) {
-        pos = hit.pos
+      const key = `${br.lineIndex}:${b.el.clientWidth}:${getComputedStyle(b.el).textIndent}`
+      let lines = byNode.get(b.node)
+      let offset = lines?.get(key)
+      if (offset === undefined) {
+        offset = -1
+        const y = map.toRendered(br.y + br.linePitch / 2)
+        const elRect = b.el.getBoundingClientRect()
+        const hit = view.posAtCoords({ left: elRect.left + 2, top: rootRect.top + y * scale })
+        const start = b.pos + 1
+        const end = b.pos + b.node.nodeSize - 1
+        if (hit && hit.pos > start && hit.pos < end) offset = hit.pos - b.pos
+        if (!lines) byNode.set(b.node, (lines = new Map()))
+        lines.set(key, offset)
+      }
+      if (offset > 0) {
+        pos = b.pos + offset
         inline = true
       }
     }

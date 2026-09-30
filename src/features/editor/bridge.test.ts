@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import { createEditorBridge } from './bridge'
 import { createExtensions } from './editorExtensions'
 import { getSuggestionHighlight } from './extensions'
-import { buildIndex, findQuote, matchQuoteStyle, normalize, plainTextOf } from './textIndex'
+import { buildIndex, cachedIndex, findQuote, matchQuoteStyle, normalize, plainTextOf } from './textIndex'
 
 let editors: Editor[] = []
 
@@ -45,6 +45,32 @@ const SAMPLE = {
 }
 
 describe('textIndex', () => {
+  it('indexes a novel-length manuscript in linear time and reuses the index per doc version', () => {
+    // ~120,000 words in 2,500 paragraphs. The old builder flattened a growing string on every
+    // character (quadratic): about 3 s per quote check in a browser.
+    const para = 'The rain came down across the harbour and Mara watched the “lights” go out — one by one. '.repeat(3)
+    const content = Array.from({ length: 2500 }, (_, i) =>
+      i % 60 === 0 ? { type: 'heading', attrs: { level: 1 }, content: [t(`Chapter ${i / 60 + 1}`)] } : { type: 'paragraph', content: [t(para)] },
+    )
+    const editor = makeEditor({ type: 'doc', content })
+    const doc = editor.state.doc
+    const started = performance.now()
+    const index = cachedIndex(doc)
+    expect(performance.now() - started).toBeLessThan(1500)
+    expect(index.text.length).toBeGreaterThan(600_000)
+    expect(index.from).toHaveLength(index.text.length)
+    expect(cachedIndex(doc)).toBe(index)
+    const bridge = createEditorBridge(editor)
+    const t0 = performance.now()
+    for (let i = 0; i < 5; i++) expect(bridge.hasQuote('MARA WATCHED THE "LIGHTS" GO OUT')).toBe(true)
+    expect(bridge.hasQuote('a line nobody wrote')).toBe(false)
+    expect(performance.now() - t0).toBeLessThan(500)
+    // A new doc version gets a fresh index.
+    editor.commands.insertContentAt(1, 'X')
+    expect(cachedIndex(editor.state.doc)).not.toBe(index)
+    expect(cachedIndex(editor.state.doc).text.startsWith('XChapter 1')).toBe(true)
+  })
+
   it('normalizes whitespace, curly quotes, dashes and ellipses', () => {
     expect(normalize('  “It’s  — fine…”  ')).toBe('"It\'s - fine..."')
     expect(normalize('a​b')).toBe('ab')

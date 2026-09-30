@@ -36,9 +36,14 @@ fallback to `index.html` so `/write` and `/settings` resolve).
 
 ## Routes
 
-- `/`: home page with an animated demo and the **Start Writing** call to action.
+- `/`: home page with an animated demo, the **Start Writing** call to action,
+  and **Import a manuscript** / **Open from Google Drive** secondary actions.
 - `/write`: the writing app: toolbar, page sheets, suggestions pane, status bar.
-  `/write?open=drive` opens the Google Drive file picker on arrival.
+  - `/write?open=drive` opens the "Open from Google Drive" dialog on arrival.
+  - `/write?import=local` shows a "Choose a file to import" prompt.
+  - `/write?open=picker` shows an "Import from Google Drive" prompt.
+  Browsers only open a file chooser or the Google Picker from a click, so the
+  last two show a button rather than opening the chooser themselves.
 - `/settings`: AI keys and models, suggestion cadence, Google Drive, theme,
   and "Clear all local data". Sections can be deep-linked, e.g. `/settings#ai`
   and `/settings#drive`.
@@ -115,6 +120,45 @@ adds. (The $25 per 1,000 rate applies only to OpenAI's legacy
 `web_search_preview` tool, which this app doesn't use.) The status bar's cost
 includes searches, and its tooltip shows how many were made.
 
+## Importing a manuscript you've already started
+
+Bring in a draft from Word, Google Docs, or a text editor. The draft becomes a
+new Thunder Writer manuscript that autosaves to this browser and, once Drive is
+connected, to your Drive like any other.
+
+**The original file is only read, never changed.** This holds for files on
+your computer and for files picked in Google Drive.
+
+- **From your computer:** use **File › Import manuscript…**, drop a file onto
+  the pages, or use **Import a manuscript** on the home page.
+- **From Google Drive:** use **File › Import from Google Drive…**. This needs
+  the Picker setup described below.
+
+| Format | What comes across |
+| ------ | ----------------- |
+| Word `.docx` | Paragraphs, Title and Heading 1–3 styles (Heading 4–6 become H3), bold, italic, underline, strikethrough, lists, quotes. Footnotes are kept as a numbered list at the end. Images and comments are left out, and the result dialog says how many. |
+| Google Docs | Exported as HTML through the Picker, keeping the same formatting as `.docx`. A Doc too large for Google to export (about 10 MB) must first be downloaded as `.docx` and imported from your computer. |
+| `.html` | Headings, paragraphs, marks, lists, quotes and centre/right alignment. Scripts, frames, forms, styles and links are stripped; link text is kept. |
+| `.md` | Headings, emphasis, strikethrough, quotes, nested lists, scene breaks, and a `title:` in front matter. |
+| `.txt` | Paragraphs split by blank lines, with hard-wrapped lines joined, or one paragraph per line. Text is read as UTF-8, UTF-16, or Windows-1252. |
+
+Files must be 25 MB or smaller. Old `.doc`, password-protected `.docx`, PDF,
+RTF, ODT, Pages, EPUB and Scrivener projects are refused, with a message on how
+to export them as `.docx` or plain text.
+
+**Chapters and scene breaks.** A standalone line such as "Chapter 1",
+"CHAPTER ONE", "Chapter Twelve: The Storm", "Part One", "Prologue" or
+"Epilogue" becomes a Chapter heading (H1), so it starts on a new page when
+**Chapters start new page** is on. Bare numerals like "IV" or "12" are
+promoted only if at least two appear. A sentence that just begins with
+"Chapter…" stays a paragraph. Lines such as `* * *`, `***`, `#`, `~~~` or `§`
+become the scene-break divider. Your words themselves are never changed; only
+empty paragraphs and trailing spaces are tidied.
+
+After the import, a dialog shows the word count, the chapter count, and
+anything that was left out. A 120,000-word, 40-chapter `.docx` imports in
+about 0.3 s and is fully paginated (389 pages at 6 × 9) in well under a second.
+
 ## Google Drive setup (optional)
 
 Drive gives you a cloud copy and lets you open manuscripts on another machine.
@@ -136,14 +180,55 @@ You need a Google OAuth **Web** client id, which takes about 3 minutes:
    - Paste it into **Settings → Google Drive → OAuth client ID**. This overrides
      the env value for this browser.
 
+### Importing existing files from Drive (Google Picker)
+
+Opening Google Docs or Word files that Thunder Writer didn't create goes
+through Google's file picker. The picker needs a browser API key from the
+**same Cloud project** as the OAuth client:
+
+1. In the same project, go to **APIs & Services → Library** and enable the
+   **Google Picker API**. The Google Drive API must stay enabled too.
+2. Go to **APIs & Services → Credentials → Create credentials → API key**.
+3. Edit the key and restrict it:
+   - **Application restrictions → Websites:** add `http://localhost:5173/*`,
+     your hosted origin (e.g. `https://writer.example.com/*`), and
+     `https://docs.google.com/*`. The picker runs in a frame on
+     docs.google.com, and Google rejects the key with "The API developer key
+     is invalid" without that entry.
+   - **API restrictions:** restrict the key to the **Google Picker API** only.
+4. Give the key to the app in one of two ways:
+   - Set `VITE_GOOGLE_API_KEY=…` in `.env.local` and restart.
+   - Paste the key into **Settings → Google Drive → Google API key**.
+5. The picker also needs the project **number** as its app id. Thunder Writer
+   reads it from the start of the client id (`698829428298-….apps.googleusercontent.com`
+   → `698829428298`), and **Settings → Google Drive** lets you override it. It
+   must match the project that owns the client id, or picked files can't be
+   read.
+
+This API key identifies the app to Google but doesn't unlock anyone's files.
+Access to files still needs the writer's own OAuth consent, so the key isn't a
+secret in the way AI keys are. Even so, it is kept out of the Drive settings
+sync, together with the project number override.
+
+**Why a picker instead of broad Drive access?** Listing or reading arbitrary
+Drive files would need the `drive.readonly` or `drive` scope. Google treats
+both as *restricted* scopes, which require an annual third-party security
+assessment before the app can be offered to other people. With `drive.file`
+and the Picker, the writer chooses exactly which file Thunder Writer may open,
+and the app can't see anything else in their Drive.
+
 Scope and behaviour:
 
-- The app asks only for `drive.file`, which gives access to files Thunder
-  Writer itself created and nothing else in your Drive.
+- The app asks only for `drive.file`. That gives access only to two kinds of
+  file: those Thunder Writer created, and those you pick in the Google Picker
+  to import. The app can't see anything else in your Drive.
+- An imported file is read once and never written to. The manuscript made from
+  it is saved as a new `.thunder.json` file in the **Thunder Writer** folder.
 - Manuscripts are saved as `<title>.thunder.json` in a **Thunder Writer**
   folder. Non-secret preferences (including the trivia toggle and cooldown)
   can be synced as `thunder-writer.config.json`.
-  API keys and the client id are never uploaded.
+  API keys, the client id, the Google API key and the project number are
+  never uploaded.
 - The access token is kept in memory only. After a reload, press **Connect** in
   the File menu again.
 - Autosave to Drive runs about 5 s after you pause, and at most once per
@@ -207,7 +292,11 @@ src/
                            trivia.ts (parsing web-searched trivia + sources),
                            providers/ (Claude + OpenAI browser clients), context files
     storage/               IndexedDB persistence, Google auth (GIS token model),
-                           Drive client, Drive autosave scheduler, FileMenu and dialogs
+                           Drive client, Drive autosave scheduler, FileMenu and dialogs,
+                           Google Picker loader and Drive import (picker.ts, driveImport.ts)
+    import/                importManuscript(): .docx (mammoth, lazy-loaded), HTML/Google
+                           Docs, Markdown and text → TipTap JSON; chapter/scene-break
+                           detection; ImportHost (progress/result dialogs), drag-and-drop
     settings/              SettingsPage, key testing, "Clear all local data"
 ```
 

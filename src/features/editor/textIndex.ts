@@ -21,6 +21,9 @@ const WHITESPACE = /[\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/
 
 /** Fold one UTF-16 code unit to its normalized form ('' drops it). */
 export function foldChar(c: string): string {
+  // Fast path: printable ASCII other than space folds to itself (almost every character of a manuscript).
+  const code = c.charCodeAt(0)
+  if (code > 0x20 && code < 0x7f) return c
   if (ZERO_WIDTH.test(c)) return ''
   if (WHITESPACE.test(c)) return ' '
   switch (c) {
@@ -37,21 +40,31 @@ export function foldChar(c: string): string {
   }
 }
 
+/**
+ * Accumulates the normalized text as an array of pieces (joined once in
+ * finish). Appending to one growing string and asking it `endsWith` flattens
+ * the string on every call, which is quadratic: seconds for a novel.
+ */
 class Builder {
-  text = ''
+  private parts: string[] = []
+  private lastSpace = false
   from: number[] = []
   to: number[] = []
   push(folded: string, from: number, to: number) {
-    for (const ch of folded) {
+    for (let i = 0; i < folded.length; i++) {
+      const ch = folded[i]
       if (ch === ' ') {
         // Collapse runs of whitespace (and never start with one).
-        if (this.text.length === 0) continue
-        if (this.text.endsWith(' ')) {
+        if (this.from.length === 0) continue
+        if (this.lastSpace) {
           this.to[this.to.length - 1] = to
           continue
         }
+        this.lastSpace = true
+      } else {
+        this.lastSpace = false
       }
-      this.text += ch
+      this.parts.push(ch)
       this.from.push(from)
       this.to.push(to)
     }
@@ -60,12 +73,13 @@ class Builder {
     for (let i = 0; i < raw.length; i++) this.push(foldChar(raw[i]), basePos + i, basePos + i + 1)
   }
   finish(): NormalizedIndex {
-    if (this.text.endsWith(' ')) {
-      this.text = this.text.slice(0, -1)
+    if (this.lastSpace) {
+      this.parts.pop()
       this.from.pop()
       this.to.pop()
+      this.lastSpace = false
     }
-    return { text: this.text, from: this.from, to: this.to }
+    return { text: this.parts.join(''), from: this.from, to: this.to }
   }
 }
 
@@ -78,6 +92,23 @@ export function forEachTextblock(doc: PMNode, fn: (node: PMNode, pos: number) =>
     }
     return true
   })
+}
+
+/**
+ * ProseMirror docs are immutable, so an index stays valid for as long as its
+ * doc object lives: the suggestion engine checks several quotes against the
+ * same doc and pays for one index.
+ */
+const indexCache = new WeakMap<PMNode, NormalizedIndex>()
+const lowerCache = new WeakMap<NormalizedIndex, string>()
+
+export function cachedIndex(doc: PMNode): NormalizedIndex {
+  let index = indexCache.get(doc)
+  if (!index) {
+    index = buildIndex(doc)
+    indexCache.set(doc, index)
+  }
+  return index
 }
 
 export function buildIndex(doc: PMNode): NormalizedIndex {
@@ -104,13 +135,26 @@ export function normalize(s: string): string {
 }
 
 const lower = (s: string) => {
-  // Per-code-unit lowercase that preserves length so index maps stay aligned.
-  let out = ''
+  // Lowercase that preserves length so index maps stay aligned. Lowercasing
+  // never shortens a character, so an unchanged total length means no
+  // character changed length (the common case, done natively).
+  const all = s.toLowerCase()
+  if (all.length === s.length) return all
+  const out: string[] = []
   for (const c of s) {
     const l = c.toLowerCase()
-    out += l.length === c.length ? l : c
+    out.push(l.length === c.length ? l : c)
   }
-  return out
+  return out.join('')
+}
+
+const lowerText = (index: NormalizedIndex) => {
+  let l = lowerCache.get(index)
+  if (l === undefined) {
+    l = lower(index.text)
+    lowerCache.set(index, l)
+  }
+  return l
 }
 
 export interface DocRange {
@@ -122,11 +166,11 @@ export interface DocRange {
  * Find the first occurrence of `quote` in the document. Tries an exact
  * (normalized) match first, then a case-insensitive one.
  */
-export function findQuote(doc: PMNode, quote: string, index: NormalizedIndex = buildIndex(doc)): DocRange | null {
+export function findQuote(doc: PMNode, quote: string, index: NormalizedIndex = cachedIndex(doc)): DocRange | null {
   const needle = normalize(quote)
   if (!needle) return null
   let at = index.text.indexOf(needle)
-  if (at < 0) at = lower(index.text).indexOf(lower(needle))
+  if (at < 0) at = lowerText(index).indexOf(lower(needle))
   if (at < 0) return null
   return { from: index.from[at], to: index.to[at + needle.length - 1] }
 }
