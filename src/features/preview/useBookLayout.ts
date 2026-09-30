@@ -6,7 +6,6 @@ import { cachedLayout, layoutKey, runBookLayout, type BookLayout, type LayoutEnv
 
 export interface UseBookLayoutInput {
   docId: string
-  updatedAt: number
   content: unknown
   format: DocFormat | null | undefined
   options: BookLayoutOptions
@@ -26,25 +25,41 @@ function fontsReady(timeoutMs = 1500): Promise<void> {
 }
 
 /**
+ * Content identity for the cache. Stored content is immutable (the store swaps
+ * in a new object on every edit), so the object itself identifies a version.
+ * `updatedAt` would not do: it also changes when only the format changes (for
+ * example running-head settings persisted to DocFormat), which doesn't move a single line.
+ */
+const contentIds = new WeakMap<object, number>()
+let nextContentId = 1
+export function contentVersion(content: unknown): string {
+  if (typeof content !== 'object' || content === null) return `v:${String(content)}`
+  let id = contentIds.get(content)
+  if (id === undefined) contentIds.set(content, (id = nextContentId++))
+  return `c${id}`
+}
+
+/**
  * Lays the book out incrementally and re-renders as pages arrive. A finished
- * layout is cached by doc id + updatedAt + format + layout options, so
+ * layout is cached by doc id + content version + format + layout options, so
  * reopening the preview, or changing only running heads and page numbers, is instant.
  */
 export function useBookLayout(input: UseBookLayoutInput, env?: Partial<LayoutEnv>): BookLayoutState {
   const format = useMemo(() => resolveFormat(input.format), [input.format])
   const optionsKey = JSON.stringify(input.options)
   const parity = Math.abs(input.firstPageNumber) % 2
+  const version = contentVersion(input.content)
   const req: LayoutRequest = useMemo(
     () => ({
-      docKey: `${input.docId}@${input.updatedAt}`,
+      docKey: `${input.docId}@${version}`,
       content: input.content,
       format,
       options: JSON.parse(optionsKey) as BookLayoutOptions,
       firstPageNumber: parity === 1 ? 1 : 2,
     }),
-    // content changes always come with a new updatedAt
+    // `version` changes exactly when content does
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [input.docId, input.updatedAt, format, optionsKey, parity],
+    [input.docId, version, format, optionsKey, parity],
   )
   const key = layoutKey(req)
   const [state, setState] = useState<BookLayoutState>(() => ({ layout: cachedLayout(key) ?? null, error: null }))

@@ -19,6 +19,7 @@ export interface View {
  */
 export function buildViews(pageCount: number, firstIsRecto: boolean, mode: ViewMode): View[] {
   const n = Math.max(0, Math.floor(pageCount))
+  if (n === 0) return []
   if (mode === 'single') return Array.from({ length: n }, (_, i) => ({ index: i, left: null, right: i }))
   const offset = firstIsRecto ? 1 : 0
   const views: View[] = []

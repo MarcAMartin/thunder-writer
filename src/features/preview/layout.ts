@@ -75,7 +75,7 @@ export interface BookLayout {
 }
 
 export interface LayoutRequest {
-  /** Cache identity: doc id + updatedAt. */
+  /** Cache identity of the content: doc id + content version (see useBookLayout). */
   docKey: string
   content: unknown
   format: ResolvedFormat
@@ -212,7 +212,9 @@ export function runBookLayout(req: LayoutRequest, onUpdate: (l: BookLayout) => v
     const budget = env.sliceMs()
     const needFirst = firstSpreadMs === null
     while (next < n) {
-      const end = Math.min(n, next + env.chunkSize)
+      // Smaller chunks while a page turn animates, so no single measurement holds a frame.
+      const size = animating ? Math.max(8, Math.floor(env.chunkSize / 4)) : env.chunkSize
+      const end = Math.min(n, next + size)
       const measured = measurer.measure(blocks, next, end)
       for (const m of measured) paginator.push(m)
       next = end
