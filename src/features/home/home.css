@@ -592,3 +592,4 @@
     transition: none !important;
   }
 }
+.hm-final-logo { box-shadow: var(--tw-shadow); }

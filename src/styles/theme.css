@@ -65,3 +65,11 @@ body {
 .tw-btn-primary:hover { background: var(--tw-accent); filter: brightness(1.08); }
 .tw-btn-ghost { background: transparent; border-color: transparent; }
 .tw-btn-ghost:hover { background: var(--tw-surface-2); }
+
+/* App icon (shell/AppLogo). The art carries its own rounded corners. */
+.tw-logo {
+  flex: none;
+  display: block;
+  border-radius: 22%;
+  user-select: none;
+}

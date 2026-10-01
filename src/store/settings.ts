@@ -31,7 +31,7 @@ export interface SettingsState {
   triviaCooldownSec: number
   /** Suggestion pane collapsed ("locked in and cruising"). */
   suggestionsCollapsed: boolean
-  /** "Support the developer": show a book pick (an affiliate link) beside Preview Book. Off until the writer turns it on. */
+  /** "Support the developer": show a book pick (an affiliate link) beside Preview Book. On by default; the writer can turn it off. */
   supportDeveloper: boolean
   /** Typewriter sounds while typing (a key strike) and deleting (a softer knock). Off until turned on. */
   typewriterSounds: boolean

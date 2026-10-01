@@ -699,7 +699,7 @@
 
 /* ------------------------------ Focus Mode ------------------------------ */
 
-/* The app icon's navy, with its yellow bolt (public/favicon.svg). */
+/* The app icon's navy, with its yellow bolt. */
 .tw-btn.ed-focus-btn,
 .ed-focus-btn {
   display: inline-flex;

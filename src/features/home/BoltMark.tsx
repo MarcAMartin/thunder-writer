@@ -3,7 +3,11 @@ interface BoltMarkProps {
   className?: string
 }
 
-/** Thunder Writer brand mark: a lightning bolt on a soft tile. Decorative. */
+/**
+ * A small lightning bolt on a soft tile, used inside the Home page's demo window
+ * (where the full app icon would be too detailed). Decorative. The brand logo is
+ * shell/AppLogo.
+ */
 export function BoltMark({ size = 28, className }: BoltMarkProps) {
   return (
     <svg

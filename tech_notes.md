@@ -476,6 +476,24 @@ Drive… › Thunder Writer saves** imports one as a new manuscript. **File ›
 Open from computer…** replaces this browser's copy, as above. Drive's own version history (kept for about 30
 days for files like these) is a third layer.
 
+## App icon and brand assets
+
+The logo is the husky with the lightning bolt. All files were cut from one
+brand sheet (rounded/circle masks with transparent corners) and generated at
+the sizes browsers ask for:
+
+| File | Use |
+|---|---|
+| `public/favicon.ico` (16/32/48), `public/favicon-32.png` | Browser tab |
+| `public/apple-touch-icon.png` (180, full-bleed) | iOS home screen (iOS rounds it) |
+| `public/icon-192.png`, `public/icon-512.png`, `public/icon-maskable-512.png` | `public/manifest.webmanifest` (Add to Home Screen / install) |
+| `src/assets/brand/logo-{64,128,192}.png` | In-app logo, `src/shell/AppLogo.tsx` (header of Home, Writer, Settings; Home closing call to action) |
+| `public/brand/thunder-writer-*.png` | Full set at source resolution: icon, circle, light-mode, husky only, bolt only, bolt circle, monochrome light/dark |
+
+The source art is about 560 px, so nothing larger than 512 px is generated.
+The small bolt inside the Home page's demo window is still the vector
+`BoltMark` (the full icon is too detailed at 14 px).
+
 ## Support the developer
 
 `src/features/support/`. On by default (`supportDeveloper` in settings, saved
@@ -519,7 +537,7 @@ The repo is set up for Vercel as a static site. `vercel.json`:
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!assets/|favicon\\.svg).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/|brand/|favicon|apple-touch-icon|icon-|manifest\\.webmanifest).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
@@ -535,7 +553,8 @@ The repo is set up for Vercel as a static site. `vercel.json`:
 ```
 
 The rewrite is the SPA fallback: every path except built assets and the
-favicon is served `index.html`, so deep links like `/write?open=drive` and
+icon files in `public/` (favicons, home-screen icons, the web app manifest and
+`brand/`) is served `index.html`, so deep links like `/write?open=drive` and
 `/settings#drive` work on a fresh load. The headers stop other sites from
 framing the app (clickjacking of Connect Drive, Save, Import and Settings),
 turn off MIME sniffing and keep the browser's default referrer policy, which

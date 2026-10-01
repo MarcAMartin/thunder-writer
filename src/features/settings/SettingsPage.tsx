@@ -1,3 +1,4 @@
+import { AppLogo } from '../../shell/AppLogo'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
@@ -39,9 +40,7 @@ export function SettingsPage() {
     <div className="st-page">
       <header className="st-header">
         <Link to="/" className="st-brand" aria-label="Thunder Writer home">
-          <span className="st-bolt" aria-hidden="true">
-            ⚡
-          </span>
+          <AppLogo size={26} />
           Thunder Writer
         </Link>
         <Link to="/write" className="tw-btn tw-btn-primary st-back">

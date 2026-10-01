@@ -29,7 +29,6 @@
 .st-brand:focus-visible,
 .st-page a:focus-visible,
 .st-link:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; }
-.st-bolt { color: var(--tw-bolt); }
 .st-back { text-decoration: none; }
 
 .st-main {

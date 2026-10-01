@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ThemeToggle } from '../../shell/ThemeToggle'
 import { isDriveConfigured, isPickerConfigured } from '../storage/driveSession'
-import { BoltMark } from './BoltMark'
+import { AppLogo } from '../../shell/AppLogo'
 import { TipJarLink } from '../support/tipJar'
 import { DemoPanel } from './DemoPanel'
 import { HeroActions } from './HeroActions'
@@ -94,7 +94,7 @@ export function HomePage() {
       <header className="hm-header">
         <div className="hm-container hm-header-inner">
           <Link to="/" className="hm-brand" aria-label="Thunder Writer home">
-            <BoltMark size={30} />
+            <AppLogo size={32} />
             <span className="hm-brand-name">Thunder Writer</span>
           </Link>
           <nav className="hm-nav" aria-label="Primary">
@@ -219,7 +219,7 @@ export function HomePage() {
 
         <section className="hm-final" aria-labelledby="hm-final-title">
           <div className="hm-container hm-final-inner">
-            <BoltMark size={40} />
+            <AppLogo size={56} className="hm-final-logo" />
             <h2 id="hm-final-title" className="hm-h2">
               The blank page is waiting.
             </h2>

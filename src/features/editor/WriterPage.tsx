@@ -1,3 +1,4 @@
+import { AppLogo } from '../../shell/AppLogo'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
@@ -26,14 +27,6 @@ import { useManuscriptEditor } from './useManuscriptEditor'
 import './editor.css'
 
 const openSaveToComputer = () => useExportUi.getState().openChooser()
-
-function Bolt() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-      <path d="M13.5 2 4 13.5h6.5L9.5 22 20 9.5h-6.8L13.5 2Z" fill="var(--tw-bolt)" stroke="var(--tw-text)" strokeWidth="1.2" strokeLinejoin="round" />
-    </svg>
-  )
-}
 
 /**
  * Once storage has hydrated, make sure there is a document to write in: the
@@ -152,7 +145,7 @@ export function WriterPage() {
         <header className="ed-header">
           <div className="ed-topbar">
             <Link to="/" className="ed-brand" aria-label="Thunder Writer home">
-              <Bolt />
+              <AppLogo size={24} />
               <span className="ed-brand-name">Thunder Writer</span>
             </Link>
             <DocTitle />
@@ -188,7 +181,7 @@ export function WriterPage() {
             <PageView editor={editor} format={resolved} headerFooter={format?.headerFooter} title={title} />
           ) : (
             <div className="ed-loading" role="status">
-              <Bolt />
+              <AppLogo size={28} />
               <span>Opening your manuscript…</span>
             </div>
           )}
