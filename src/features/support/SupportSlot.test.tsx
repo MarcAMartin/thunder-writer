@@ -13,11 +13,24 @@ afterEach(() => {
 })
 
 describe('Support the developer', () => {
-  it('is off by default: just an offer, no ad', () => {
-    expect(useSettings.getInitialState().supportDeveloper).toBe(false)
+  it('is on by default', () => {
+    expect(useSettings.getInitialState().supportDeveloper).toBe(true)
+  })
+
+  it('shows the Venmo tip jar whether book picks are on or off', () => {
+    const { unmount } = render(<SupportSlot />)
+    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/MarcAMartin')
+    unmount()
+    useSettings.setState({ supportDeveloper: true })
+    render(<SupportSlot />)
+    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/MarcAMartin')
+  })
+
+  it('when off: just an offer, no ad', () => {
     render(<SupportSlot />)
     expect(screen.getByRole('button', { name: /Support Developer/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Book pick \(ad\)/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Bookshop/ })).not.toBeInTheDocument()
   })
 
   it('turning it on shows a book pick marked as an ad, keeps keyboard focus, and the choice is saved', async () => {

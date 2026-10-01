@@ -114,7 +114,7 @@ export const useSettings = create<SettingsState>()(
       triviaWebSearch: DEFAULT_TRIVIA_WEB_SEARCH,
       triviaCooldownSec: DEFAULT_TRIVIA_COOLDOWN_SEC,
       suggestionsCollapsed: false,
-      supportDeveloper: false,
+      supportDeveloper: true,
       typewriterSounds: false,
       driveAutosaveSec: 60,
       set: (patch) => set(patch),

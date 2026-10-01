@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ThemeToggle } from '../../shell/ThemeToggle'
 import { isDriveConfigured, isPickerConfigured } from '../storage/driveSession'
 import { BoltMark } from './BoltMark'
+import { TipJarLink } from '../support/tipJar'
 import { DemoPanel } from './DemoPanel'
 import { HeroActions } from './HeroActions'
 import {
@@ -240,9 +241,14 @@ export function HomePage() {
       <footer className="hm-footer">
         <div className="hm-container hm-footer-inner">
           <span>Thunder Writer runs entirely in your browser.</span>
-          <Link to={SETTINGS_PATH} className="hm-nav-link">
-            Settings
-          </Link>
+          <span className="hm-footer-links">
+            <TipJarLink className="hm-nav-link">
+              <span aria-hidden="true">☕</span> Tip the developer
+            </TipJarLink>
+            <Link to={SETTINGS_PATH} className="hm-nav-link">
+              Settings
+            </Link>
+          </span>
         </div>
       </footer>
     </div>

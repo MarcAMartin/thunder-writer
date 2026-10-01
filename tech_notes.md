@@ -478,8 +478,9 @@ days for files like these) is a third layer.
 
 ## Support the developer
 
-`src/features/support/`. Off by default (`supportDeveloper` in settings, saved
-in the browser). Off, the toolbar shows **♥ Support the developer** just left
+`src/features/support/`. On by default (`supportDeveloper` in settings, saved
+in the browser; browsers that already saved settings keep their stored
+choice). Off, the toolbar shows **♥ Support the developer** just left
 of **Preview Book**. On, that spot shows one book pick a day, marked "Ad", as
 a plain link to Bookshop.org (an affiliate link with
 `VITE_BOOKSHOP_AFFILIATE_ID`), opening in a new tab with `rel="sponsored"`.
@@ -487,6 +488,14 @@ There are no ad scripts, cookies or tracking, so the privacy promises hold:
 nothing happens unless the writer clicks. Its ✕ asks **Please reconsider**
 (**Keep supporting** is the default) before turning it off. The picks are a
 short list in `bookPicks.ts`; edit them freely.
+
+**Tip jar.** `src/features/support/tipJar.tsx`. A plain link to the
+developer's Venmo profile (`https://venmo.com/u/MarcAMartin`;
+`VITE_VENMO_HANDLE` overrides the handle at build time). It appears as
+**☕ Tip jar** beside the book pick / Support Developer button, as an
+alternative in the **Please reconsider** dialog, and as **Tip the developer**
+in the Home page footer. Like the book picks it is only a link: no scripts,
+cookies or tracking, and payment happens entirely on Venmo (US accounts).
 
 ## Suggestions
 

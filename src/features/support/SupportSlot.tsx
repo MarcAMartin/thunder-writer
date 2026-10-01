@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '../../store/settings'
 import { Modal } from '../storage/Modal'
 import { bookUrl, pickForDay } from './bookPicks'
+import { TipJarLink } from './tipJar'
 import './support.css'
 
 /**
- * Beside Preview Book. Off (the default): a small "Support Developer"
- * button. On: a book pick, marked as an ad, with a way to turn it off that
- * first asks the writer to reconsider. The choice is saved in Settings.
+ * Beside Preview Book. On (the default): a book pick, marked as an ad, with
+ * a way to turn it off that first asks the writer to reconsider. Off: a small
+ * "Support Developer" button to turn it back on. The choice is saved in Settings.
  */
 export function SupportSlot() {
   const on = useSettings((s) => s.supportDeveloper)
@@ -30,15 +31,18 @@ export function SupportSlot() {
 
   if (!on) {
     return (
-      <button
-        ref={offerRef}
-        type="button"
-        className="ed-tool ed-tool-text su-offer"
-        title="Show a book pick here. It keeps Thunder Writer free, and you can turn it off any time."
-        onClick={() => turn(true)}
-      >
-        <span aria-hidden="true">♥</span> Support Developer
-      </button>
+      <>
+        <button
+          ref={offerRef}
+          type="button"
+          className="ed-tool ed-tool-text su-offer"
+          title="Show a book pick here. It keeps Thunder Writer free, and you can turn it off any time."
+          onClick={() => turn(true)}
+        >
+          <span aria-hidden="true">♥</span> Support Developer
+        </button>
+        <TipJarLink className="ed-tool ed-tool-text su-tip" />
+      </>
     )
   }
 
@@ -67,6 +71,7 @@ export function SupportSlot() {
           ✕
         </button>
       </span>
+      <TipJarLink className="ed-tool ed-tool-text su-tip" />
       {asking && (
         <Modal
           title="Please reconsider"
@@ -92,6 +97,10 @@ export function SupportSlot() {
           <p className="su-ask">
             <strong>This supports the product.</strong> One quiet book pick is how Thunder Writer stays free. It’s a
             plain link: nothing tracks you, and it only does anything if you click it.
+          </p>
+          <p className="su-ask">
+            Rather not see it? A tip keeps things going too:{' '}
+            <TipJarLink className="su-ask-tip">tip the developer on Venmo</TipJarLink>.
           </p>
         </Modal>
       )}

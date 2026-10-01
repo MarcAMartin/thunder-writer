@@ -555,6 +555,7 @@
 .hm-final-inner .hm-ctas { margin-top: 12px; }
 
 .hm-footer { border-top: 1px solid var(--tw-border); }
+.hm-footer-links { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .hm-footer-inner {
   display: flex;
   align-items: center;
