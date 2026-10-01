@@ -193,7 +193,11 @@ describe('Toolbar › Headers & footers…', () => {
     expect(button).toHaveClass('tw-btn')
     // The first group: the File menu (stubbed here; it brings Export to computer and Backups), then this button.
     const first = toolbar.querySelector('.ed-group')!
-    expect([...first.children]).toEqual([screen.getByTestId('filemenu'), button])
+    expect([...first.children]).toEqual([
+      screen.getByTestId('filemenu'),
+      button,
+      within(toolbar).getByRole('button', { name: 'Focus Mode' }),
+    ])
     expect(within(screen.getByRole('group', { name: 'Book format' })).queryByRole('button', { name: /Headers/ })).toBeNull()
   })
 
@@ -297,5 +301,76 @@ describe('chapterTitlesOf', () => {
   it('lists chapter headings as the preview reads them', () => {
     expect(chapterTitlesOf(DOC.content)).toEqual(['One', 'Two'])
     expect(chapterTitlesOf(null)).toEqual([])
+  })
+})
+
+describe('Focus Mode', () => {
+  afterEach(() => {
+    delete (document as { startViewTransition?: unknown }).startViewTransition
+  })
+
+  it('shows only the manuscript, with Exit Focus Mode on top; Exit and Escape bring everything back', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    const focusBtn = screen.getByRole('button', { name: 'Focus Mode' })
+    expect(focusBtn).toHaveAttribute('aria-pressed', 'false')
+    await user.click(focusBtn)
+    const app = document.querySelector('.ed-app')!
+    expect(app).toHaveClass('ed-focus')
+    // The suggestions pane is gone (its engine pauses); the header and status bar are hidden.
+    expect(screen.queryByTestId('pane')).toBeNull()
+    expect(document.querySelector('.ed-main')).toBeInTheDocument()
+    const exit = screen.getByRole('button', { name: 'Exit Focus Mode' })
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('.ed-prose')))
+
+    await user.click(exit)
+    expect(app).not.toHaveClass('ed-focus')
+    expect(screen.getByTestId('pane')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Exit Focus Mode' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Focus Mode' }))
+    expect(app).toHaveClass('ed-focus')
+    await user.keyboard('{Escape}')
+    expect(app).not.toHaveClass('ed-focus')
+  })
+
+  it('Escape closes an open dialog first, not Focus Mode', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Focus Mode' }))
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    dialog.setAttribute('aria-modal', 'true')
+    document.body.appendChild(dialog)
+    await user.keyboard('{Escape}')
+    expect(document.querySelector('.ed-app')).toHaveClass('ed-focus')
+    dialog.remove()
+  })
+
+  it('animates with a View Transition where the browser has one', async () => {
+    const start = vi.fn((update: () => void) => {
+      update()
+      return { finished: Promise.resolve() }
+    })
+    ;(document as { startViewTransition?: unknown }).startViewTransition = start
+    const user = userEvent.setup()
+    await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Focus Mode' }))
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.ed-app')).toHaveClass('ed-focus')
+  })
+
+  it('is off again on the next visit to the writer page', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/write']}>
+        <WriterPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(document.querySelector('.ed-prose')).not.toBeNull())
+    await user.click(screen.getByRole('button', { name: 'Focus Mode' }))
+    unmount()
+    const { useFocusMode } = await import('./focusMode')
+    expect(useFocusMode.getState().on).toBe(false)
   })
 })

@@ -34,8 +34,6 @@ export type ImportPhase =
       opened?: { file: OpenedFile | null }
     }
   | { kind: 'error'; name: string; message: string }
-  /** File › Open from computer found the file already linked, but changed elsewhere since Thunder Writer last saved it. */
-  | { kind: 'changed'; docId: string; file: File }
 
 interface ImportFlowState {
   phase: ImportPhase

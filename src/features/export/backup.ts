@@ -3,7 +3,7 @@ import { makeEnvelope } from '../storage/schema'
 
 /**
  * The existing "Thunder Writer backup" file: the same envelope as File →
- * Download backup, re-importable with File → Import .thunder.json. Uses the
+ * Download backup, re-opened with File › Open from computer…. Uses the
  * storage module's helper so the two can never drift (it also strips this
  * browser's Drive link, so a backup never autosaves over a Drive file).
  */

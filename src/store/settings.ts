@@ -33,6 +33,8 @@ export interface SettingsState {
   suggestionsCollapsed: boolean
   /** "Support the developer": show a book pick (an affiliate link) beside Preview Book. Off until the writer turns it on. */
   supportDeveloper: boolean
+  /** Typewriter sounds while typing (a key strike) and deleting (a softer knock). Off until turned on. */
+  typewriterSounds: boolean
   /** Autosave to Drive every N seconds while there are unsynced changes. 0 = only on change debounce. */
   driveAutosaveSec: number
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
@@ -113,6 +115,7 @@ export const useSettings = create<SettingsState>()(
       triviaCooldownSec: DEFAULT_TRIVIA_COOLDOWN_SEC,
       suggestionsCollapsed: false,
       supportDeveloper: false,
+      typewriterSounds: false,
       driveAutosaveSec: 60,
       set: (patch) => set(patch),
     }),

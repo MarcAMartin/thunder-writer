@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useDocuments } from '../../store/documents'
 import { saveInBrowserNow } from '../../store/pendingEdits'
-import { getDesktopCopyStatus, resumeDesktopCopy, writeDesktopCopyNow } from './desktopCopy'
+import { getDesktopCopyStatus, resumeDesktopCopy, showChoice, writeDesktopCopyNow } from './desktopCopy'
 import { modKey, useExportUi } from './exportUi'
 
 /**
@@ -103,6 +103,14 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     openChooser(movedNote)
     return
   }
+  if (status.phase === 'changed') {
+    // Never written over: the writer first chooses which version to keep.
+    const err = await browserSave
+    if (err) browserFailed(err)
+    else useExportUi.getState().showToast(`${BROWSER} · ${name} changed on your computer: choose which version to keep.`, 'info')
+    showChoice(docId)
+    return
+  }
 
   let outcome
   if (status.phase === 'needs-permission') {
@@ -139,6 +147,11 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
     case 'paused':
       if (now?.phase === 'missing') {
         chooser(movedNote)
+        return
+      }
+      if (now?.phase === 'changed') {
+        show(`${BROWSER} · ${name} changed on your computer: choose which version to keep.`, 'info')
+        showChoice(docId)
         return
       }
       show(`${BROWSER} · ${name} wasn’t updated: allow access when the browser asks (press ${mod}S again).`, 'error')

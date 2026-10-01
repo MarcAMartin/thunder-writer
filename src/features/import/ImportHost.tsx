@@ -8,6 +8,7 @@ import { Modal } from '../storage/Modal'
 import { canSaveBackToOpenedFiles } from '../export/fsAccess'
 import { modKey } from '../export/exportUi'
 import { dismissImport, setImportNotice, setImportPrompt, useImportFlow, type OpenedFile } from './importFlow'
+import { postponeChoice, useDesktopCopy } from '../export/desktopCopy'
 import { keepBrowserVersion, keepSavingToFile, loadFileVersion, openFromComputer } from './openFromComputer'
 import '../storage/storage.css'
 import './import.css'
@@ -85,7 +86,7 @@ export function ImportHost({ dragging = false }: { dragging?: boolean }) {
         />
       )}
 
-      {phase.kind === 'changed' && <ChangedDialog docId={phase.docId} file={phase.file} onDone={startWriting} />}
+      <ChangedFileDialog onDone={startWriting} />
 
       {phase.kind === 'error' && (
         <Modal
@@ -253,46 +254,95 @@ function DoneDialog(props: {
   )
 }
 
-/** File › Open from computer found a linked file changed elsewhere (in Word, say): which version to keep. */
-function ChangedDialog({ docId, file, onDone }: { docId: string; file: File; onDone: () => void }) {
+/**
+ * A file Thunder Writer saves into changed elsewhere (in Word, say). Saving to
+ * it is paused until the writer picks a version; closing this leaves it
+ * paused, and the header badge or Cmd/Ctrl+S brings it back.
+ */
+function ChangedFileDialog({ onDone }: { onDone: () => void }) {
+  const docId = useDesktopCopy((s) => s.choiceFor)
+  const changed = useDesktopCopy((s) => (s.choiceFor ? s.byDoc[s.choiceFor]?.changed : null))
+  /** The file changed yet again while this was open: say so when the question comes back. */
+  const [againAt, setAgainAt] = useState<number | null>(null)
+  if (!docId || !changed) return null
+  return (
+    <ChangedFileQuestion
+      // A new version of the file starts the question afresh (no stale error or busy state).
+      key={`${docId}:${changed.file.lastModified}:${changed.file.size}`}
+      docId={docId}
+      changed={changed}
+      changedAgain={againAt === changed.file.lastModified}
+      onChangedAgain={setAgainAt}
+      onDone={onDone}
+    />
+  )
+}
+
+function ChangedFileQuestion({
+  docId,
+  changed,
+  changedAgain,
+  onChangedAgain,
+  onDone,
+}: {
+  docId: string
+  changed: { file: File; kept: boolean }
+  changedAgain: boolean
+  onChangedAgain: (lastModified: number) => void
+  onDone: () => void
+}) {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const run = async (fn: () => Promise<boolean | void>, done: string, failed: string) => {
+  const name = changed.file.name
+
+  const attempt = async (fn: () => Promise<void>) => {
     if (busy) return
     setBusy(true)
     setProblem(null)
     try {
-      const ok = await fn()
-      if (ok === false) {
-        setProblem(failed)
-        setBusy(false)
-        return
-      }
-      setImportNotice(done)
-      onDone()
+      await fn()
     } catch (e) {
-      setProblem(e instanceof Error ? e.message : failed)
+      setProblem(e instanceof Error ? e.message : 'That didn’t work. Try again.')
+    } finally {
       setBusy(false)
     }
   }
+
+  const keepMine = () => {
+    // Without a backup of the file, overwriting it can't be undone: ask once more.
+    if (
+      !changed.kept &&
+      !window.confirm(`This browser couldn’t keep a backup of “${name}” as it is now. Write this browser’s version over it anyway? Its current contents couldn’t be brought back.`)
+    )
+      return
+    void attempt(async () => {
+      const r = await keepBrowserVersion(docId)
+      if (r === 'written') {
+        setImportNotice(`Saved this browser’s version into “${name}”.`)
+        onDone()
+      } else if (r === 'changed-again') {
+        const latest = useDesktopCopy.getState().byDoc[docId]?.changed?.file
+        if (latest) onChangedAgain(latest.lastModified)
+      } else if (r === 'denied') setProblem(`The browser didn’t allow Thunder Writer to save into “${name}”. Try again.`)
+      else setProblem(`“${name}” couldn’t be written. Try again.`)
+    })
+  }
+
+  const useFile = () =>
+    void attempt(async () => {
+      if ((await loadFileVersion(docId)) === 'loaded') {
+        setImportNotice(`Opened the version in “${name}”.`)
+        onDone()
+      }
+    })
+
   return (
     <Modal
-      title={`“${file.name}” changed on your computer`}
-      onClose={dismissImport}
+      title={`“${name}” changed on your computer`}
+      onClose={postponeChoice}
       footer={
         <>
-          <button
-            type="button"
-            className="tw-btn"
-            aria-busy={busy || undefined}
-            onClick={() =>
-              void run(
-                () => keepBrowserVersion(docId),
-                `Saved this browser’s version into “${file.name}”.`,
-                `The browser didn’t allow Thunder Writer to save into “${file.name}”. Try again.`,
-              )
-            }
-          >
+          <button type="button" className="tw-btn" aria-busy={busy || undefined} onClick={keepMine}>
             Keep this browser’s version
           </button>
           <button
@@ -300,9 +350,7 @@ function ChangedDialog({ docId, file, onDone }: { docId: string; file: File; onD
             className="tw-btn tw-btn-primary"
             data-autofocus
             aria-busy={busy || undefined}
-            onClick={() =>
-              void run(() => loadFileVersion(docId, file), `Opened the version in “${file.name}”.`, `“${file.name}” couldn’t be read.`)
-            }
+            onClick={useFile}
           >
             Use the file’s version
           </button>
@@ -310,12 +358,14 @@ function ChangedDialog({ docId, file, onDone }: { docId: string; file: File; onD
       }
     >
       <p className="im-lead">
-        It was changed outside Thunder Writer (in Word, say) since Thunder Writer last saved it. Which version do you want
-        to keep writing?
+        {changedAgain
+          ? 'It changed again while you were deciding, so that newer version has been kept in Backups too. Which version do you want to keep writing?'
+          : 'It was changed outside Thunder Writer (in Word, say) since Thunder Writer last saved it, so saving into it is paused. Which version do you want to keep writing?'}
       </p>
       <p className="im-hint">
-        Nothing is lost either way: the file as it is now has been kept in Backups › All backups, and this browser’s
-        version is kept there too if you use the file’s.
+        {changed.kept
+          ? 'Nothing is lost either way: the file as it is now has been kept in Backups › All backups, and this browser’s version is kept there too if you use the file’s.'
+          : 'This browser couldn’t keep a backup of the file as it is now, so keeping this browser’s version would replace it for good.'}
       </p>
       {problem && (
         <p className="im-error" role="alert">

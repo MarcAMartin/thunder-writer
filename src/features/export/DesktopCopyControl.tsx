@@ -8,6 +8,7 @@ import {
   setUpDesktopCopy,
   stopDesktopCopy,
   useDesktopCopy,
+  showChoice,
   writeDesktopCopyNow,
   type CopyStatus,
 } from './desktopCopy'
@@ -173,6 +174,11 @@ export function DesktopCopyControl({ docId: explicitId }: { docId?: string }) {
             {view.actionLabel}…
           </button>
         )}
+        {view.action === 'resolve' && docId && (
+          <button type="button" className="tw-btn tw-btn-primary" onClick={() => showChoice(docId)} disabled={busy} data-autofocus>
+            {view.actionLabel}…
+          </button>
+        )}
         {(status.phase === 'ready' || status.phase === 'error' || status.phase === 'writing') && (
           <button type="button" className="tw-btn" onClick={() => void writeNow()} disabled={busy} data-autofocus>
             {status.phase === 'error' ? 'Retry' : 'Save copy now'}
@@ -226,9 +232,15 @@ export function DesktopCopyBadge() {
       void resumeDesktopCopy(docId).then((ok) => {
         if (ok) useExportUi.getState().showToast(`Desktop copy resumed · ${status.fileName} is up to date`)
       })
-    } else openChooser()
+    } else if (view.action === 'resolve') showChoice(docId)
+    else openChooser()
   }
-  const label = view.action === 'resume' ? `${view.text}. Click to allow access and resume.` : `${view.text}. Manage desktop copy.`
+  const label =
+    view.action === 'resume'
+      ? `${view.text}. Click to allow access and resume.`
+      : view.action === 'resolve'
+        ? `${view.text}. Choose which version to keep.`
+        : `${view.text}. Manage desktop copy.`
   return (
     <button type="button" className={`ex-chip ex-tone-${view.tone}`} onClick={onClick} title={view.text} aria-label={label}>
       <span className="ex-dot" aria-hidden="true" />

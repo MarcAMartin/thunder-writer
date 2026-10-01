@@ -7,6 +7,7 @@ import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
 import { SuggestionsPane } from '../suggestions/SuggestionsPane'
 import { BackupsMenu } from '../backups/BackupsMenu'
+import { SuggestionButton } from '../feedback/SuggestionButton'
 import { FileMenu } from '../storage/FileMenu'
 import { ImportHost } from '../import/ImportHost'
 import { discardUntouchedCurrentDoc } from '../import/importFlow'
@@ -18,6 +19,9 @@ import { PageView } from './PageView'
 import { resolveFormat } from './presets'
 import { StatusBar } from './StatusBar'
 import { DocTitle, Toolbar } from './Toolbar'
+import { ExitFocusButton, otherDialogOpen } from './BookTools'
+import { setFocusMode, useFocusMode } from './focusMode'
+import { useTypewriterSounds } from './useTypewriterSounds'
 import { useManuscriptEditor } from './useManuscriptEditor'
 import './editor.css'
 
@@ -104,10 +108,37 @@ export function WriterPage() {
   const ready = hydrated && Boolean(currentId) && Boolean(format)
   /** Beside the title: where the File menu (now in the toolbar) puts the save status. */
   const [statusSlot, setStatusSlot] = useState<HTMLDivElement | null>(null)
+  const focus = useFocusMode((s) => s.on)
+  useTypewriterSounds()
+
+  // Focus Mode: Escape leaves it (not while a dialog is open, which Escape closes instead),
+  // and the cursor stays in the manuscript either way.
+  const firstFocusRun = useRef(true)
+  useEffect(() => {
+    if (firstFocusRun.current) {
+      firstFocusRun.current = false
+      return
+    }
+    editor?.commands.focus()
+    // Only on switching, not when the editor instance changes.
+  }, [focus]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!focus) return
+    // Capture phase: the editor handles Escape itself before it would reach a normal listener.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || otherDialogOpen()) return
+      e.preventDefault()
+      void setFocusMode(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [focus])
+  // Leaving the writer page leaves Focus Mode, so the next visit shows everything.
+  useEffect(() => () => useFocusMode.setState({ on: false }), [])
 
   return (
     <EditorContext.Provider value={ctx}>
-      <div className="ed-app">
+      <div className={focus ? 'ed-app ed-focus' : 'ed-app'}>
         <a
           className="ed-skip"
           href="#manuscript"
@@ -128,6 +159,7 @@ export function WriterPage() {
             <div ref={setStatusSlot} className="ed-docstatus" />
             <div className="ed-topbar-spacer" />
             <ThemeToggle />
+            <SuggestionButton />
             <Link to="/settings" className="tw-btn tw-btn-ghost ed-settings-link">
               Settings
             </Link>
@@ -161,9 +193,13 @@ export function WriterPage() {
             </div>
           )}
         </main>
-        <div className="ed-side">
-          <SuggestionsPane />
-        </div>
+        {/* Out of Focus Mode entirely, so suggestions pause rather than pile up unseen. */}
+        {!focus && (
+          <div className="ed-side">
+            <SuggestionsPane />
+          </div>
+        )}
+        {focus && <ExitFocusButton />}
         <StatusBar />
         {/* Export to computer: desktop copy service, Cmd/Ctrl+S, the Export dialog and its toast. */}
         <ExportHost />

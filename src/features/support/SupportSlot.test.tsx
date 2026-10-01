@@ -16,15 +16,16 @@ describe('Support the developer', () => {
   it('is off by default: just an offer, no ad', () => {
     expect(useSettings.getInitialState().supportDeveloper).toBe(false)
     render(<SupportSlot />)
-    expect(screen.getByRole('button', { name: /Support the developer/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Support Developer/ })).toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it('turning it on shows a book pick marked as an ad, and the choice is saved', async () => {
+  it('turning it on shows a book pick marked as an ad, keeps keyboard focus, and the choice is saved', async () => {
     const user = userEvent.setup()
     render(<SupportSlot />)
-    await user.click(screen.getByRole('button', { name: /Support the developer/ }))
+    await user.click(screen.getByRole('button', { name: /Support Developer/ }))
     expect(useSettings.getState().supportDeveloper).toBe(true)
+    expect(screen.getByRole('button', { name: 'Turn off book picks' })).toHaveFocus()
     // Persisted with the other settings (localStorage), so it stays on after a reload.
     expect(JSON.parse(localStorage.getItem('thunder-writer:settings') ?? '{}').state.supportDeveloper).toBe(true)
     const ad = screen.getByRole('group', { name: /Book pick \(ad\)\. Supports the developer/ })
@@ -43,6 +44,7 @@ describe('Support the developer', () => {
     render(<SupportSlot />)
     await user.click(screen.getByRole('button', { name: 'Turn off book picks' }))
     let dialog = screen.getByRole('dialog', { name: 'Please reconsider' })
+    expect(dialog).toHaveTextContent(/This supports the product\./)
     expect(dialog).toHaveTextContent(/how Thunder Writer stays free/)
     expect(within(dialog).getByRole('button', { name: 'Keep supporting' })).toHaveFocus()
     await user.click(within(dialog).getByRole('button', { name: 'Keep supporting' }))
@@ -53,7 +55,7 @@ describe('Support the developer', () => {
     dialog = screen.getByRole('dialog', { name: 'Please reconsider' })
     await user.click(within(dialog).getByRole('button', { name: 'Turn off' }))
     expect(useSettings.getState().supportDeveloper).toBe(false)
-    expect(screen.getByRole('button', { name: /Support the developer/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Support Developer/ })).toHaveFocus()
   })
 })
 

@@ -120,13 +120,20 @@ export async function safetyBackup(doc: ThunderDoc | undefined, reason: BackupRe
  * saves over it (File › Open from computer › Keep saving to it). Resolves
  * whether it was stored; never throws.
  */
-export async function backUpOriginalFile(doc: ThunderDoc, file: File, now = Date.now()): Promise<boolean> {
+export async function backUpOriginalFile(
+  doc: ThunderDoc,
+  file: File,
+  now = Date.now(),
+  opts: { wordsFromFile?: boolean } = {},
+): Promise<boolean> {
   try {
+    // A file changed elsewhere holds other words than the manuscript: count its own.
+    const words = opts.wordsFromFile ? await wordsInFile(file) : idb.countWords(doc.content)
     await serialized(async () => {
       if (!useBackups.getState().loaded) await refreshBackups()
       let meta: BackupMeta
       try {
-        meta = await idb.writeFileBackup(doc, file, idb.countWords(doc.content), now)
+        meta = await idb.writeFileBackup(doc, file, words, now)
       } catch (e) {
         useBackups.setState({ writeError: WRITE_FAILED })
         throw e
@@ -140,6 +147,20 @@ export async function backUpOriginalFile(doc: ThunderDoc, file: File, now = Date
   } catch (e) {
     console.warn('[thunder-writer] Could not keep a backup of the original file', e)
     return false
+  }
+}
+
+/** Words in a file from the computer, read the way Open from computer does; 0 if it can't be read. */
+async function wordsInFile(file: File): Promise<number> {
+  try {
+    if (/\.json(\.bak)?$/i.test(file.name)) {
+      const parsed = parseEnvelope(JSON.parse(await file.text()))
+      return parsed.ok ? idb.countWords(parsed.doc.content) : 0
+    }
+    const r = await importManuscript({ name: file.name, mimeType: file.type || undefined, data: await file.arrayBuffer() })
+    return r.wordCount
+  } catch {
+    return 0
   }
 }
 

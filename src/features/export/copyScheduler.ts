@@ -40,6 +40,8 @@ export interface CopyScheduler {
   flush(opts?: { force?: boolean }): Promise<FlushOutcome>
   pause(): void
   resume(): void
+  /** The file already matches the manuscript (e.g. its version was just loaded in): nothing is waiting to be written. */
+  markClean(): void
   dispose(): void
   getState(): CopySchedulerState
 }
@@ -170,6 +172,15 @@ export function createCopyScheduler(opts: CopySchedulerOptions): CopyScheduler {
       paused = false
       retryAfter = 0
       schedule()
+      emit()
+    },
+
+    markClean() {
+      writtenSeq = seq
+      firstDirtyAt = null
+      lastError = null
+      retryAfter = 0
+      clearTimer()
       emit()
     },
 

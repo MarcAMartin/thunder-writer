@@ -18,11 +18,13 @@ own key. The owner's original design (UI boxes and behaviour notes) is in
 - [Google Cloud setup](#google-cloud-setup)
 - [Backups](#backups)
 - [Support the developer](#support-the-developer)
+- [Suggestions](#suggestions)
 - [Deploying to Vercel](#deploying-to-vercel)
 - [Privacy and security model](#privacy-and-security-model)
 - [Architecture](#architecture)
 - [Import pipeline](#import-pipeline)
-- [Saving to the computer (export and desktop copy)](#saving-to-the-computer-export-and-desktop-copy)
+- [Focus Mode and typewriter sounds](#focus-mode-and-typewriter-sounds)
+- [Saving to the computer (export, PDF and desktop copy)](#saving-to-the-computer-export-pdf-and-desktop-copy)
 - [Book Preview and pagination](#book-preview-and-pagination)
 - [Performance](#performance)
 - [Testing](#testing)
@@ -81,6 +83,7 @@ Google's own consent popup.
 | `VITE_GOOGLE_CLIENT_ID` | OAuth 2.0 **Web** client id for Google Drive (Google Identity Services token model). | For Drive. Blank = the build has no Drive: its menu items, dialogs, the Home page's Drive fallback and the Settings section are left out. |
 | `VITE_GOOGLE_API_KEY` | Browser API key for the Google Picker ("Import from Google Drive…"). | For importing existing Drive files. Blank = no import from Drive. |
 | `VITE_GOOGLE_PROJECT_NUMBER` | The Picker's app id. | No. Defaults to the number at the start of the client id, which is almost always right. |
+| `VITE_SUGGESTION_ENDPOINT` | Where the Suggestion form posts. | No. Defaults to FormSubmit, forwarding to marc@mickerstudios.com. |
 | `VITE_BOOKSHOP_AFFILIATE_ID` | Your Bookshop.org affiliate id (digits): makes the **Support the developer** book picks affiliate links (`src/features/support/bookPicks.ts`). | No. Without it the picks are plain Bookshop.org links. |
 
 Restart `npm run dev` after editing `.env.local`, and redeploy after changing
@@ -485,6 +488,19 @@ nothing happens unless the writer clicks. Its ✕ asks **Please reconsider**
 (**Keep supporting** is the default) before turning it off. The picks are a
 short list in `bookPicks.ts`; edit them freely.
 
+## Suggestions
+
+`src/features/feedback/`. **Suggestion** (writer top bar, beside Settings)
+opens a short form: the suggestion and an optional email for a reply. There
+is no server, so it posts JSON to FormSubmit's AJAX endpoint
+(`https://formsubmit.co/ajax/marc@mickerstudios.com`), which emails it on,
+with Reply-To set from the email field. **The first submission makes
+FormSubmit send an activation email to that address; nothing is delivered
+until it is confirmed.** `VITE_SUGGESTION_ENDPOINT` points the form elsewhere.
+If sending fails, the form offers a `mailto:` link with everything filled in.
+A hidden honeypot field drops what bots that fill in the page itself enter; it doesn't stop scripts that post to FormSubmit directly (FormSubmit's own filtering does that). The form says that only what
+is typed is sent, never the manuscript.
+
 ## Deploying to Vercel
 
 The repo is set up for Vercel as a static site. `vercel.json`:
@@ -548,6 +564,10 @@ Steps:
 
 - **No server.** Nothing about the writing is sent to Thunder Writer, because
   there is nothing to send it to. The deployment is static files.
+- **Suggestions:** the Suggestion form sends only what the writer types in it
+  (and an email, if they give one) from the browser to FormSubmit
+  (`formsubmit.co`, or `VITE_SUGGESTION_ENDPOINT`), which emails it to the
+  developer. The manuscript is never sent.
 - **Manuscripts:** stored in IndexedDB (`thunder-writer` database) in this
   browser, and in the writer's Google Drive if connected. Reference files are
   in the `thunder-writer-context` database. Desktop-copy file handles are in
@@ -588,7 +608,8 @@ Steps:
   `localStorage`. It hasn't been added because it can't be checked here against
   real Google sign-in, the Picker and both providers. It would need to allow at
   least `connect-src` for `api.anthropic.com`,
-  `api.openai.com` and `www.googleapis.com`, plus the Google Identity Services
+  `api.openai.com`, `www.googleapis.com` and `formsubmit.co` (the Suggestion
+  form), plus the Google Identity Services
   and Picker script and frame origins (`accounts.google.com`,
   `apis.google.com`, `docs.google.com`). Test it against sign-in, the Picker
   and both AI providers before shipping.
@@ -689,7 +710,10 @@ Code: `src/features/import/` (`importManuscript()`), with Drive import in
 
 The import becomes a new Thunder Writer manuscript that autosaves to the
 browser and, once Drive is connected, to Drive. **The original file is only
-read, never changed**, whether on the computer or picked in Drive.
+read**, whether on the computer or picked in Drive, unless the writer chooses
+**Keep saving to it** after File › Open from computer (Chrome/Edge). Then the
+file is kept in Backups first and becomes the manuscript's desktop copy (see
+[Opening a file and saving back into it](#opening-a-file-and-saving-back-into-it)).
 
 Entry points:
 
@@ -765,16 +789,56 @@ works like a desktop app's Open in Chrome and Edge (File System Access API:
   desktop copy, and Cmd/Ctrl+S writes it at once. Rewriting a `.docx` from the
   manuscript drops what only Word keeps (comments, tracked changes, images);
   the dialog says so. HTML and `.bak` files are never written to.
+- **A file is never written over after it changed elsewhere.** Every write
+  into a desktop copy (an opened file or one set up with **Keep a copy on my
+  computer**) first compares the file's modification time with the one
+  recorded at Thunder Writer's last write (`fileModifiedAt`, with 2 s of
+  slack). If it is newer, the file is kept byte for byte in Backups at once,
+  saving to it pauses (autosave, Resume and Cmd/Ctrl+S all wait), and the
+  writer is asked which version to keep (`holdForChoice`). **Use the file’s
+  version** reads the file again, keeps this browser's version in Backups first
+  (asking if that fails), loads the file's words, and marks the two in sync, so
+  nothing is rewritten until the next edit. **Keep this browser’s version**
+  writes over the file, confirming first if its backup failed. Closing the
+  question leaves saving paused; the header badge or Cmd/Ctrl+S brings it back.
+  After a reload, a copy is caught up only if the manuscript changed since the
+  version the file holds (`docUpdatedAtWritten`), never by comparing the file's
+  clock with the manuscript's.
 - Opening a file that already saves back to a manuscript
   (`FileSystemHandle.isSameEntry` against the stored handles) goes to that
-  manuscript instead of making a second one. If the file was modified since
-  Thunder Writer last wrote it (more than 2 s after), it is kept in Backups at
-  once, and the writer chooses **Use the file’s version** (this browser's is
-  kept in Backups first) or **Keep this browser’s version** (written into the
-  file now).
+  manuscript instead of making a second one, with the same check.
 - Firefox and Safari have no way to write back into a picked file: Open from
   computer is a plain file chooser there, and the dialog says that Export to
   computer saves a copy any time.
+
+## Focus Mode and typewriter sounds
+
+**Focus Mode** (`src/features/editor/focusMode.ts`; toolbar button after
+Headers & footers…, in the app icon's navy). Turning it on hides the header,
+toolbar, status bar and page details, and unmounts the suggestions pane, so
+the engine pauses instead of making suggestions nobody sees. The pages then
+fill the window, with **Exit Focus Mode** floating at the top. Esc also
+exits, except while a dialog is open; it is caught in the capture phase
+because the editor handles Esc itself. The switch is a View Transition
+(`document.startViewTransition` + `flushSync`) where the browser has one:
+named parts animate on their own (the header lifts, suggestions slide right,
+the status bar drops, the exit button drops in), and the pages glide at their
+natural size. Both snapshots of the pages slide by the extra room above them
+(`--ed-focus-drop`, directed by `html.tw-entering-focus` /
+`tw-leaving-focus`), so they never show twice. Without View Transitions it is
+a short fade; with reduced motion, instant. Leaving the writer page turns it
+off.
+
+**Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
+after "Chapters start new page"; `typewriterSounds` in settings, off by
+default). The sounds are synthesised with the Web Audio API, so there are no
+audio files. A key strike (band-passed noise click plus a falling triangle
+thump) plays for each character, Enter and Tab. A duller double knock
+(low-passed clicks plus a low thump) plays for Backspace and Delete. Nothing
+plays for shortcuts, arrows or IME composition, or outside the manuscript. Each
+strike varies a little, and sounds are at least 18 ms apart. The audio context
+starts on the first key press (browsers need a gesture), and ticking the box
+plays a sample.
 
 ## Saving to the computer (export, PDF and desktop copy)
 

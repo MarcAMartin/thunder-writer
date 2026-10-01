@@ -241,8 +241,9 @@
 }
 .ed-group-preview {
   margin-left: auto;
-  /* The Support the developer pick sits just left of Preview Book. */
+  /* The Support Developer pick sits just left of Preview Book, and gives way on narrow screens. */
   gap: 8px;
+  min-width: 0;
 }
 
 .ed-hf-dialog {
@@ -298,11 +299,12 @@
 }
 .ed-select-preset {
   width: auto;
-  max-width: 290px;
+  /* Room for "Trade paperback (6 × 9 in)"; longer names truncate, and the full one is in the list. */
+  max-width: 220px;
 }
 .ed-select-font {
   width: auto;
-  max-width: 180px;
+  max-width: 125px;
 }
 .ed-select-num {
   width: auto;
@@ -693,4 +695,158 @@
     animation: none;
     transition: none;
   }
+}
+
+/* ------------------------------ Focus Mode ------------------------------ */
+
+/* The app icon's navy, with its yellow bolt (public/favicon.svg). */
+.tw-btn.ed-focus-btn,
+.ed-focus-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  background: #1f2340;
+  border-color: #1f2340;
+  color: #fff;
+}
+.tw-btn.ed-focus-btn:hover:not(:disabled),
+.ed-focus-btn:hover {
+  background: #2b3160;
+  border-color: #2b3160;
+}
+:root[data-theme='dark'] .ed-focus-btn {
+  /* Navy on a dark page needs an edge to read as a button. */
+  border-color: #4a5290;
+}
+
+/* Only the pages: the header, suggestions, status bar and page details step away. */
+.ed-app.ed-focus {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.ed-focus .ed-header,
+.ed-focus .ed-status {
+  display: none;
+}
+/*
+ * Its space stays, with --ed-focus-drop more below it: room for Exit Focus Mode
+ * above the first page. The transition moves the pages down by the same
+ * amount, so they never jump or show twice.
+ */
+.ed-app {
+  --ed-focus-drop: 28px;
+}
+.ed-focus .ed-pageinfo {
+  visibility: hidden;
+  margin-bottom: calc(16px + var(--ed-focus-drop));
+}
+.ed-focus .ed-main {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.ed-exit-focus {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 60;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 14px;
+  border: 1px solid #1f2340;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: var(--tw-shadow);
+  /* Quiet while writing; full strength when reached for. */
+  opacity: 0.72;
+  transition: opacity 200ms ease;
+}
+.ed-exit-focus:hover,
+.ed-exit-focus:focus-visible {
+  opacity: 1;
+}
+.ed-exit-focus:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 3px;
+}
+
+/*
+ * The transition (View Transitions; focusMode.ts). Each part has a name, so
+ * the browser animates it on its own: the header lifts away, the suggestions
+ * slide off to the right and the status bar drops, all fading, while the pages
+ * glide to their new place at their natural size. Coming back plays it in
+ * reverse. Only one of old/new exists for a part that appears or leaves, so
+ * each rule below runs in just one direction.
+ */
+.ed-header { view-transition-name: tw-header; }
+.ed-side { view-transition-name: tw-side; }
+.ed-status { view-transition-name: tw-status; }
+.ed-scroll { view-transition-name: tw-pages; }
+.ed-exit-focus { view-transition-name: tw-exit-focus; }
+
+::view-transition-group(*) {
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 380ms;
+}
+/* The pages keep their size and stay centred in the moving frame: a glide, not a zoom. */
+::view-transition-old(tw-pages),
+::view-transition-new(tw-pages) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: 50% 0;
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Both pictures of the pages slide by the extra room together, so they stay lined up (focusMode.ts sets the direction). */
+html.tw-entering-focus::view-transition-old(tw-pages) { animation-name: -ua-view-transition-fade-out, ed-pages-old-down; }
+html.tw-entering-focus::view-transition-new(tw-pages) { animation-name: -ua-view-transition-fade-in, ed-pages-new-down; }
+html.tw-leaving-focus::view-transition-old(tw-pages) { animation-name: -ua-view-transition-fade-out, ed-pages-old-up; }
+html.tw-leaving-focus::view-transition-new(tw-pages) { animation-name: -ua-view-transition-fade-in, ed-pages-new-up; }
+@keyframes ed-pages-old-down { from { object-position: 50% 0; } to { object-position: 50% 28px; } }
+@keyframes ed-pages-new-down { from { object-position: 50% -28px; } to { object-position: 50% 0; } }
+@keyframes ed-pages-old-up { from { object-position: 50% 0; } to { object-position: 50% -28px; } }
+@keyframes ed-pages-new-up { from { object-position: 50% 28px; } to { object-position: 50% 0; } }
+
+::view-transition-old(tw-header) { animation: ed-lift-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+::view-transition-new(tw-header) { animation: ed-lift-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+::view-transition-old(tw-side) { animation: ed-slide-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+::view-transition-new(tw-side) { animation: ed-slide-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+::view-transition-old(tw-status) { animation: ed-drop-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+::view-transition-new(tw-status) { animation: ed-drop-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+::view-transition-new(tw-exit-focus) { animation: ed-exit-in 460ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+::view-transition-old(tw-exit-focus) { animation: ed-exit-out 240ms ease-in both; }
+
+@keyframes ed-lift-out { to { opacity: 0; transform: translateY(-40px); } }
+@keyframes ed-lift-in { from { opacity: 0; transform: translateY(-40px); } }
+@keyframes ed-slide-out { to { opacity: 0; transform: translateX(48px); } }
+@keyframes ed-slide-in { from { opacity: 0; transform: translateX(48px); } }
+@keyframes ed-drop-out { to { opacity: 0; transform: translateY(28px); } }
+@keyframes ed-drop-in { from { opacity: 0; transform: translateY(28px); } }
+@keyframes ed-exit-in { from { opacity: 0; transform: translateY(-14px); } }
+@keyframes ed-exit-out { to { opacity: 0; transform: translateY(-14px); } }
+
+/* Browsers without View Transitions: a soft fade instead of a jump. */
+@keyframes ed-fade-in { from { opacity: 0; } }
+@supports not (view-transition-name: none) {
+  .ed-focus .ed-main,
+  .ed-exit-focus { animation: ed-fade-in 320ms ease-out both; }
+  .ed-app:not(.ed-focus) .ed-header,
+  .ed-app:not(.ed-focus) .ed-side,
+  .ed-app:not(.ed-focus) .ed-status { animation: ed-fade-in 320ms ease-out both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-exit-focus { transition: none; }
+  .ed-focus .ed-main,
+  .ed-exit-focus,
+  .ed-app .ed-header,
+  .ed-app .ed-side,
+  .ed-app .ed-status { animation: none !important; }
 }

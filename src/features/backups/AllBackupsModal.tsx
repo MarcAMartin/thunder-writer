@@ -3,9 +3,7 @@ import { useDocuments } from '../../store/documents'
 import type { ThunderDoc } from '../../types'
 import { Modal } from '../storage/Modal'
 import { downloadBackup, formatBackupTime, openBackupAsCopy, refreshBackups, useBackups } from './backups'
-import { describeReason, type BackupMeta } from './retention'
-
-const n = (v: number) => v.toLocaleString()
+import { describeReason, describeSize, type BackupMeta } from './retention'
 
 /** Every backup in this browser, grouped by manuscript (deleted manuscripts included). */
 export function AllBackupsModal({ onClose, onOpened }: { onClose: () => void; onOpened?: (copy: ThunderDoc, meta: BackupMeta) => void }) {
@@ -68,7 +66,7 @@ export function AllBackupsModal({ onClose, onOpened }: { onClose: () => void; on
         )}
         <p className="bk-lead">
           Backups are kept in this browser. Opening one makes it a new manuscript; nothing is overwritten. Download keeps a
-          copy you can import again with File › Import .thunder.json….
+          copy you can open again with File › Open from computer….
         </p>
         {groups.map((g) => (
           <section key={g.docId} className="bk-group" aria-label={`Backups of ${g.title}`}>
@@ -82,7 +80,7 @@ export function AllBackupsModal({ onClose, onOpened }: { onClose: () => void; on
                   <span className="bk-row-main">
                     <span className="fm-row-title">{formatBackupTime(m.savedAt)}</span>
                     <span className="fm-row-meta">
-                      {n(m.words)} {m.words === 1 ? 'word' : 'words'} · {describeReason(m)}
+                      {describeSize(m)} · {describeReason(m)}
                     </span>
                   </span>
                   {/* aria-disabled, not disabled, while another row works: keyboard focus stays put. */}

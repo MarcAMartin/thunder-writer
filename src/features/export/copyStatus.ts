@@ -1,6 +1,6 @@
 import type { CopyStatus } from './desktopCopy'
 
-export type CopyAction = 'resume' | 'retry' | 'choose'
+export type CopyAction = 'resume' | 'retry' | 'choose' | 'resolve'
 
 export interface CopyStatusView {
   /** "Copy on your computer: My Novel.docx — saved 12:04 PM" */
@@ -31,6 +31,8 @@ export function describeCopyStatus(s: CopyStatus, clock: (at: number) => string 
       return view('needs permission', 'warn', 'resume', 'Resume desktop copy')
     case 'missing':
       return view('file moved or deleted', 'error', 'choose', 'Choose where to save')
+    case 'changed':
+      return view('changed on your computer', 'warn', 'resolve', 'Choose which version to keep')
     case 'error':
       return view('write failed', 'error', 'retry', 'Retry')
     case 'ready':

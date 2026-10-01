@@ -1,9 +1,9 @@
 /* "Support the developer": the offer, and the book pick beside Preview Book. Theme tokens only. */
 
-.su-offer {
+.ed-tool.su-offer {
   color: var(--tw-text-muted);
 }
-.su-offer:hover:not(:disabled) {
+.ed-tool.su-offer:hover:not(:disabled) {
   color: var(--tw-text);
 }
 .su-offer span[aria-hidden] {

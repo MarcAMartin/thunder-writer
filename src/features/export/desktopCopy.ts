@@ -6,6 +6,7 @@ import { createCopyScheduler, type CopyScheduler, type CopySchedulerState, type 
 import { buildExport, isExportKind, type CopyKind } from './formats'
 import { errorName, hasNativeSaveDialog, queryWritePermission, requestWritePermission } from './fsAccess'
 import { pickSaveFile, writeToHandle } from './saveToComputer'
+import { backUpOriginalFile } from '../backups/backups'
 
 /**
  * "Keep a copy on my computer": the writer picks a file once and the app
@@ -26,10 +27,59 @@ export interface CopyRecord {
   fileName: string
   handle: FileSystemFileHandle
   setUpAt: number
+  /** When Thunder Writer last wrote the file (shown as "saved 12:04"). */
   lastWrittenAt: number | null
+  /**
+   * The file's own lastModified as of Thunder Writer's last write (or when it
+   * was opened and linked). A later one means it was changed elsewhere, so it
+   * is kept in Backups and the writer chooses before anything is written.
+   * Missing on copies set up before this was tracked, until their next write.
+   */
+  fileModifiedAt?: number | null
+  /** The manuscript's updatedAt that the file holds (last written, or linked from it). */
+  docUpdatedAtWritten?: number | null
 }
 
-export type CopyPhase = 'ready' | 'writing' | 'needs-permission' | 'error' | 'missing'
+/** A file this much newer than Thunder Writer's last write of it was changed elsewhere (file times are coarse). */
+export const CHANGED_SLACK_MS = 2000
+
+/** The write was stopped because the file changed outside Thunder Writer (see holdForChoice). */
+const CHANGED_ERROR = 'ChangedElsewhereError'
+
+/**
+ * Whether the file was changed by something other than Thunder Writer since
+ * its last write. Compared with the file's own time as recorded right after
+ * that write, any difference counts, older too (a sync client or a restore
+ * brings the other copy's time with it). Records from before that time was kept
+ * only have the write's clock time, so for those only a newer file counts.
+ */
+export function changedSince(rec: Pick<CopyRecord, 'fileModifiedAt' | 'lastWrittenAt'>, lastModified: number): boolean {
+  if (rec.fileModifiedAt != null) return Math.abs(lastModified - rec.fileModifiedAt) > CHANGED_SLACK_MS
+  if (rec.lastWrittenAt != null) return lastModified > rec.lastWrittenAt + CHANGED_SLACK_MS
+  return false
+}
+
+/** Two versions of a file are the same one: same time and size. */
+const sameFile = (a: File, b: File) => a.lastModified === b.lastModified && a.size === b.size
+
+/**
+ * The newest record any tab wrote: another tab's write updates the file and
+ * the stored record, and must not look like an outside change here.
+ */
+async function latestRecord(entry: Entry): Promise<Pick<CopyRecord, 'fileModifiedAt' | 'lastWrittenAt'>> {
+  let stored: unknown
+  try {
+    stored = await get(entry.record.docId, db())
+  } catch {
+    stored = null
+  }
+  const mine = entry.record
+  if (!isRecord(stored)) return mine
+  const newest = (a?: number | null, b?: number | null) => (a == null ? (b ?? null) : b == null ? a : Math.max(a, b))
+  return { fileModifiedAt: newest(mine.fileModifiedAt, stored.fileModifiedAt), lastWrittenAt: newest(mine.lastWrittenAt, stored.lastWrittenAt) }
+}
+
+export type CopyPhase = 'ready' | 'writing' | 'needs-permission' | 'error' | 'missing' | 'changed'
 
 export interface CopyStatus {
   kind: CopyKind
@@ -39,6 +89,8 @@ export interface CopyStatus {
   /** Changes not yet in the file. */
   pending: boolean
   error: string | null
+  /** phase 'changed': the file as it now is on the computer, and whether it was kept in Backups. */
+  changed?: { file: File; kept: boolean } | null
 }
 
 interface DesktopCopyStore {
@@ -46,12 +98,15 @@ interface DesktopCopyStore {
   /** The Desktop copy panel is open (any component may open it). */
   panelOpen: boolean
   setPanelOpen: (open: boolean) => void
+  /** The manuscript whose file changed elsewhere and is waiting for the writer to pick a version (shows the dialog). */
+  choiceFor: string | null
 }
 
 export const useDesktopCopy = create<DesktopCopyStore>()((setState) => ({
   byDoc: {},
   panelOpen: false,
   setPanelOpen: (panelOpen) => setState({ panelOpen }),
+  choiceFor: null,
 }))
 
 export const isDesktopCopySupported = hasNativeSaveDialog
@@ -62,6 +117,8 @@ const db = () => (idb ??= createStore(EXPORT_DB, HANDLE_STORE))
 interface Entry {
   record: CopyRecord
   scheduler: CopyScheduler | null
+  /** The file changed elsewhere: nothing is written until the writer chooses (holdForChoice). */
+  awaitingChoice?: { file: File; kept: boolean }
 }
 
 const entries = new Map<string, Entry>()
@@ -90,6 +147,7 @@ function patchStatus(docId: string, patch: Partial<CopyStatus> | null) {
 /** Errors that need the writer before another write can work. */
 function blockingPhase(e: unknown): CopyPhase | null {
   const n = errorName(e)
+  if (n === CHANGED_ERROR) return 'changed'
   if (n === 'NotFoundError') return 'missing'
   if (n === 'NotAllowedError' || n === 'SecurityError') return 'needs-permission'
   return null
@@ -97,6 +155,7 @@ function blockingPhase(e: unknown): CopyPhase | null {
 
 export function copyErrorMessage(e: unknown): string {
   const n = errorName(e)
+  if (n === CHANGED_ERROR) return 'The file was changed outside Thunder Writer. Choose which version to keep.'
   if (n === 'NotFoundError') return 'The file was moved, renamed or deleted.'
   if (n === 'NotAllowedError' || n === 'SecurityError') return 'The browser needs your permission to update the file.'
   if (n === 'NoModificationAllowedError') return 'The file is busy (maybe open in another tab or app). Will retry.'
@@ -105,10 +164,11 @@ export function copyErrorMessage(e: unknown): string {
 }
 
 function statusFromScheduler(docId: string, s: CopySchedulerState) {
-  const blocked = s.paused ? (blockingPhase(s.lastError) ?? 'needs-permission') : null
-  const phase: CopyPhase = s.writing ? 'writing' : blocked ? blocked : s.lastError ? 'error' : 'ready'
   const e = entries.get(docId)
+  const blocked = e?.awaitingChoice ? 'changed' : s.paused ? (blockingPhase(s.lastError) ?? 'needs-permission') : null
+  const phase: CopyPhase = s.writing ? 'writing' : blocked ? blocked : s.lastError ? 'error' : 'ready'
   patchStatus(docId, {
+    changed: e?.awaitingChoice ?? null,
     phase,
     pending: s.dirty,
     lastWrittenAt: s.lastWrittenAt ?? e?.record.lastWrittenAt ?? null,
@@ -125,11 +185,139 @@ async function writeCopy(docId: string): Promise<void> {
   if ((await queryWritePermission(handle)) !== 'granted') {
     throw new DOMException('Write permission is needed again.', 'NotAllowedError')
   }
+  if (entry.awaitingChoice) throw new DOMException('Waiting for the writer to choose a version.', CHANGED_ERROR)
+  // Never write over changes made elsewhere (in Word, say): keep them and ask first.
+  if (await checkChangedElsewhere(docId, entry)) {
+    throw new DOMException(`${entry.record.fileName} was changed outside Thunder Writer.`, CHANGED_ERROR)
+  }
   const blob = await buildExport(doc, kind)
   await writeToHandle(handle, blob)
-  entry.record = { ...entry.record, lastWrittenAt: Date.now() }
+  const written = await readFile(handle)
+  entry.record = {
+    ...entry.record,
+    lastWrittenAt: Date.now(),
+    fileModifiedAt: written?.lastModified ?? Date.now(),
+    docUpdatedAtWritten: doc.updatedAt,
+  }
   set(docId, entry.record, db()).catch(() => undefined)
 }
+
+/** If the file changed outside Thunder Writer, holds it for the writer's choice (holdForChoice) and says so. */
+async function checkChangedElsewhere(docId: string, entry: Entry): Promise<boolean> {
+  const known = await latestRecord(entry)
+  if (known.fileModifiedAt == null && known.lastWrittenAt == null) return false
+  const current = await readFile(entry.record.handle)
+  if (!current || !changedSince(known, current.lastModified)) return false
+  await holdForChoice(docId, current)
+  return true
+}
+
+/** The file as it is on disk now, or null if it can't be read (a missing file still throws, so it shows as moved). */
+async function readFile(handle: FileSystemFileHandle): Promise<File | null> {
+  try {
+    return await handle.getFile()
+  } catch (e) {
+    if (errorName(e) === 'NotFoundError') throw e
+    return null
+  }
+}
+
+/**
+ * The file changed outside Thunder Writer: keep it in Backups (byte for byte),
+ * stop writing to it, and ask the writer which version to keep. Saving stays
+ * paused until they choose (keepBrowserVersionInFile, acceptFileVersion).
+ */
+export async function holdForChoice(docId: string, file: File): Promise<void> {
+  const entry = entries.get(docId)
+  if (!entry) return
+  entry.scheduler?.pause()
+  // Changed again while the question waited: keep this version too.
+  if (!entry.awaitingChoice || !sameFile(entry.awaitingChoice.file, file)) {
+    const doc = useDocuments.getState().docs[docId]
+    const kept = doc ? await backUpOriginalFile(doc, file, Date.now(), { wordsFromFile: true }) : false
+    // Stopped or replaced while the backup was being kept: nothing to ask about any more.
+    if (entries.get(docId) !== entry) return
+    entry.awaitingChoice = { file, kept }
+  }
+  patchStatus(docId, { phase: 'changed', changed: entry.awaitingChoice })
+  useDesktopCopy.setState({ choiceFor: docId })
+}
+
+function clearChoice(docId: string) {
+  const entry = entries.get(docId)
+  if (entry) delete entry.awaitingChoice
+  patchStatus(docId, { changed: null })
+  if (useDesktopCopy.getState().choiceFor === docId) useDesktopCopy.setState({ choiceFor: null })
+}
+
+/**
+ * "Keep this browser's version": write it over the changed file now (the file's
+ * own version was kept in Backups, or the writer agreed to go on without).
+ * Call from a click: the browser may need to allow writing again.
+ */
+export async function keepBrowserVersionInFile(docId: string): Promise<'written' | 'denied' | 'failed' | 'changed-again'> {
+  const entry = entries.get(docId)
+  if (!entry?.awaitingChoice) return 'failed'
+  let perm: PermissionState
+  try {
+    perm = await requestWritePermission(entry.record.handle)
+  } catch {
+    perm = 'denied'
+  }
+  if (entries.get(docId) !== entry || !entry.awaitingChoice) return 'failed'
+  if (perm !== 'granted') return 'denied'
+  const current = await readFile(entry.record.handle).catch(() => null)
+  if (current && !sameFile(current, entry.awaitingChoice.file)) {
+    // Changed again since the question was asked: keep that version too, and ask again.
+    await holdForChoice(docId, current)
+    return 'changed-again'
+  }
+  // The outside change is being replaced on purpose: it no longer counts as "changed elsewhere".
+  const waiting = entry.awaitingChoice
+  entry.record = { ...entry.record, fileModifiedAt: current?.lastModified ?? Date.now() }
+  delete entry.awaitingChoice
+  const s = entry.scheduler ?? activate(docId)
+  s.resume()
+  flushPendingEdits()
+  if ((await s.flush({ force: true })) === 'written') {
+    clearChoice(docId)
+    return 'written'
+  }
+  // Not written: the question stands, with its error shown.
+  if (entries.get(docId) === entry && !entry.awaitingChoice) entry.awaitingChoice = waiting
+  s.pause()
+  patchStatus(docId, { phase: 'changed', changed: entry.awaitingChoice ?? waiting })
+  useDesktopCopy.setState({ choiceFor: docId })
+  return 'failed'
+}
+
+/**
+ * "Use the file's version", once it has been loaded into the manuscript: the
+ * file and the manuscript now match, so nothing is rewritten until the next edit.
+ */
+export function acceptFileVersion(docId: string, fileModifiedAt: number, docUpdatedAt: number): void {
+  const entry = entries.get(docId)
+  if (!entry) return
+  entry.record = { ...entry.record, fileModifiedAt, docUpdatedAtWritten: docUpdatedAt }
+  set(docId, entry.record, db()).catch(() => undefined)
+  clearChoice(docId)
+  if (entry.scheduler) {
+    entry.scheduler.markClean()
+    entry.scheduler.resume()
+  } else {
+    // After a reload, before the browser has allowed writing again.
+    patchStatus(docId, { phase: 'needs-permission', error: null })
+  }
+}
+
+/** The writer closed the question without choosing: saving stays paused, and the badge can bring it back. */
+export const postponeChoice = () => useDesktopCopy.setState({ choiceFor: null })
+
+/** Shows the question again (header badge, Cmd/Ctrl+S). */
+export const showChoice = (docId: string) => useDesktopCopy.setState({ choiceFor: docId })
+
+/** The file the copy writes to (to re-read it when loading its version). */
+export const getDesktopCopyHandle = (docId: string) => entries.get(docId)?.record.handle ?? null
 
 function activate(docId: string): CopyScheduler {
   const entry = entries.get(docId)!
@@ -186,7 +374,8 @@ export function restoreDesktopCopy(docId: string): Promise<void> {
     if (perm === 'granted') {
       const s = activate(docId)
       const doc = useDocuments.getState().docs[docId]
-      if (doc && doc.updatedAt > (rec.lastWrittenAt ?? 0)) s.notifyChange()
+      // Compare manuscript versions, not the file's clock with the manuscript's.
+      if (doc && doc.updatedAt > (rec.docUpdatedAtWritten ?? rec.lastWrittenAt ?? 0)) s.notifyChange()
     } else {
       patchStatus(docId, { phase: 'needs-permission' })
     }
@@ -240,7 +429,17 @@ const stripExt = (name: string) => name.replace(/(\.thunder)?\.[A-Za-z0-9]+$/, '
  */
 export async function linkDesktopCopy(docId: string, handle: FileSystemFileHandle, kind: CopyKind, fileModifiedAt: number): Promise<void> {
   entries.get(docId)?.scheduler?.dispose()
-  const record: CopyRecord = { docId, kind, fileName: handle.name, handle, setUpAt: Date.now(), lastWrittenAt: fileModifiedAt }
+  const doc = useDocuments.getState().docs[docId]
+  const record: CopyRecord = {
+    docId,
+    kind,
+    fileName: handle.name,
+    handle,
+    setUpAt: Date.now(),
+    lastWrittenAt: null,
+    fileModifiedAt,
+    docUpdatedAtWritten: doc?.updatedAt ?? null,
+  }
   entries.set(docId, { record, scheduler: null })
   try {
     await set(docId, record, db())
@@ -250,19 +449,13 @@ export async function linkDesktopCopy(docId: string, handle: FileSystemFileHandl
   activate(docId)
 }
 
-/** Marks the file as matching the manuscript (e.g. after loading the file's newer version into it). */
-export function noteDesktopCopyInSync(docId: string, fileModifiedAt: number): void {
-  const entry = entries.get(docId)
-  if (!entry) return
-  entry.record = { ...entry.record, lastWrittenAt: fileModifiedAt }
-  set(docId, entry.record, db()).catch(() => undefined)
-}
-
 /**
  * The manuscript that already saves to this very file (FileSystemHandle.isSameEntry),
  * so opening it again goes back to that manuscript instead of making a second one.
  */
-export async function findDocForFile(handle: FileSystemFileHandle): Promise<{ docId: string; lastWrittenAt: number | null } | null> {
+export async function findDocForFile(
+  handle: FileSystemFileHandle,
+): Promise<{ docId: string; fileModifiedAt: number | null; lastWrittenAt: number | null } | null> {
   const records: CopyRecord[] = [...entries.values()].map((e) => e.record)
   try {
     for (const [, v] of await idbEntries<IDBValidKey, unknown>(db())) {
@@ -273,7 +466,7 @@ export async function findDocForFile(handle: FileSystemFileHandle): Promise<{ do
   }
   for (const r of records) {
     try {
-      if (await handle.isSameEntry(r.handle)) return { docId: r.docId, lastWrittenAt: r.lastWrittenAt }
+      if (await handle.isSameEntry(r.handle)) return { docId: r.docId, fileModifiedAt: r.fileModifiedAt ?? null, lastWrittenAt: r.lastWrittenAt }
     } catch {
       // A handle from another browser profile or a stale record: not this file.
     }
@@ -285,6 +478,11 @@ export async function findDocForFile(handle: FileSystemFileHandle): Promise<{ do
 export async function resumeDesktopCopy(docId: string): Promise<boolean> {
   const entry = entries.get(docId)
   if (!entry) return false
+  // A file changed elsewhere waits for the writer's choice; resuming must not write over it.
+  if (entry.awaitingChoice) {
+    showChoice(docId)
+    return false
+  }
   let perm: PermissionState
   try {
     perm = await requestWritePermission(entry.record.handle)
@@ -302,24 +500,6 @@ export async function resumeDesktopCopy(docId: string): Promise<boolean> {
   return (await s.flush({ force: true })) === 'written'
 }
 
-/**
- * Gets write permission for a linked file (after a reload) without writing yet,
- * so a backup of what's in it can be taken first. Call from a click.
- */
-export async function grantDesktopCopy(docId: string): Promise<boolean> {
-  const entry = entries.get(docId)
-  if (!entry) return false
-  let perm: PermissionState
-  try {
-    perm = await requestWritePermission(entry.record.handle)
-  } catch {
-    perm = 'denied'
-  }
-  if (entries.get(docId) !== entry || perm !== 'granted') return false
-  ;(entry.scheduler ?? activate(docId)).resume()
-  return true
-}
-
 /** Stops updating the file. The file already on the computer is left as it is. */
 export async function stopDesktopCopy(docId: string): Promise<void> {
   const entry = entries.get(docId)
@@ -333,7 +513,7 @@ export async function stopDesktopCopy(docId: string): Promise<void> {
   }
 }
 
-export type WriteNowOutcome = FlushOutcome | 'none' | 'needs-permission'
+export type WriteNowOutcome = FlushOutcome | 'none' | 'needs-permission' | 'missing'
 
 /** Cmd/Ctrl+S: write the copy now if anything changed. */
 export async function writeDesktopCopyNow(docId: string, opts: { force?: boolean } = {}): Promise<WriteNowOutcome> {
@@ -341,6 +521,14 @@ export async function writeDesktopCopyNow(docId: string, opts: { force?: boolean
   if (!entry) return 'none'
   if (!entry.scheduler) return 'needs-permission'
   flushPendingEdits()
+  // Nothing to write: still, "up to date" must not hide a file changed elsewhere.
+  if (!opts.force && !entry.scheduler.getState().dirty && !entry.awaitingChoice) {
+    try {
+      if (await checkChangedElsewhere(docId, entry)) return 'paused'
+    } catch (e) {
+      if (errorName(e) === 'NotFoundError') return 'missing'
+    }
+  }
   return entry.scheduler.flush(opts)
 }
 

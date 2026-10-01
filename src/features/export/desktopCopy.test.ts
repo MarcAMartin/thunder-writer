@@ -16,12 +16,24 @@ vi.mock('idb-keyval', () => {
   }
 })
 
+const backup = vi.hoisted(() => ({ ok: true, files: [] as string[] }))
+vi.mock('../backups/backups', () => ({
+  backUpOriginalFile: vi.fn(async (_doc: unknown, file: File) => {
+    if (backup.ok) backup.files.push(file.name)
+    return backup.ok
+  }),
+}))
+
 import { useDocuments } from '../../store/documents'
 import { describeCopyStatus } from './copyStatus'
 import {
   __resetDesktopCopyForTests,
+  acceptFileVersion,
   COPY_PICKER_ID,
   getDesktopCopyStatus,
+  keepBrowserVersionInFile,
+  linkDesktopCopy,
+  useDesktopCopy,
   isDesktopCopySupported,
   restoreDesktopCopy,
   resumeDesktopCopy,
@@ -70,6 +82,39 @@ function fakeFile(name = 'My Novel.txt') {
   }
 }
 
+/**
+ * A file with a modification time, like a real one: Thunder Writer's writes
+ * set it, and `editElsewhere` stands in for saving it in Word.
+ */
+function fileOnDisk(name = 'My Novel.txt', text = 'It began.\n') {
+  const f = fakeFile(name)
+  let content = text
+  let modified = Date.now() - 60_000
+  const raw = f.raw as unknown as Record<string, unknown>
+  raw.getFile = vi.fn(async () => new File([content], name, { lastModified: modified }))
+  const create = f.raw.createWritable
+  raw.createWritable = vi.fn(async () => {
+    const w = await create()
+    return {
+      ...w,
+      close: async () => {
+        await w.close()
+        content = f.written.at(-1)!
+        modified = Date.now()
+      },
+    }
+  })
+  return {
+    ...f,
+    modifiedAt: () => modified,
+    editElsewhere: (next: string) => {
+      content = next
+      modified = Date.now() + 5_000
+    },
+    content: () => content,
+  }
+}
+
 let stopService: () => void
 
 function openDoc(text = 'It began.') {
@@ -79,6 +124,9 @@ function openDoc(text = 'It began.') {
 }
 
 beforeEach(() => {
+  backup.ok = true
+  backup.files.length = 0
+  useDesktopCopy.setState({ choiceFor: null })
   mem.clear()
   vi.useFakeTimers()
   __resetDesktopCopyForTests()
@@ -324,5 +372,180 @@ describe('desktop copy', () => {
     expect(bytes[0].type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     const head = new Uint8Array(await bytes[0].arrayBuffer()).slice(0, 2)
     expect(String.fromCharCode(...head)).toBe('PK') // a zip
+  })
+})
+
+describe('a file changed outside Thunder Writer', () => {
+  async function linked(text = 'Mine.') {
+    const doc = openDoc(text)
+    const f = fileOnDisk('My Novel.txt', 'Mine.\n')
+    ;(window as Win).showSaveFilePicker = vi.fn()
+    await linkDesktopCopy(doc.id, f.handle, 'txt', f.modifiedAt())
+    return { doc, f }
+  }
+
+  it('is never written over: it is kept in Backups, saving pauses, and the writer is asked', async () => {
+    const { f } = await linked()
+    f.editElsewhere('Edited in Word.\n')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Typed here.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    expect(f.written).toEqual([])
+    expect(f.content()).toBe('Edited in Word.\n')
+    expect(backup.files).toEqual(['My Novel.txt'])
+    expect(getDesktopCopyStatus('d1')).toMatchObject({ phase: 'changed', changed: { kept: true } })
+    expect(describeCopyStatus(getDesktopCopyStatus('d1')!)).toMatchObject({ action: 'resolve', actionLabel: 'Choose which version to keep' })
+    expect(useDesktopCopy.getState().choiceFor).toBe('d1')
+
+    // Cmd/Ctrl+S, Resume, and more typing all wait for the choice.
+    useDesktopCopy.setState({ choiceFor: null })
+    await expect(writeDesktopCopyNow('d1')).resolves.toBe('paused')
+    await expect(resumeDesktopCopy('d1')).resolves.toBe(false)
+    expect(useDesktopCopy.getState().choiceFor).toBe('d1')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('More typing.'))] })
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(f.written).toEqual([])
+  })
+
+  it('"Keep this browser’s version" writes it over the file, then saving carries on', async () => {
+    const { f } = await linked()
+    f.editElsewhere('Edited in Word.\n')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Typed here.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    await expect(keepBrowserVersionInFile('d1')).resolves.toBe('written')
+    expect(f.content()).toBe('Typed here.\n')
+    expect(getDesktopCopyStatus('d1')).toMatchObject({ phase: 'ready', changed: null })
+    expect(useDesktopCopy.getState().choiceFor).toBeNull()
+    await vi.advanceTimersByTimeAsync(31_000)
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Later.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    expect(f.content()).toBe('Later.\n')
+  })
+
+  it('"Use the file’s version" leaves the file alone until the next edit', async () => {
+    const { f } = await linked()
+    f.editElsewhere('Edited in Word.\n')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Typed here.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    // What loadFileVersion does: the file's words come in, then the file counts as matching.
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Edited in Word.'))] })
+    acceptFileVersion('d1', f.modifiedAt(), useDocuments.getState().docs.d1.updatedAt)
+    expect(getDesktopCopyStatus('d1')?.phase).not.toBe('changed')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(f.written).toEqual([])
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Edited in Word, and here.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    expect(f.content()).toBe('Edited in Word, and here.\n')
+  })
+
+  it('says so when even the backup failed', async () => {
+    backup.ok = false
+    const { f } = await linked()
+    f.editElsewhere('Edited in Word.\n')
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Typed here.'))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+    expect(getDesktopCopyStatus('d1')).toMatchObject({ phase: 'changed', changed: { kept: false } })
+    expect(f.written).toEqual([])
+  })
+
+  it('a reload doesn’t rewrite a file when nothing changed in either place', async () => {
+    const { f } = await linked()
+    __resetDesktopCopyForTests()
+    vi.setSystemTime(Date.now() + 60_000)
+    await restoreDesktopCopy('d1')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(f.written).toEqual([])
+  })
+})
+
+describe('a file changed outside Thunder Writer: the edge cases', () => {
+  async function linkedFile() {
+    const doc = openDoc('Mine.')
+    const f = fileOnDisk('My Novel.txt', 'Mine.\n')
+    ;(window as Win).showSaveFilePicker = vi.fn()
+    await linkDesktopCopy(doc.id, f.handle, 'txt', f.modifiedAt())
+    return f
+  }
+  const typeSomething = async (text = 'Typed here.') => {
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t(text))] })
+    await vi.advanceTimersByTimeAsync(31_000)
+  }
+
+  it('changed again while the question waits: that version is kept too, and the writer is asked again', async () => {
+    const f = await linkedFile()
+    f.editElsewhere('v2\n')
+    await typeSomething()
+    useDesktopCopy.setState({ choiceFor: null }) // closed without choosing
+    vi.setSystemTime(Date.now() + 60_000)
+    f.editElsewhere('v3, with a new chapter\n')
+    await expect(keepBrowserVersionInFile('d1')).resolves.toBe('changed-again')
+    expect(backup.files).toEqual(['My Novel.txt', 'My Novel.txt'])
+    expect(f.content()).toBe('v3, with a new chapter\n')
+    expect(getDesktopCopyStatus('d1')).toMatchObject({ phase: 'changed' })
+    expect(useDesktopCopy.getState().choiceFor).toBe('d1')
+    // Asked again, the writer can still keep theirs.
+    await expect(keepBrowserVersionInFile('d1')).resolves.toBe('written')
+    expect(f.content()).toBe('Typed here.\n')
+  })
+
+  it('protects copies saved before the file’s own time was recorded', async () => {
+    const doc = openDoc('Mine.')
+    const f = fileOnDisk('My Novel.txt', 'Mine.\n')
+    ;(window as Win).showSaveFilePicker = vi.fn()
+    const written = Date.now()
+    mem.set(STORE, new Map([[doc.id, { docId: doc.id, kind: 'txt', fileName: 'My Novel.txt', handle: f.handle, setUpAt: 1, lastWrittenAt: written }]]))
+    vi.setSystemTime(written + 60_000)
+    f.editElsewhere('Edited in Word.\n')
+    await restoreDesktopCopy(doc.id)
+    await typeSomething()
+    expect(f.content()).toBe('Edited in Word.\n')
+    expect(getDesktopCopyStatus('d1')?.phase).toBe('changed')
+  })
+
+  it('a file replaced by an older-dated version (a sync or a restore) counts as changed too', async () => {
+    const f = await linkedFile()
+    const raw = f.raw as unknown as { getFile: () => Promise<File> }
+    raw.getFile = vi.fn(async () => new File(['Restored from last week.\n'], 'My Novel.txt', { lastModified: Date.now() - 7 * 86_400_000 }))
+    await typeSomething()
+    expect(f.written).toEqual([])
+    expect(getDesktopCopyStatus('d1')?.phase).toBe('changed')
+  })
+
+  it('another tab writing the same file doesn’t look like an outside change', async () => {
+    const f = await linkedFile()
+    // The other tab wrote the file and recorded it.
+    f.editElsewhere('Written by the other tab.\n')
+    const stored = mem.get(STORE)!.get('d1') as Record<string, unknown>
+    mem.get(STORE)!.set('d1', { ...stored, fileModifiedAt: f.modifiedAt(), lastWrittenAt: Date.now() })
+    await typeSomething('From this tab.')
+    expect(f.content()).toBe('From this tab.\n')
+    expect(getDesktopCopyStatus('d1')?.phase).toBe('ready')
+  })
+
+  it('Cmd/Ctrl+S with nothing pending still notices a file changed elsewhere', async () => {
+    const f = await linkedFile()
+    f.editElsewhere('Edited in Word.\n')
+    await expect(writeDesktopCopyNow('d1')).resolves.toBe('paused')
+    expect(getDesktopCopyStatus('d1')?.phase).toBe('changed')
+    expect(backup.files).toEqual(['My Novel.txt'])
+  })
+
+  it('if writing this browser’s version fails, the question stays open', async () => {
+    const f = await linkedFile()
+    f.editElsewhere('Edited in Word.\n')
+    await typeSomething()
+    f.failNextWith(new DOMException('busy', 'NoModificationAllowedError'))
+    await expect(keepBrowserVersionInFile('d1')).resolves.toBe('failed')
+    expect(getDesktopCopyStatus('d1')?.phase).toBe('changed')
+    expect(useDesktopCopy.getState().choiceFor).toBe('d1')
+    expect(f.content()).toBe('Edited in Word.\n')
+  })
+
+  it('after "Use the file’s version" the status is plain ready, with no leftover error', async () => {
+    const f = await linkedFile()
+    f.editElsewhere('Edited in Word.\n')
+    await typeSomething()
+    useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('Edited in Word.'))] })
+    acceptFileVersion('d1', f.modifiedAt(), useDocuments.getState().docs.d1.updatedAt)
+    expect(getDesktopCopyStatus('d1')).toMatchObject({ phase: 'ready', error: null, changed: null })
   })
 })

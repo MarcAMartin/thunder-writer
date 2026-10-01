@@ -3,7 +3,18 @@ import { flushPendingEdits } from '../../store/pendingEdits'
 import type { ThunderDoc } from '../../types'
 import { backUpOriginalFile, safetyBackup } from '../backups/backups'
 import { countWords } from '../backups/store'
-import { findDocForFile, grantDesktopCopy, linkDesktopCopy, noteDesktopCopyInSync, writeDesktopCopyNow } from '../export/desktopCopy'
+import {
+  acceptFileVersion,
+  CHANGED_SLACK_MS,
+  changedSince,
+  findDocForFile,
+  getDesktopCopyHandle,
+  getDesktopCopyStatus,
+  holdForChoice,
+  keepBrowserVersionInFile,
+  linkDesktopCopy,
+  restoreDesktopCopy,
+} from '../export/desktopCopy'
 import { DOCX_MIME, type CopyKind } from '../export/formats'
 import { canSaveBackToOpenedFiles, getShowOpenFilePicker, isAbortError, requestWritePermission } from '../export/fsAccess'
 import { parseEnvelope, withoutDriveLink } from '../storage/schema'
@@ -50,8 +61,7 @@ const OPEN_TYPES = [
 /** The plain file chooser's types, where the browser can't open files for saving back. */
 export const OPEN_INPUT_ACCEPT = `${IMPORT_INPUT_ACCEPT},.json,.bak,application/json`
 
-/** A file opened this long after Thunder Writer last saved it was changed somewhere else (file times are coarse). */
-export const CHANGED_SLACK_MS = 2000
+export { CHANGED_SLACK_MS }
 
 /** A Thunder Writer save (.thunder.json), any .json, or the .bak Thunder Writer keeps of one. */
 const isThunderName = (name: string) => /\.json(\.bak)?$/i.test(name.trim())
@@ -111,7 +121,15 @@ async function openThunderFile(file: File): Promise<ThunderDoc | null> {
   const doc = await readThunderFile(file)
   const store = useDocuments.getState()
   const existing = store.docs[doc.id]
-  if (existing && existing.updatedAt !== doc.updatedAt) {
+  if (existing && existing.updatedAt === doc.updatedAt) {
+    // The same version: just open it, keeping its Drive link.
+    if (store.currentId !== existing.id) {
+      discardUntouchedCurrentDoc()
+      useDocuments.getState().openDoc(existing.id)
+    }
+    return existing
+  }
+  if (existing) {
     const question = existing.driveFileId
       ? `Replace the copy of “${existing.title}” in this browser with the version in ${file.name}? The Google Drive copy is left as it is; this version is saved to Drive as a separate file. This browser’s copy is kept in Backups.`
       : `Replace the copy of “${existing.title}” in this browser with the version in ${file.name}? This browser’s copy is kept in Backups.`
@@ -130,7 +148,7 @@ async function openThunderFile(file: File): Promise<ThunderDoc | null> {
 }
 
 /** Opens (converts) `file` as a manuscript and shows the result; `handle` when it may be saved back into. */
-async function openFile(file: File, handle: FileSystemFileHandle | null): Promise<void> {
+async function openFile(file: File, handle: FileSystemFileHandle | null, returnFocus?: () => HTMLElement | null | undefined): Promise<void> {
   useImportFlow.setState({ phase: { kind: 'importing', name: file.name }, prompt: false, notice: null })
   try {
     if (file.size > MAX_IMPORT_BYTES) throw new ImportError('too_large', tooLargeMessage(file.name, file.size))
@@ -140,6 +158,7 @@ async function openFile(file: File, handle: FileSystemFileHandle | null): Promis
       const doc = await openThunderFile(file)
       if (!doc) {
         useImportFlow.setState({ phase: { kind: 'idle' } })
+        returnFocus?.()?.focus()
         return
       }
       docId = doc.id
@@ -170,7 +189,14 @@ export async function openFromComputer(opts: { returnFocus?: () => HTMLElement |
   }
   const show = getShowOpenFilePicker()
   if (!show || !canSaveBackToOpenedFiles()) {
-    openImportPicker({ returnFocus: opts.returnFocus, accept: OPEN_INPUT_ACCEPT, onFile: (f) => void openFile(f, null) })
+    openImportPicker({
+      returnFocus: opts.returnFocus,
+      accept: OPEN_INPUT_ACCEPT,
+      onFile: (f) => {
+        useImportFlow.setState({ prompt: false })
+        void openFile(f, null, opts.returnFocus)
+      },
+    })
     return
   }
   let handle: FileSystemFileHandle | undefined
@@ -187,6 +213,8 @@ export async function openFromComputer(opts: { returnFocus?: () => HTMLElement |
     return
   }
   if (!handle) return
+  // A file was chosen: the "Open a manuscript" prompt (from the Home page) has done its job.
+  useImportFlow.setState({ prompt: false })
   let file: File
   try {
     file = await handle.getFile()
@@ -204,16 +232,17 @@ export async function openFromComputer(opts: { returnFocus?: () => HTMLElement |
       discardUntouchedCurrentDoc()
       s.openDoc(doc.id)
     }
-    if (file.lastModified > (linked.lastWrittenAt ?? 0) + CHANGED_SLACK_MS) {
-      // Kept before anything else can write over it, whichever version the writer then picks.
-      await backUpOriginalFile(doc, file)
-      useImportFlow.setState({ phase: { kind: 'changed', docId: doc.id, file } })
+    await restoreDesktopCopy(doc.id)
+    if (changedSince(linked, file.lastModified)) {
+      // Kept in Backups and saving paused, until the writer picks a version (ChangedFileDialog).
+      await holdForChoice(doc.id, file)
     } else {
       setImportNotice(`“${file.name}” is already open, and your changes save to it.`)
+      opts.returnFocus?.()?.focus()
     }
     return
   }
-  await openFile(file, handle)
+  await openFile(file, handle, opts.returnFocus)
 }
 
 export type KeepSavingOutcome = 'linked' | 'denied' | 'cancelled'
@@ -246,13 +275,22 @@ export async function keepSavingToFile(docId: string, opened: OpenedFile): Promi
 }
 
 /**
- * The linked file changed elsewhere: bring its version in, replacing this
- * browser's (kept in Backups first; the file's own was kept when it was found changed).
+ * "Use the file's version" for a linked file that changed elsewhere: read it
+ * again (it may have changed since), keep this browser's version in Backups
+ * (asking if that fails), and load the file's words into the manuscript. The
+ * file and manuscript then match, so nothing is rewritten until the next edit.
  */
-export async function loadFileVersion(docId: string, file: File): Promise<void> {
+export async function loadFileVersion(docId: string): Promise<'loaded' | 'cancelled'> {
   const doc = useDocuments.getState().docs[docId]
-  if (!doc) return
-  await safetyBackup(doc, 'before-import')
+  if (!doc) return 'cancelled'
+  const handle = getDesktopCopyHandle(docId)
+  const file = (handle ? await handle.getFile().catch(() => null) : null) ?? getDesktopCopyStatus(docId)?.changed?.file
+  if (!file) throw new Error('The file couldn’t be read. It may have been moved or deleted.')
+  if (
+    !(await safetyBackup(doc, 'before-import')) &&
+    !window.confirm(`This browser couldn’t keep a backup of “${doc.title}” first. Use the file’s version anyway? This browser’s version couldn’t be brought back.`)
+  )
+    return 'cancelled'
   let next: Pick<ThunderDoc, 'title' | 'content' | 'format'>
   if (isThunderName(file.name)) next = await readThunderFile(file)
   else {
@@ -260,21 +298,14 @@ export async function loadFileVersion(docId: string, file: File): Promise<void> 
     // The writer's title stays; the file's name may be a draft label.
     next = { title: doc.title, content: r.content, format: doc.format }
   }
+  const updatedAt = Date.now()
   useDocuments.setState((s) => ({
-    docs: { ...s.docs, [docId]: { ...doc, title: next.title, content: next.content, format: next.format, updatedAt: Date.now() } },
+    docs: { ...s.docs, [docId]: { ...doc, title: next.title, content: next.content, format: next.format, updatedAt } },
     dirtyForDrive: { ...s.dirtyForDrive, [docId]: true },
   }))
-  noteDesktopCopyInSync(docId, file.lastModified)
+  acceptFileVersion(docId, file.lastModified, updatedAt)
+  return 'loaded'
 }
 
-/**
- * The linked file changed elsewhere: keep this browser's version and save it
- * into the file now (the file's version was kept in Backups when it was found
- * changed). Call from a click: the browser may need to allow writing again.
- */
-export async function keepBrowserVersion(docId: string): Promise<boolean> {
-  if (!(await grantDesktopCopy(docId))) return false
-  flushPendingEdits()
-  const outcome = await writeDesktopCopyNow(docId, { force: true })
-  return outcome === 'written' || outcome === 'clean'
-}
+/** "Keep this browser's version": write it over the changed file now. Call from a click. */
+export const keepBrowserVersion = (docId: string) => keepBrowserVersionInFile(docId)

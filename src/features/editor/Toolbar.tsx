@@ -4,7 +4,9 @@ import { useEditorContext } from '../../shell/EditorContext'
 import { useDocuments } from '../../store/documents'
 import type { DocFormat } from '../../types'
 import { SupportSlot } from '../support/SupportSlot'
-import { HeaderFooterButton, PreviewButton } from './BookTools'
+import { useSettings } from '../../store/settings'
+import { playStrike } from './typewriterSounds'
+import { FocusModeButton, HeaderFooterButton, PreviewButton } from './BookTools'
 import { HEADING_LABELS } from './editorExtensions'
 import {
   BOOK_PRESETS,
@@ -158,7 +160,9 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
   const { editor } = useEditorContext()
   const st = useEditorState({ editor, selector: ({ editor: e }) => selectState(e) })
   const { format, resolved, patch } = useCurrentFormat()
-  const ids = { block: useId(), preset: useId(), font: useId(), size: useId(), lh: useId(), chapter: useId() }
+  const ids = { block: useId(), preset: useId(), font: useId(), size: useId(), lh: useId(), chapter: useId(), sounds: useId() }
+  const typewriter = useSettings((s) => s.typewriterSounds)
+  const setSettings = useSettings((s) => s.set)
   const disabled = !editor || !st
 
   const run = (fn: (e: Editor) => void) => () => {
@@ -188,6 +192,7 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
       <div className="ed-group ed-group-file">
         {leading}
         <HeaderFooterButton />
+        <FocusModeButton />
       </div>
       <Sep />
       <div className="ed-group">
@@ -346,6 +351,21 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
             onChange={(e) => patch({ chapterStartsNewPage: e.target.checked })}
           />
           <span>Chapters start new page</span>
+        </label>
+      </div>
+      <div className="ed-group">
+        <label className="ed-check" htmlFor={ids.sounds} title="A key strike as you type, and a softer knock when you delete">
+          <input
+            id={ids.sounds}
+            type="checkbox"
+            checked={typewriter}
+            onChange={(e) => {
+              setSettings({ typewriterSounds: e.target.checked })
+              // A sample, so turning it on is heard at once (the click lets the browser start audio).
+              if (e.target.checked) playStrike()
+            }}
+          />
+          <span>Typewriter sounds</span>
         </label>
       </div>
       <div className="ed-group ed-group-preview">

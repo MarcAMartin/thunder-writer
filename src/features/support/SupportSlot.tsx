@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '../../store/settings'
 import { Modal } from '../storage/Modal'
 import { bookUrl, pickForDay } from './bookPicks'
 import './support.css'
 
 /**
- * Beside Preview Book. Off (the default): a small "Support the developer"
+ * Beside Preview Book. Off (the default): a small "Support Developer"
  * button. On: a book pick, marked as an ad, with a way to turn it off that
  * first asks the writer to reconsider. The choice is saved in Settings.
  */
@@ -14,17 +14,30 @@ export function SupportSlot() {
   const set = useSettings((s) => s.set)
   const [asking, setAsking] = useState(false)
   const pick = pickForDay()
+  const offerRef = useRef<HTMLButtonElement>(null)
+  const offRef = useRef<HTMLButtonElement>(null)
+  // Switching swaps the focused control for its counterpart: keep keyboard focus on it.
+  const switched = useRef(false)
+  useEffect(() => {
+    if (!switched.current) return
+    switched.current = false
+    ;(on ? offRef : offerRef).current?.focus()
+  }, [on])
+  const turn = (next: boolean) => {
+    switched.current = true
+    set({ supportDeveloper: next })
+  }
 
   if (!on) {
     return (
       <button
+        ref={offerRef}
         type="button"
         className="ed-tool ed-tool-text su-offer"
         title="Show a book pick here. It keeps Thunder Writer free, and you can turn it off any time."
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => set({ supportDeveloper: true })}
+        onClick={() => turn(true)}
       >
-        <span aria-hidden="true">♥</span> Support the developer
+        <span aria-hidden="true">♥</span> Support Developer
       </button>
     )
   }
@@ -44,11 +57,11 @@ export function SupportSlot() {
           <span className="ed-sr"> (opens Bookshop.org in a new tab)</span>
         </a>
         <button
+          ref={offRef}
           type="button"
           className="su-ad-off"
           aria-label="Turn off book picks"
           title="Turn off book picks"
-          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setAsking(true)}
         >
           ✕
@@ -64,8 +77,8 @@ export function SupportSlot() {
                 type="button"
                 className="tw-btn"
                 onClick={() => {
-                  set({ supportDeveloper: false })
                   setAsking(false)
+                  turn(false)
                 }}
               >
                 Turn off
@@ -77,8 +90,8 @@ export function SupportSlot() {
           }
         >
           <p className="su-ask">
-            This one quiet book pick is how Thunder Writer stays free. It’s a plain link: nothing tracks you, and it only
-            does anything if you click it. Keep supporting the developer?
+            <strong>This supports the product.</strong> One quiet book pick is how Thunder Writer stays free. It’s a
+            plain link: nothing tracks you, and it only does anything if you click it.
           </p>
         </Modal>
       )}

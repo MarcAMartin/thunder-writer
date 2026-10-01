@@ -196,6 +196,10 @@ book:
 Light and dark themes, or follow your system setting. A running word count
 and writing timer. Keep as many manuscripts as you like and switch between
 them from the File menu.
+- **Focus Mode** clears everything but your pages, with a smooth glide in and
+  out. **Exit Focus Mode** (or Esc) brings it all back.
+- **Typewriter sounds**, if you like them: a key strike as you type, a softer
+  knock when you delete. Off until you tick the box.
 
 ## Try it
 

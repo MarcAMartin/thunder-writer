@@ -147,7 +147,7 @@ export function HomePage() {
                     </Link>
                   </>
                 )}
-                ; the original is never changed.
+                ; your file is left alone unless you choose to keep saving into it.
               </p>
 
               <p className="hm-fineprint">

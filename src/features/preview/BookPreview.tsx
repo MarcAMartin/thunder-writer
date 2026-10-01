@@ -819,6 +819,7 @@ function PrintChoices<T extends string>(props: {
       {props.choices.map((c) => {
         const off = props.disabled?.(c.value) ?? false
         const hintId = `${props.name}-${c.value}-hint`
+        const labelId = `${props.name}-${c.value}-label`
         return (
           <label key={c.value} className={`bp-print-choice${off ? ' bp-print-choice-off' : ''}`}>
             <input
@@ -827,11 +828,12 @@ function PrintChoices<T extends string>(props: {
               value={c.value}
               checked={props.value === c.value}
               disabled={off}
+              aria-labelledby={labelId}
               aria-describedby={hintId}
               onChange={() => props.onChange(c.value)}
             />
             <span className="bp-print-choice-text">
-              <span className="bp-print-choice-label">
+              <span className="bp-print-choice-label" id={labelId}>
                 <span className={`bp-swatch bp-swatch-${c.value}`} aria-hidden="true" />
                 {c.label}
               </span>

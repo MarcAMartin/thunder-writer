@@ -45,6 +45,15 @@ export const REASON_LABEL: Record<BackupReason, string> = {
 /** Why it was kept, with the file's name for an original file: "The file on your computer, … (Novel.docx)". */
 export const describeReason = (m: Pick<BackupMeta, 'reason' | 'file'>) => (m.file ? `${REASON_LABEL[m.reason]} (${m.file.name})` : REASON_LABEL[m.reason])
 
+/** "84,213 words", or for an original file whose words couldn't be counted, its size ("1.2 MB"). */
+export function describeSize(m: Pick<BackupMeta, 'words' | 'file'>): string {
+  if (m.file && m.words === 0) {
+    const kb = m.file.size / 1024
+    return kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : `${(kb / 1024).toFixed(1)} MB`
+  }
+  return `${m.words.toLocaleString()} ${m.words === 1 ? 'word' : 'words'}`
+}
+
 const DAY_MS = 86_400_000
 
 export const RETENTION = {

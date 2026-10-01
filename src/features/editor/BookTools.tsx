@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
 import { usePdfRequest } from '../preview/pdfRequest'
+import { setFocusMode, toggleFocusMode, useFocusMode } from './focusMode'
 import type { BookLayoutOptions, DocFormat, HeaderFooterSettings, PrintSettings } from '../../types'
 
 // The preview (typesetting engine, page turns) and the settings dialog load on first use.
@@ -151,6 +152,36 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
         </Suspense>
       )}
     </>
+  )
+}
+
+/** The bolt from the app icon, in its yellow, for the Focus Mode buttons. */
+function FocusBolt() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+      <path d="M13.5 2 4 13.5h6.5L9.5 22 20 9.5h-6.8L13.5 2Z" fill="#ffc83d" />
+    </svg>
+  )
+}
+
+/** Toolbar › Focus Mode: only the manuscript on screen (focusMode.ts). */
+export function FocusModeButton() {
+  const on = useFocusMode((s) => s.on)
+  return (
+    <button type="button" className="tw-btn ed-focus-btn" aria-pressed={on} onClick={() => void toggleFocusMode()}>
+      <FocusBolt />
+      Focus Mode
+    </button>
+  )
+}
+
+/** Floating at the top while in Focus Mode: the way back (Escape works too). */
+export function ExitFocusButton() {
+  return (
+    <button type="button" className="ed-focus-btn ed-exit-focus" onClick={() => void setFocusMode(false)} title="Exit Focus Mode (Esc)">
+      <FocusBolt />
+      Exit Focus Mode
+    </button>
   )
 }
 

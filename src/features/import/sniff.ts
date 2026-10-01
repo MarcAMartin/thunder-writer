@@ -57,7 +57,7 @@ const UNSUPPORTED_EXT: Record<string, string> = {
   pdf: 'PDFs can’t be imported because they don’t keep paragraphs. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   epub: 'EPUB files can’t be imported. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   scriv: 'Scrivener projects can’t be read directly. In Scrivener, choose File › Compile and compile to Word (.docx), then import that.',
-  json: 'This looks like a JSON file. To open a Thunder Writer backup (.thunder.json), use File › Import .thunder.json… instead.',
+  json: 'This looks like a JSON file. To open a Thunder Writer backup (.thunder.json), use File › Open from computer… instead.',
 }
 
 /** Lower-case extension without the dot ("" if none). */

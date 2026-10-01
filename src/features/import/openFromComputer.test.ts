@@ -4,17 +4,25 @@ import type { ThunderDoc } from '../../types'
 import { makeDoc } from '../storage/testDocs'
 
 const copy = vi.hoisted(() => ({
-  linkedTo: null as null | { docId: string; lastWrittenAt: number | null },
+  linkedTo: null as null | { docId: string; fileModifiedAt: number | null; lastWrittenAt?: number | null },
   links: [] as { docId: string; kind: string; fileModifiedAt: number }[],
-  synced: [] as [string, number][],
-  granted: true,
+  accepted: [] as [string, number, number][],
+  held: [] as [string, string][],
+  handle: null as FileSystemFileHandle | null,
+  keep: 'written' as 'written' | 'denied' | 'failed',
 }))
-vi.mock('../export/desktopCopy', () => ({
+vi.mock('../export/desktopCopy', async (importActual) => ({
+  CHANGED_SLACK_MS: 2000,
+  // The real rule for "changed elsewhere".
+  changedSince: (await importActual<typeof import('../export/desktopCopy')>()).changedSince,
   findDocForFile: vi.fn(async () => copy.linkedTo),
   linkDesktopCopy: vi.fn(async (docId: string, _h: unknown, kind: string, fileModifiedAt: number) => void copy.links.push({ docId, kind, fileModifiedAt })),
-  noteDesktopCopyInSync: vi.fn((docId: string, at: number) => void copy.synced.push([docId, at])),
-  grantDesktopCopy: vi.fn(async () => copy.granted),
-  writeDesktopCopyNow: vi.fn(async () => 'written'),
+  restoreDesktopCopy: vi.fn(async () => undefined),
+  holdForChoice: vi.fn(async (docId: string, f: File) => void copy.held.push([docId, f.name])),
+  acceptFileVersion: vi.fn((docId: string, mtime: number, updatedAt: number) => void copy.accepted.push([docId, mtime, updatedAt])),
+  keepBrowserVersionInFile: vi.fn(async () => copy.keep),
+  getDesktopCopyHandle: vi.fn(() => copy.handle),
+  getDesktopCopyStatus: vi.fn(() => undefined),
 }))
 const kept = vi.hoisted(() => ({ files: [] as string[], docs: [] as [string, string][], fileOk: true }))
 vi.mock('../backups/backups', () => ({
@@ -60,8 +68,10 @@ const phase = () => useImportFlow.getState().phase
 beforeEach(() => {
   copy.linkedTo = null
   copy.links.length = 0
-  copy.synced.length = 0
-  copy.granted = true
+  copy.accepted.length = 0
+  copy.held.length = 0
+  copy.handle = null
+  copy.keep = 'written'
   kept.files.length = 0
   kept.docs.length = 0
   kept.fileOk = true
@@ -163,7 +173,7 @@ describe('Open from computer (Chrome and Edge)', () => {
   it('opening a file already linked goes back to its manuscript instead of making another', async () => {
     const doc = makeDoc({ id: 'a', title: 'Storm', format: DEFAULT_FORMAT })
     useDocuments.getState().hydrate([doc, makeDoc({ id: 'b', title: 'Other' })], 'b')
-    copy.linkedTo = { docId: 'a', lastWrittenAt: 10_000 }
+    copy.linkedTo = { docId: 'a', fileModifiedAt: 10_000 }
     withPickers(fakeHandle(new File(['x'], 'Storm.docx', { lastModified: 10_500 })))
     await openFromComputer()
     expect(useDocuments.getState().currentId).toBe('a')
@@ -172,26 +182,55 @@ describe('Open from computer (Chrome and Edge)', () => {
     expect(useImportFlow.getState().notice).toMatch(/already open, and your changes save to it/)
   })
 
-  it('a linked file changed elsewhere since the last save is kept in Backups at once, then the writer picks a version', async () => {
+  it('a linked file changed elsewhere since the last save is held for the writer to choose (kept in Backups, saving paused)', async () => {
     useDocuments.getState().hydrate([makeDoc({ id: 'a', title: 'Storm', content: para('Browser words.') })], 'a')
-    copy.linkedTo = { docId: 'a', lastWrittenAt: 10_000 }
+    copy.linkedTo = { docId: 'a', fileModifiedAt: 10_000 }
     const file = new File(['New words from Word.'], 'Storm.txt', { type: 'text/plain', lastModified: 60_000 })
     withPickers(fakeHandle(file))
     await openFromComputer()
-    expect(kept.files).toEqual(['Storm.txt'])
-    expect(phase()).toMatchObject({ kind: 'changed', docId: 'a', file })
+    expect(copy.held).toEqual([['a', 'Storm.txt']])
+    expect(phase().kind).toBe('idle')
+  })
 
-    await loadFileVersion('a', file)
+  it('"Use the file’s version" reads the file again, keeps this browser’s version first, and marks them in sync', async () => {
+    useDocuments.getState().hydrate([makeDoc({ id: 'a', title: 'Storm', content: para('Browser words.') })], 'a')
+    const file = new File(['Newest words, saved again in Word.'], 'Storm.txt', { type: 'text/plain', lastModified: 90_000 })
+    copy.handle = fakeHandle(file)
+    await expect(loadFileVersion('a')).resolves.toBe('loaded')
     const d = useDocuments.getState().docs.a
-    expect(JSON.stringify(d.content)).toContain('New words from Word.')
+    expect(JSON.stringify(d.content)).toContain('Newest words, saved again in Word.')
     expect(d.title).toBe('Storm')
     expect(kept.docs).toEqual([['a', 'before-import']])
-    expect(copy.synced).toEqual([['a', 60_000]])
+    expect(copy.accepted).toEqual([['a', 90_000, d.updatedAt]])
     expect(useDocuments.getState().dirtyForDrive.a).toBe(true)
+  })
 
-    await expect(keepBrowserVersion('a')).resolves.toBe(true)
-    copy.granted = false
-    await expect(keepBrowserVersion('a')).resolves.toBe(false)
+  it('"Use the file’s version" asks again when this browser’s version couldn’t be kept, and can be called off', async () => {
+    const backups = await import('../backups/backups')
+    vi.mocked(backups.safetyBackup).mockResolvedValueOnce(false)
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    useDocuments.getState().hydrate([makeDoc({ id: 'a', content: para('Browser words.') })], 'a')
+    copy.handle = fakeHandle(new File(['File words.'], 'Storm.txt', { type: 'text/plain', lastModified: 90_000 }))
+    await expect(loadFileVersion('a')).resolves.toBe('cancelled')
+    expect(useDocuments.getState().docs.a.content).toEqual(para('Browser words.'))
+    expect(copy.accepted).toEqual([])
+  })
+
+  it('"Keep this browser’s version" is the desktop copy writing it over the file', async () => {
+    await expect(keepBrowserVersion('a')).resolves.toBe('written')
+    copy.keep = 'denied'
+    await expect(keepBrowserVersion('a')).resolves.toBe('denied')
+  })
+
+  it('opening an unchanged Thunder Writer file of a Drive-linked manuscript keeps its Drive link', async () => {
+    const mine = makeDoc({ id: 'a', title: 'Storm', updatedAt: 20, driveFileId: 'F', driveSyncedAt: 20 })
+    useDocuments.getState().hydrate([mine, makeDoc({ id: 'b' })], 'b')
+    const saved = { app: 'thunder-writer', version: 1, savedAt: 1, doc: { ...mine, driveFileId: undefined } }
+    withPickers(fakeHandle(new File([JSON.stringify(saved)], 'Storm.thunder.json', { type: 'application/json' })))
+    await openFromComputer()
+    expect(useDocuments.getState().currentId).toBe('a')
+    expect(useDocuments.getState().docs.a).toBe(mine)
+    expect(useDocuments.getState().docs.a.driveFileId).toBe('F')
   })
 
   it('cancelling the picker does nothing and puts focus back', async () => {

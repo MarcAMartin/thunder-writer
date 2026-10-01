@@ -1,0 +1,68 @@
+/* Suggestion form. Theme tokens only; the dialog itself is storage/Modal. */
+
+.fb-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fb-lead {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.fb-label {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 550;
+}
+.fb-optional {
+  font-weight: 400;
+  color: var(--tw-text-muted);
+}
+.fb-input {
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  background: var(--tw-surface);
+  color: var(--tw-text);
+}
+.fb-input:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 1px;
+}
+.fb-textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.5;
+}
+.fb-honey {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.fb-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--tw-text-muted);
+}
+.fb-error {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  color: var(--tw-danger);
+}
+.fb-error p {
+  margin: 0;
+}
+.fb-fallback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px !important;
+}
+.fb-error a {
+  color: var(--tw-accent);
+}
