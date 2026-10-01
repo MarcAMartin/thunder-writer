@@ -41,6 +41,19 @@ const withDrive = ({ picker = false } = {}) => {
 /** Nothing about Google Cloud setup may reach the writer. */
 const SETUP_WORDING = /client id|api key|project number|set up in settings|open settings|\(set up\)/i
 
+/** File › Open from computer…, in a browser without the native file picker (jsdom): the chooser it opens. */
+async function openFromComputerInput(user: ReturnType<typeof userEvent.setup>) {
+  const clicked: HTMLInputElement[] = []
+  const spy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement) {
+    clicked.push(this)
+  })
+  await user.click(screen.getByRole('button', { name: /^file/i }))
+  await user.click(within(screen.getByRole('menu', { name: 'File' })).getByRole('menuitem', { name: 'Open from computer…' }))
+  spy.mockRestore()
+  expect(clicked).toHaveLength(1)
+  return clicked[0]
+}
+
 const renderAt = (url = '/write') =>
   render(
     <MemoryRouter initialEntries={[url]}>
@@ -75,27 +88,54 @@ describe('FileMenu', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Saved locally')
   })
 
-  it('hosts Save to computer: slots beside the button and status, and a menu item that returns focus to File', async () => {
+  it('puts the save status (and what follows it) in the slot beside the title, like Google Docs', () => {
+    const slot = document.createElement('div')
+    document.body.appendChild(slot)
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/write']}>
+        <div data-testid="menus">
+          <FileMenu afterStatus={<span>copy badge</span>} statusContainer={slot} />
+        </div>
+      </MemoryRouter>,
+    )
+    expect(within(slot).getByRole('status')).toHaveTextContent('Saved locally')
+    expect(within(slot).getByText('copy badge')).toBeInTheDocument()
+    expect(within(screen.getByTestId('menus')).queryByRole('status')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('menus')).getByRole('button', { name: /^file/i })).toBeInTheDocument()
+    unmount()
+    slot.remove()
+  })
+
+  it('shows no status while the slot beside the title isn’t mounted yet', () => {
+    render(
+      <MemoryRouter initialEntries={['/write']}>
+        <FileMenu statusContainer={null} />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('hosts Export to computer: slots beside the button and status, and a menu item that returns focus to File', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(
       <MemoryRouter initialEntries={['/write']}>
-        <FileMenu afterMenu={<button type="button">Save to computer</button>} afterStatus={<span>copy badge</span>} onSaveToComputer={onSave} />
+        <FileMenu afterMenu={<button type="button">Export to computer</button>} afterStatus={<span>copy badge</span>} onSaveToComputer={onSave} />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('button', { name: 'Save to computer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export to computer' })).toBeInTheDocument()
     expect(screen.getByText('copy badge')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^file/i }))
-    await user.click(screen.getByRole('menuitem', { name: 'Save to computer…' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export to computer…' }))
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: /^file/i })).toHaveFocus()
   })
 
-  it('has no Save to computer item unless the page provides it', async () => {
+  it('has no Export to computer item unless the page provides it', async () => {
     const user = userEvent.setup()
     renderAt()
     await user.click(screen.getByRole('button', { name: /file/i }))
-    expect(screen.queryByRole('menuitem', { name: 'Save to computer…' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Export to computer…' })).not.toBeInTheDocument()
   })
 
   it('creates a new manuscript from the menu', async () => {
@@ -110,22 +150,17 @@ describe('FileMenu', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('offers "Import manuscript…" for local Word, text and Markdown files, opening a file chooser', async () => {
+  it('offers "Open from computer…" for Word, text, Markdown and Thunder Writer files, in place of the two import items', async () => {
     const user = userEvent.setup()
-    const clicked: HTMLInputElement[] = []
-    const spy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement) {
-      clicked.push(this)
-    })
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
-    const menu = screen.getByRole('menu', { name: 'File' })
-    await user.click(within(menu).getByRole('menuitem', { name: /import manuscript/i }))
+    const input = await openFromComputerInput(user)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    expect(clicked).toHaveLength(1)
-    expect(clicked[0].type).toBe('file')
-    expect(clicked[0].accept).toContain('.docx')
-    spy.mockRestore()
-    clicked[0].remove()
+    expect(input.type).toBe('file')
+    expect(input.accept.split(',')).toEqual(expect.arrayContaining(['.docx', '.md', '.txt', '.json', '.bak']))
+    input.remove()
+    await user.click(screen.getByRole('button', { name: /^file/i }))
+    const menu = screen.getByRole('menu', { name: 'File' })
+    expect(within(menu).queryByRole('menuitem', { name: /import manuscript|import \.thunder\.json/i })).not.toBeInTheDocument()
   })
 
   it('supports keyboard navigation and Escape', async () => {
@@ -278,7 +313,7 @@ describe('FileMenu', () => {
     expect(dialog.textContent).not.toMatch(SETUP_WORDING)
   })
 
-  it('imports a backup without its Drive link, so it can never autosave over the Drive file', async () => {
+  it('opens a Thunder Writer file without its Drive link, so it can never autosave over the Drive file', async () => {
     const user = userEvent.setup()
     renderAt()
     const envelope = {
@@ -287,7 +322,7 @@ describe('FileMenu', () => {
       savedAt: 1,
       doc: { ...makeDoc({ id: 'imp', title: 'Old backup' }), driveFileId: 'SOMEONES-FILE', driveSyncedAt: 1 },
     }
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+    const input = await openFromComputerInput(user)
     await user.upload(input, new File([JSON.stringify(envelope)], 'b.thunder.json', { type: 'application/json' }))
     await vi.waitFor(() => expect(useDocuments.getState().currentId).toBe('imp'))
     const d = useDocuments.getState().docs.imp
@@ -311,12 +346,11 @@ describe('FileMenu', () => {
     confirm.mockRestore()
   })
 
-  it('keeps a backup of the manuscript an imported file replaces, and accepts Drive .bak files', async () => {
+  it('keeps a backup of the manuscript an opened file replaces, and opens Drive .bak files', async () => {
     const user = userEvent.setup()
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderAt()
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
-    expect(input.accept.split(',')).toEqual(expect.arrayContaining(['.json', '.bak']))
+    const input = await openFromComputerInput(user)
     const envelope = { app: 'thunder-writer', version: 1, savedAt: 1, doc: makeDoc({ id: 'a', title: 'Alpha, older' }) }
     await user.upload(input, new File([JSON.stringify(envelope)], 'Alpha.thunder.json.bak', { type: 'application/json' }))
     await vi.waitFor(() => expect(useDocuments.getState().docs.a.title).toBe('Alpha, older'))

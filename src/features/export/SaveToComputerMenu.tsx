@@ -1,13 +1,14 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { currentDoc, useDocuments } from '../../store/documents'
 import { isDesktopCopySupported, useDesktopCopy } from './desktopCopy'
 import { saveCurrentDocOnce, useExportUi } from './exportUi'
 import { EXPORT_FORMATS, MENU_ORDER, type ExportKind } from './formats'
+import { PDF_EXPORT, requestPdfExport } from '../preview/pdfRequest'
 import './export.css'
 
 /**
- * "Save to computer ▾": one-off saves in every format (Word first), plus the
- * entry point for "Keep a copy on my computer". Keyboard: Enter/Space/↓ opens,
+ * "Export to computer ▾": one-off exports in every format (Word, then PDF), plus
+ * the entry point for "Keep a copy on my computer". Keyboard: Enter/Space/↓ opens,
  * ↑/↓/Home/End move, Escape closes.
  */
 export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end' }) {
@@ -69,7 +70,7 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
         ref={triggerRef}
         type="button"
         className="tw-btn ex-trigger"
-        aria-label="Save to computer"
+        aria-label="Export to computer"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -82,8 +83,14 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
           }
         }}
       >
-        {/* Narrow screens show just "Save ▾"; the accessible name stays "Save to computer". */}
-        Save<span className="ex-trigger-long"> to computer</span> <span aria-hidden="true">▾</span>
+        {/* Narrow screens show just "Export ▾"; the accessible name stays "Export to computer". One text span, so the
+            button's flex gap falls only before the caret, not inside "Export to computer". */}
+        <span>
+          Export<span className="ex-trigger-long"> to computer</span>
+        </span>
+        <span className="tw-caret" aria-hidden="true">
+          ▾
+        </span>
       </button>
 
       {open && (
@@ -92,14 +99,14 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
           ref={menuRef}
           className={`ex-menu${align === 'end' ? ' ex-menu-end' : ''}`}
           role="menu"
-          aria-label="Save to computer"
+          aria-label="Export to computer"
           onKeyDown={onMenuKey}
         >
           <div className="ex-group-label" aria-hidden="true">
-            Save a copy now
+            Export a copy now
           </div>
           {MENU_ORDER.map((kind) => (
-            <FormatItem key={kind} kind={kind} onSelect={() => save(kind)} />
+            <FormatItem key={kind} kind={kind} onSelect={() => save(kind)} after={kind === 'docx' ? <PdfItem onSelect={close} /> : null} />
           ))}
           <div className="ex-sep" role="separator" />
           <button
@@ -125,18 +132,44 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
   )
 }
 
-function FormatItem({ kind, onSelect }: { kind: ExportKind; onSelect: () => void }) {
+/** PDF: prints the book from Book Preview (the print dialog's "Save as PDF" makes the file). */
+function PdfItem({ onSelect }: { onSelect: () => void }) {
+  const hintId = useId()
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      tabIndex={-1}
+      className="ex-item"
+      aria-describedby={hintId}
+      onClick={() => {
+        onSelect()
+        requestPdfExport()
+      }}
+    >
+      <span className="ex-item-label">{PDF_EXPORT.label}</span>
+      <span id={hintId} className="ex-item-hint">
+        {PDF_EXPORT.hint}
+      </span>
+    </button>
+  )
+}
+
+function FormatItem({ kind, onSelect, after }: { kind: ExportKind; onSelect: () => void; after?: ReactNode }) {
   const hintId = useId()
   const f = EXPORT_FORMATS[kind]
   return (
-    <button type="button" role="menuitem" tabIndex={-1} className="ex-item" aria-describedby={hintId} onClick={onSelect}>
-      <span className="ex-item-label">
-        {f.label}
-        {kind === 'docx' && <span className="ex-badge">Recommended</span>}
-      </span>
-      <span id={hintId} className="ex-item-hint">
-        {f.hint}
-      </span>
-    </button>
+    <>
+      <button type="button" role="menuitem" tabIndex={-1} className="ex-item" aria-describedby={hintId} onClick={onSelect}>
+        <span className="ex-item-label">
+          {f.label}
+          {kind === 'docx' && <span className="ex-badge">Recommended</span>}
+        </span>
+        <span id={hintId} className="ex-item-hint">
+          {f.hint}
+        </span>
+      </button>
+      {after}
+    </>
   )
 }

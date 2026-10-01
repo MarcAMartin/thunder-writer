@@ -2,7 +2,8 @@
 
 .bk-wrap { position: relative; display: inline-flex; }
 .bk-trigger { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.bk-wrap .bk-menu { left: auto; right: 0; max-height: min(70vh, 560px); overflow-y: auto; }
+/* Opens rightwards from the menu bar at the header's left, like File and Save to computer. */
+.bk-wrap .bk-menu { max-height: min(70vh, 560px); overflow-y: auto; }
 /* Back up now and All backups stay in view however long the list is. */
 .bk-menu-foot { position: sticky; bottom: -6px; margin: 0 -6px -6px; padding: 0 6px 6px; background: var(--tw-surface); display: flex; flex-direction: column; }
 .bk-menu-note { cursor: default; color: var(--tw-text-muted); line-height: 1.45; }
@@ -10,7 +11,7 @@
 .bk-note-slot {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  left: 0;
   z-index: 30;
   width: max-content;
   max-width: min(380px, calc(100vw - 24px));

@@ -3,7 +3,7 @@ import { currentDoc, useDocuments } from '../../store/documents'
 import type { ThunderDoc } from '../../types'
 import { AllBackupsModal } from './AllBackupsModal'
 import { backUpCurrentNow, formatBackupTime, openBackupAsCopy, refreshBackups, undoOpenCopy, useBackups } from './backups'
-import { REASON_LABEL, type BackupMeta } from './retention'
+import { describeReason, type BackupMeta } from './retention'
 // The menu and dialog build on these; load them first so backups.css can refine them.
 import '../export/export.css'
 import '../storage/storage.css'
@@ -130,7 +130,7 @@ export function BackupsMenu() {
           }
         }}
       >
-        Backups <span aria-hidden="true">▾</span>
+        Backups <span className="tw-caret" aria-hidden="true">▾</span>
       </button>
 
       {open && doc && (
@@ -251,7 +251,7 @@ function BackupItem({ meta, sharedHintId, onSelect }: { meta: BackupMeta; shared
         {formatBackupTime(meta.savedAt)}
       </span>
       <span id={hintId} className="ex-item-hint">
-        {n(meta.words)} {meta.words === 1 ? 'word' : 'words'} · {REASON_LABEL[meta.reason]}
+        {n(meta.words)} {meta.words === 1 ? 'word' : 'words'} · {describeReason(meta)}
       </span>
     </button>
   )

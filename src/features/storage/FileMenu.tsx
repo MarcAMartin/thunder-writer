@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { currentDoc, useDocuments } from '../../store/documents'
 import { describeSaveStatus } from './autosave'
@@ -12,14 +13,13 @@ import {
   saveDocToDrive,
   useStorageStatus,
 } from './driveSession'
-import { safetyBackup } from '../backups/backups'
-import { ImportButton } from '../import/ImportButton'
+import { openFromComputer } from '../import/openFromComputer'
 import { DriveImportFlow } from './DriveImportFlow'
 import { DriveModal } from './DriveModal'
 import { loadGis } from './googleAuth'
 import { OpenLocalModal } from './OpenLocalModal'
 import { loadPickerApi, type PickedFile } from './picker'
-import { makeEnvelope, parseEnvelope, withoutDriveLink } from './schema'
+import { makeEnvelope } from './schema'
 import { ResolveConflictModal } from './ResolveConflictModal'
 import './storage.css'
 
@@ -27,11 +27,17 @@ type ModalKind = 'open' | 'drive' | 'conflict' | null
 type Note = { text: string; tone: 'ok' | 'error' } | null
 
 export interface FileMenuProps {
-  /** Rendered right after the File button (the writer page puts "Save to computer ▾" here). */
+  /** Rendered right after the File button (the writer page puts "Export to computer ▾" here). */
   afterMenu?: ReactNode
   /** Rendered right after the save status (the writer page puts the desktop-copy badge here). */
   afterStatus?: ReactNode
-  /** Adds "Save to computer…" to the menu (opens the Save to your computer panel). */
+  /**
+   * Where the save status (and `afterStatus`) goes, e.g. beside the title like
+   * Google Docs' cloud icon; it still works from here (retry, resolve). null =
+   * the element isn't mounted yet, so nothing shows; omit to keep it after the menus.
+   */
+  statusContainer?: HTMLElement | null
+  /** Adds "Export to computer…" to the menu (opens the Export to your computer panel). */
   onSaveToComputer?: () => void
 }
 
@@ -40,7 +46,7 @@ export interface FileMenuProps {
  * The Google Drive items are about the manuscript only (connect, save, open, import);
  * a build without Drive simply leaves them out.
  */
-export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuProps = {}) {
+export function FileMenu({ afterMenu, afterStatus, onSaveToComputer, statusContainer }: FileMenuProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [modal, setModal] = useState<ModalKind>(null)
   const [note, setNote] = useState<Note>(null)
@@ -50,7 +56,6 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
   const [searchParams, setSearchParams] = useSearchParams()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const doc = useDocuments(currentDoc)
@@ -164,36 +169,6 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  const importFile = async (file: File) => {
-    let data: unknown
-    try {
-      data = JSON.parse(await file.text())
-    } catch {
-      flash(`${file.name} is not a Thunder Writer file.`, 'error')
-      return
-    }
-    const parsed = parseEnvelope(data)
-    if (!parsed.ok) {
-      flash(parsed.reason, 'error')
-      return
-    }
-    const store = useDocuments.getState()
-    const existing = store.docs[parsed.doc.id]
-    const question = existing?.driveFileId
-      ? `Replace the copy of “${existing.title}” in this browser with the imported file? The Google Drive copy is left as it is; the imported version is saved to Drive as a separate file.`
-      : `Replace the copy of “${existing?.title ?? ''}” in this browser with the imported file?`
-    if (existing && !window.confirm(question)) return
-    if (
-      !(await safetyBackup(existing, 'before-import')) &&
-      !window.confirm(`This browser couldn’t keep a backup of “${existing?.title ?? ''}” first. Replace it anyway? This cannot be undone.`)
-    )
-      return
-    // A file never carries a Drive link: an old backup must not autosave over the (newer) Drive file.
-    store.upsertDoc(withoutDriveLink(parsed.doc))
-    store.openDoc(parsed.doc.id)
-    flash(`Opened “${parsed.doc.title}”.`)
-  }
-
   return (
     <div className="fm-root">
       <div className="fm-menu-wrap">
@@ -212,15 +187,22 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
             }
           }}
         >
-          File <span aria-hidden="true">▾</span>
+          File <span className="tw-caret" aria-hidden="true">▾</span>
         </button>
 
         {menuOpen && (
           <div id="fm-file-menu" ref={menuRef} className="fm-menu" role="menu" aria-label="File" onKeyDown={onMenuKey}>
             <MenuItem onClick={act(() => createDoc())}>New manuscript</MenuItem>
             <MenuItem onClick={act(() => setModal('open'))}>Open manuscript…</MenuItem>
-            <ImportButton variant="menuitem" onBeforeOpen={() => closeMenu(false)} returnFocus={() => triggerRef.current} />
-            <MenuItem onClick={act(() => fileInput.current?.click())}>Import .thunder.json…</MenuItem>
+            <MenuItem
+              onClick={() => {
+                // Straight from the click: the browser only opens its file picker from one.
+                closeMenu(false)
+                void openFromComputer({ returnFocus: () => triggerRef.current })
+              }}
+            >
+              Open from computer…
+            </MenuItem>
             {onSaveToComputer && (
               <MenuItem
                 onClick={() => {
@@ -230,7 +212,7 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
                 }}
                 disabled={!doc}
               >
-                Save to computer…
+                Export to computer…
               </MenuItem>
             )}
             <MenuItem onClick={act(exportBackup)} disabled={!doc}>
@@ -276,27 +258,21 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer }: FileMenuP
 
       {afterMenu}
 
-      <SaveStatus onError={(m) => flash(m, 'error')} onResolve={() => setModal('conflict')} />
-
-      {afterStatus}
+      {(() => {
+        const status = (
+          <>
+            <SaveStatus onError={(m) => flash(m, 'error')} onResolve={() => setModal('conflict')} />
+            {afterStatus}
+          </>
+        )
+        if (statusContainer === undefined) return status
+        return statusContainer ? createPortal(status, statusContainer) : null
+      })()}
 
       <div className="fm-note-slot" aria-live="polite">
         {note && <span className={`fm-note fm-note-${note.tone}`}>{note.text}</span>}
       </div>
 
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".json,.bak,application/json"
-        hidden
-        aria-hidden="true"
-        tabIndex={-1}
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          e.target.value = ''
-          if (f) void importFile(f)
-        }}
-      />
 
       {modal === 'open' && <OpenLocalModal onClose={() => setModal(null)} />}
       {modal === 'drive' && (

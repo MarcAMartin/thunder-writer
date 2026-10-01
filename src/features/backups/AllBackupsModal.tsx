@@ -3,7 +3,7 @@ import { useDocuments } from '../../store/documents'
 import type { ThunderDoc } from '../../types'
 import { Modal } from '../storage/Modal'
 import { downloadBackup, formatBackupTime, openBackupAsCopy, refreshBackups, useBackups } from './backups'
-import { REASON_LABEL, type BackupMeta } from './retention'
+import { describeReason, type BackupMeta } from './retention'
 
 const n = (v: number) => v.toLocaleString()
 
@@ -82,7 +82,7 @@ export function AllBackupsModal({ onClose, onOpened }: { onClose: () => void; on
                   <span className="bk-row-main">
                     <span className="fm-row-title">{formatBackupTime(m.savedAt)}</span>
                     <span className="fm-row-meta">
-                      {n(m.words)} {m.words === 1 ? 'word' : 'words'} · {REASON_LABEL[m.reason]}
+                      {n(m.words)} {m.words === 1 ? 'word' : 'words'} · {describeReason(m)}
                     </span>
                   </span>
                   {/* aria-disabled, not disabled, while another row works: keyboard focus stays put. */}

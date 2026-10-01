@@ -16,6 +16,8 @@ const formatSchema = z.object({
   // to the defaults rather than making the whole manuscript unreadable.
   headerFooter: z.record(z.string(), z.unknown()).optional().catch(undefined),
   bookLayout: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  // Paper & ink; read through normalizePrint (features/preview/printSettings).
+  print: z.record(z.string(), z.unknown()).optional().catch(undefined),
 })
 
 const docSchema = z.object({

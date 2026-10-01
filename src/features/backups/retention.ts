@@ -14,6 +14,8 @@ export type BackupReason =
   | 'before-delete'
   /** The Google Drive version (e.g. saved on another computer) that "Keep this browser's version" overwrote. */
   | 'drive-version-replaced'
+  /** A file on the computer, byte for byte, before Thunder Writer first saved over it (File › Open from computer). */
+  | 'original-file'
 
 export interface BackupMeta {
   id: string
@@ -26,6 +28,8 @@ export interface BackupMeta {
   docUpdatedAt: number
   words: number
   reason: BackupReason
+  /** For 'original-file': the file as it was, kept whole (not converted), so it downloads exactly as it was. */
+  file?: { name: string; type: string; size: number }
 }
 
 export const REASON_LABEL: Record<BackupReason, string> = {
@@ -35,7 +39,11 @@ export const REASON_LABEL: Record<BackupReason, string> = {
   'before-import': 'Before an imported file replaced it',
   'before-delete': 'Before it was deleted',
   'drive-version-replaced': 'The Google Drive version you replaced',
+  'original-file': 'The file on your computer, before Thunder Writer saved over it',
 }
+
+/** Why it was kept, with the file's name for an original file: "The file on your computer, … (Novel.docx)". */
+export const describeReason = (m: Pick<BackupMeta, 'reason' | 'file'>) => (m.file ? `${REASON_LABEL[m.reason]} (${m.file.name})` : REASON_LABEL[m.reason])
 
 const DAY_MS = 86_400_000
 

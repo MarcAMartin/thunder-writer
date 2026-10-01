@@ -114,7 +114,15 @@ export function HomePage() {
                 Thunder Writer
               </h1>
               <p className="hm-lead">
-                An <span className="hm-lead-accent">idea processor</span>, not a word processor.
+                A{' '}
+                <span className="hm-free">
+                  free
+                  {/* A lightning-yellow stroke that draws itself under the word. */}
+                  <svg className="hm-free-swoosh" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <path d="M3 13 C 28 5, 60 4, 97 9" pathLength={1} />
+                  </svg>
+                </span>{' '}
+                <span className="hm-lead-accent">idea processor</span>, not a word processor.
               </p>
               <p className="hm-intro">
                 A word processor waits for you to finish a thought. Thunder Writer reads along as you

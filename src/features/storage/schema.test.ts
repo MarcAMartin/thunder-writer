@@ -109,3 +109,14 @@ describe('printed-book settings in the format', () => {
     expect(s.dirtyForDrive[d.id]).toBe(true)
   })
 })
+
+describe('Paper & ink in a saved manuscript', () => {
+  it('survives a reload or a Drive round trip (a strict schema would drop it)', () => {
+    const doc = makeDoc({ format: { presetId: 'trade-6x9', chapterStartsNewPage: true, print: { paper: 'groundwood', ink: 'bw' } } })
+    expect(parseDoc(JSON.parse(JSON.stringify(doc)))?.format.print).toEqual({ paper: 'groundwood', ink: 'bw' })
+    // Something that isn't an object at all falls back to the defaults rather than making the manuscript unreadable.
+    const odd = { ...doc, format: { ...doc.format, print: 'cream' } }
+    expect(parseDoc(odd)?.format.print).toBeUndefined()
+    expect(parseDoc(odd)?.title).toBe(doc.title)
+  })
+})

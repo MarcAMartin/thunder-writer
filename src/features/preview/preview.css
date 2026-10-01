@@ -34,6 +34,39 @@
   --bp-spine: rgba(20, 14, 4, 0.24);
 }
 
+/*
+ * Paper & ink (DocFormat.print). Cream is the default above; white and
+ * groundwood change the paper, groundwood adds a faint grain, and premium
+ * color ink prints a touch deeper. Dark mode tones each paper down as above.
+ */
+.bp-overlay.bp-paper-white {
+  --bp-paper: #fdfdfb;
+  --bp-paper-edge: #e6e6e1;
+  --bp-paper-edge-2: #cdcdc6;
+}
+.bp-overlay.bp-paper-groundwood {
+  --bp-paper: #ede4d0;
+  --bp-paper-edge: #dacfb6;
+  --bp-paper-edge-2: #c1b498;
+  /* Groundwood drinks a little ink: type looks slightly softer. */
+  --bp-ink: #2e2a24;
+  --bp-paper-grain: radial-gradient(rgba(95, 72, 38, 0.075) 0.6px, transparent 0.9px);
+}
+.bp-overlay.bp-ink-premium-color {
+  --bp-ink: #15130f;
+}
+:root[data-theme='dark'] .bp-overlay.bp-paper-white {
+  --bp-paper: #e7e7e2;
+  --bp-paper-edge: #cacac3;
+  --bp-paper-edge-2: #aeaea6;
+}
+:root[data-theme='dark'] .bp-overlay.bp-paper-groundwood {
+  --bp-paper: #d6ccb6;
+  --bp-paper-edge: #bdb19a;
+  --bp-paper-edge-2: #a1957c;
+  --bp-ink: #24211c;
+}
+
 .bp-sr {
   position: absolute !important;
   width: 1px;
@@ -370,6 +403,13 @@ html.bp-open body {
   background-color: var(--bp-paper);
   background-image: linear-gradient(170deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(120, 90, 40, 0.04));
   color: var(--bp-ink);
+}
+.bp-paper-groundwood .bp-page,
+.bp-paper-groundwood .bp-thumb-page {
+  background-image:
+    linear-gradient(170deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 45%, rgba(120, 90, 40, 0.05)),
+    var(--bp-paper-grain);
+  background-size: auto, 3px 3px;
 }
 
 /* Shading toward the spine: the paper curves into the binding. */
@@ -1110,4 +1150,69 @@ html.bp-open body {
     background-image: none;
     color: #000;
   }
+}
+
+/* Paper & ink panel */
+.bp-print-choices {
+  gap: 6px;
+}
+.bp-print-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.bp-print-choice:has(input:checked) {
+  border-color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 7%, var(--tw-surface));
+}
+.bp-print-choice-off {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.bp-print-choice input {
+  accent-color: var(--tw-accent);
+  margin: 2px 0 0;
+  flex: none;
+}
+.bp-print-choice input:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 2px;
+}
+.bp-print-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bp-print-choice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.bp-print-choice-hint {
+  font-size: 12px;
+  color: var(--tw-text-muted);
+}
+/* A dab of each paper (and ink) beside its name. */
+.bp-swatch {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+.bp-swatch-white { background: #fdfdfb; }
+.bp-swatch-cream { background: #f6efdc; }
+.bp-swatch-groundwood { background: #e6dcc5; background-image: radial-gradient(rgba(95, 72, 38, 0.22) 0.6px, transparent 0.9px); background-size: 3px 3px; }
+.bp-swatch-bw { background: #221f1b; }
+.bp-swatch-standard-color { background: conic-gradient(#c8584f, #d9b04a, #5f9a6b, #4f7bb0, #c8584f); opacity: 0.8; }
+.bp-swatch-premium-color { background: conic-gradient(#e0412f, #f2bd1d, #2f9e55, #2d6fd6, #e0412f); }
+.bp-bar-print {
+  display: block;
 }

@@ -1,6 +1,4 @@
-/* Import manuscript: button, progress toast, result dialog, drop hint. Theme tokens only. */
-
-.im-button { white-space: nowrap; }
+/* Import and Open from computer: progress toast, result dialog, drop hint. Theme tokens only. */
 
 .im-toast {
   position: fixed;
@@ -84,3 +82,15 @@
   font-size: 15px;
   font-weight: 600;
 }
+
+/* File › Open from computer: the offer to keep saving into the opened file. */
+.im-saveback {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--tw-border);
+  border-radius: var(--tw-radius);
+  background: var(--tw-surface-2);
+}
+.im-saveback p { margin: 0; line-height: 1.5; }
+.im-saveback .im-hint { margin-top: 8px; }
+.im-saveback .im-error { margin-top: 8px; color: var(--tw-danger); }

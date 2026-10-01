@@ -70,6 +70,54 @@ async function openPreview(props: HostProps = {}) {
 const live = (dialog: HTMLElement) => dialog.querySelector('[aria-live="polite"]')!
 
 describe('BookPreview', () => {
+  it('Export › PDF: prints the whole book once laid out, named after the manuscript, then closes', async () => {
+    const titles: string[] = []
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {
+      titles.push(document.title)
+    })
+    const onClose = vi.fn()
+    document.title = 'Thunder Writer'
+    render(<BookPreview docId="d1" onClose={onClose} layoutEnv={env} printOnOpen />)
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
+    // "Save as PDF" suggests the page title as the file name.
+    expect(titles).toEqual(['The Frozen River'])
+    expect(document.querySelectorAll('.bp-print-page').length).toBeGreaterThan(1)
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'))
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(document.title).toBe('Thunder Writer')
+    expect(print).toHaveBeenCalledTimes(1)
+  })
+
+  it('Paper & ink: the pages take on the paper chosen, color ink means white paper, and every change is saved', async () => {
+    const onPrint = vi.fn()
+    const updates: unknown[] = []
+    const user = userEvent.setup()
+    render(<BookPreview docId="d1" onClose={() => undefined} layoutEnv={env} onPrintChange={onPrint} onLayoutUpdate={(u) => updates.push(u)} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Book preview: The Frozen River' })
+    await waitFor(() => expect(within(dialog).getByText(/6 × 9 in · \d+ pages$/)).toBeInTheDocument())
+    expect(dialog).toHaveClass('bp-paper-cream', 'bp-ink-bw')
+    expect(within(dialog).getByText('Cream paper · Black ink')).toBeInTheDocument()
+    const laidOut = updates.length
+
+    await user.click(within(dialog).getByRole('button', { name: /Paper & ink/ }))
+    const panel = within(dialog).getByRole('complementary', { name: 'Paper and ink' })
+    await user.click(within(panel).getByRole('radio', { name: /Groundwood/ }))
+    expect(dialog).toHaveClass('bp-paper-groundwood')
+    expect(onPrint).toHaveBeenLastCalledWith({ paper: 'groundwood', ink: 'bw' })
+    // Paper is not part of the layout: no new typesetting.
+    expect(updates.length).toBe(laidOut)
+
+    await user.click(within(panel).getByRole('radio', { name: /Premium color/ }))
+    expect(onPrint).toHaveBeenLastCalledWith({ paper: 'white', ink: 'premium-color' })
+    expect(dialog).toHaveClass('bp-paper-white', 'bp-ink-premium-color')
+    const cream = within(panel).getByRole('radio', { name: /Cream/ })
+    expect(cream).toBeDisabled()
+    expect(cream).toHaveAccessibleDescription(/Color is printed on white paper\./)
+    expect(within(dialog).getByText('White paper · Premium color')).toBeInTheDocument()
+  })
+
   it('opens as a modal dialog and focuses it', async () => {
     const { dialog } = await openPreview()
     expect(dialog).toHaveAttribute('aria-modal', 'true')

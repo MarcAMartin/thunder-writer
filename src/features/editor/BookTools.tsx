@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
-import type { BookLayoutOptions, DocFormat, HeaderFooterSettings } from '../../types'
+import { usePdfRequest } from '../preview/pdfRequest'
+import type { BookLayoutOptions, DocFormat, HeaderFooterSettings, PrintSettings } from '../../types'
 
 // The preview (typesetting engine, page turns) and the settings dialog load on first use.
 const BookPreview = lazy(() => import('../preview/BookPreview').then((m) => ({ default: m.BookPreview })))
@@ -52,16 +53,6 @@ function BookIcon() {
   )
 }
 
-function HeadFootIcon() {
-  return (
-    <svg className="ed-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-      <rect x="5" y="3" width="14" height="18" rx="1.5" />
-      <path d="M8 6.5h8M8 17.5h8" />
-      <path d="M8 10h8M8 13h5" strokeWidth="1.2" opacity="0.55" />
-    </svg>
-  )
-}
-
 /** Header/footer and book-layout settings of the current doc, saved through updateFormat (and so to Drive). */
 function useBookSettings() {
   const currentId = useDocuments((s) => s.currentId)
@@ -75,6 +66,7 @@ function useBookSettings() {
     format,
     onHeaderFooterChange: (hf: HeaderFooterSettings) => patch({ headerFooter: hf }),
     onBookLayoutChange: (o: BookLayoutOptions) => patch({ bookLayout: o }),
+    onPrintChange: (p: PrintSettings) => patch({ print: p }),
   }
 }
 
@@ -87,18 +79,19 @@ export const otherDialogOpen = () => document.querySelector('[role="dialog"][ari
  * layout changes made in the preview are saved to the manuscript.
  */
 export function PreviewButton({ editor }: { editor: Editor | null }) {
-  const { currentId, format, onHeaderFooterChange, onBookLayoutChange } = useBookSettings()
-  const [open, setOpen] = useState<{ block: number | undefined } | null>(null)
+  const { currentId, format, onHeaderFooterChange, onBookLayoutChange, onPrintChange } = useBookSettings()
+  /** `print`: opened by Export to computer › PDF, so it prints straight away and closes. */
+  const [open, setOpen] = useState<{ block: number | undefined; print?: boolean } | null>(null)
   const openRef = useRef(open)
   openRef.current = open
   const editorRef = useRef(editor)
   editorRef.current = editor
 
-  const show = () => {
+  const show = (print = false) => {
     if (!useDocuments.getState().currentId) return
     // The editor debounces typing into the store; the preview typesets the stored words.
     flushPendingEdits()
-    setOpen({ block: cursorBlock(editorRef.current) })
+    setOpen({ block: cursorBlock(editorRef.current), print })
   }
   const showRef = useRef(show)
   showRef.current = show
@@ -107,13 +100,22 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat || !isPreviewShortcut(e)) return
       e.preventDefault()
-      // Not over another open dialog (Headers & footers, Save to computer, a Drive conflict…):
+      // Not over another open dialog (Headers & footers, Export to computer, a Drive conflict…):
       // the full-screen preview would cover it and take its focus.
       if (!openRef.current && !otherDialogOpen()) showRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Export to computer › PDF.
+  const pdfSeq = usePdfRequest((s) => s.seq)
+  const seenPdf = useRef(pdfSeq)
+  useEffect(() => {
+    if (pdfSeq === seenPdf.current) return
+    seenPdf.current = pdfSeq
+    if (!openRef.current) showRef.current(true)
+  }, [pdfSeq])
 
   return (
     <>
@@ -124,10 +126,10 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
         title={`Book preview — see the pages as a printed book, turn them, and set headers & footers (${PREVIEW_SHORTCUT})`}
         aria-keyshortcuts={isMac ? 'Meta+Alt+P' : 'Control+Alt+P'}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={show}
+        onClick={() => show()}
       >
         <BookIcon />
-        <span>Preview</span>
+        <span>Preview Book</span>
       </button>
       {open && currentId && (
         <Suspense fallback={null}>
@@ -138,6 +140,9 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
           onHeaderFooterChange={onHeaderFooterChange}
           layoutOptions={format?.bookLayout}
           onLayoutOptionsChange={onBookLayoutChange}
+          print={format?.print}
+          onPrintChange={onPrintChange}
+          printOnOpen={open.print}
           onClose={() => {
             setOpen(null)
             editorRef.current?.commands.focus()
@@ -150,6 +155,7 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
 }
 
 /** Toolbar › Headers & footers…: running heads, footer line, page numbers and book layout, without opening the preview. */
+/** "Headers & footers…" beside File, Export to computer and Backups, in the same button style (it opens a dialog, hence the "…"). */
 export function HeaderFooterButton() {
   const { currentId, format } = useBookSettings()
   const [open, setOpen] = useState(false)
@@ -157,15 +163,14 @@ export function HeaderFooterButton() {
     <>
       <button
         type="button"
-        className="ed-tool ed-tool-text ed-hf-btn"
+        className="tw-btn ed-hf-btn"
         disabled={!currentId || !format}
         title="Headers & footers — running heads, author name, footer line and page numbers for the printed book and exports"
         aria-haspopup="dialog"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen(true)}
       >
-        <HeadFootIcon />
-        <span>Headers &amp; footers…</span>
+        Headers &amp; footers…
       </button>
       {open && currentId && (
         <Suspense fallback={null}>

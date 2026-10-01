@@ -86,6 +86,23 @@ export interface DocFormat {
   headerFooter?: Partial<HeaderFooterSettings>
   /** Printed-book layout: chapters on right-hand pages, justification, chapter sink. Missing = defaults. */
   bookLayout?: Partial<BookLayoutOptions>
+  /** Interior paper and ink the book is meant for (Book preview › Paper & ink). Missing = defaults. */
+  print?: Partial<PrintSettings>
+}
+
+/** Interior paper stock (print-on-demand choices). */
+export type PrintPaper = 'white' | 'cream' | 'groundwood'
+/** Interior ink. Color is printed on white paper. */
+export type PrintInk = 'bw' | 'standard-color' | 'premium-color'
+
+/**
+ * How the printed interior is meant to be produced. Only how the preview looks
+ * (and its notes) depends on it: page breaks don't, and exports print on
+ * whatever paper the printer uses.
+ */
+export interface PrintSettings {
+  paper: PrintPaper
+  ink: PrintInk
 }
 
 export interface ThunderDoc {

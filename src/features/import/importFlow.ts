@@ -4,6 +4,7 @@ import { DEFAULT_FORMAT, useDocuments } from '../../store/documents'
 import type { DocFormat, ThunderDoc } from '../../types'
 import { IMPORT_ACCEPT, IMPORT_MIME_TYPES, importManuscript } from './importManuscript'
 import { MAX_IMPORT_BYTES, tooLargeMessage } from './limits'
+import type { CopyKind } from '../export/formats'
 import { ImportError, type ImportResult } from './types'
 
 /**
@@ -14,11 +15,27 @@ import { ImportError, type ImportResult } from './types'
  * <ImportHost/> shows progress and the result.
  */
 
+/** File › Open from computer: the file itself, when Thunder Writer can keep saving into it. */
+export interface OpenedFile {
+  handle: FileSystemFileHandle
+  kind: CopyKind
+  file: File
+}
+
 export type ImportPhase =
   | { kind: 'idle' }
   | { kind: 'importing'; name: string }
-  | { kind: 'done'; name: string; docId: string; result: ImportResult }
+  | {
+      kind: 'done'
+      name: string
+      docId: string
+      result: ImportResult
+      /** Set for File › Open from computer; `file` when it can be saved back into (Chrome/Edge, a writable format). */
+      opened?: { file: OpenedFile | null }
+    }
   | { kind: 'error'; name: string; message: string }
+  /** File › Open from computer found the file already linked, but changed elsewhere since Thunder Writer last saved it. */
+  | { kind: 'changed'; docId: string; file: File }
 
 interface ImportFlowState {
   phase: ImportPhase
@@ -135,11 +152,19 @@ let pendingInput: HTMLInputElement | null = null
  * may unmount, as File menu items do; `returnFocus` gives the element to
  * focus if the writer cancels the chooser.
  */
-export function openImportPicker(opts: { returnFocus?: () => HTMLElement | null | undefined } = {}): void {
+export function openImportPicker(
+  opts: {
+    returnFocus?: () => HTMLElement | null | undefined
+    /** Overrides the accepted types (File › Open from computer adds Thunder Writer files). */
+    accept?: string
+    /** Handles the chosen file instead of importLocalFile. */
+    onFile?: (file: File) => void
+  } = {},
+): void {
   pendingInput?.remove()
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = IMPORT_INPUT_ACCEPT
+  input.accept = opts.accept ?? IMPORT_INPUT_ACCEPT
   input.hidden = true
   input.setAttribute('aria-hidden', 'true')
   input.tabIndex = -1
@@ -150,7 +175,10 @@ export function openImportPicker(opts: { returnFocus?: () => HTMLElement | null 
   input.addEventListener('change', () => {
     const file = input.files?.[0]
     done()
-    if (file) void importLocalFile(file)
+    if (file) {
+      if (opts.onFile) opts.onFile(file)
+      else void importLocalFile(file)
+    }
   })
   input.addEventListener('cancel', () => {
     done()

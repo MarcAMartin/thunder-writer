@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
 import { ThemeToggle } from '../../shell/ThemeToggle'
@@ -102,6 +102,8 @@ export function WriterPage() {
   )
 
   const ready = hydrated && Boolean(currentId) && Boolean(format)
+  /** Beside the title: where the File menu (now in the toolbar) puts the save status. */
+  const [statusSlot, setStatusSlot] = useState<HTMLDivElement | null>(null)
 
   return (
     <EditorContext.Provider value={ctx}>
@@ -123,7 +125,16 @@ export function WriterPage() {
               <span className="ed-brand-name">Thunder Writer</span>
             </Link>
             <DocTitle />
-            <div className="ed-filemenu">
+            <div ref={setStatusSlot} className="ed-docstatus" />
+            <div className="ed-topbar-spacer" />
+            <ThemeToggle />
+            <Link to="/settings" className="tw-btn tw-btn-ghost ed-settings-link">
+              Settings
+            </Link>
+          </div>
+          {/* File, Export to computer and Backups lead the first row of controls, as in word processors. */}
+          <Toolbar
+            leading={
               <FileMenu
                 afterMenu={
                   <>
@@ -133,15 +144,10 @@ export function WriterPage() {
                 }
                 afterStatus={<DesktopCopyBadge />}
                 onSaveToComputer={openSaveToComputer}
+                statusContainer={statusSlot}
               />
-            </div>
-            <div className="ed-topbar-spacer" />
-            <ThemeToggle />
-            <Link to="/settings" className="tw-btn tw-btn-ghost ed-settings-link">
-              Settings
-            </Link>
-          </div>
-          <Toolbar />
+            }
+          />
         </header>
         <main className="ed-main" id="manuscript" aria-label="Manuscript pages" aria-busy={!ready}>
           {ready && contentError ? (
@@ -159,7 +165,7 @@ export function WriterPage() {
           <SuggestionsPane />
         </div>
         <StatusBar />
-        {/* Save to computer: desktop copy service, Cmd/Ctrl+S, the Save dialog and its toast. */}
+        {/* Export to computer: desktop copy service, Cmd/Ctrl+S, the Export dialog and its toast. */}
         <ExportHost />
         <ImportHost dragging={dragging} />
       </div>

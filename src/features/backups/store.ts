@@ -68,6 +68,53 @@ export async function writeBackup(doc: ThunderDoc, reason: BackupReason, now = D
   return meta
 }
 
+/** The bytes of an 'original-file' backup, as they were on the computer. */
+export interface StoredFile {
+  name: string
+  type: string
+  bytes: ArrayBuffer
+}
+
+/** Keeps a file from the computer byte for byte, before Thunder Writer saves over it. */
+export async function writeFileBackup(
+  doc: Pick<ThunderDoc, 'id' | 'title' | 'updatedAt'>,
+  file: { name: string; type: string; lastModified: number; arrayBuffer: () => Promise<ArrayBuffer> },
+  words: number,
+  now = Date.now(),
+): Promise<BackupMeta> {
+  const bytes = await file.arrayBuffer()
+  const meta: BackupMeta = {
+    id: newId(),
+    docId: doc.id,
+    title: doc.title || 'Untitled Manuscript',
+    savedAt: now,
+    // The version this is: the file as it was last modified on the computer.
+    docUpdatedAt: file.lastModified || now,
+    words,
+    reason: 'original-file',
+    file: { name: file.name, type: file.type, size: bytes.byteLength },
+  }
+  if (writesSuspended) return meta
+  const stored: StoredFile = { name: file.name, type: file.type, bytes }
+  await setMany(
+    [
+      [DATA + meta.id, stored],
+      [META + meta.id, meta],
+    ],
+    db(),
+  )
+  return meta
+}
+
+/** An 'original-file' backup's bytes, or null. */
+export async function readFileBackup(id: string): Promise<StoredFile | null> {
+  const v = await get<unknown>(DATA + id, db())
+  const f = v as Partial<StoredFile> | undefined
+  // Not instanceof: bytes structured-cloned elsewhere (another realm) are still ArrayBuffers.
+  const isBuffer = Object.prototype.toString.call(f?.bytes) === '[object ArrayBuffer]'
+  return f && typeof f.name === 'string' && isBuffer ? { name: f.name, type: f.type ?? '', bytes: f.bytes as ArrayBuffer } : null
+}
+
 const isMeta = (v: unknown): v is BackupMeta => {
   const m = v as Partial<BackupMeta> | null
   return !!m && typeof m.id === 'string' && typeof m.docId === 'string' && typeof m.savedAt === 'number'

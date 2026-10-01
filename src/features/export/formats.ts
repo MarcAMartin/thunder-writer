@@ -1,6 +1,6 @@
 import type { ThunderDoc } from '../../types'
 
-/** Every file format the writer can save to their computer. */
+/** Every file format the writer can export to their computer (PDF is printed from Book Preview instead: preview/pdfRequest). */
 export type ExportKind = 'docx' | 'md' | 'txt' | 'html' | 'thunder'
 
 /** Formats that can be kept continuously updated on disk (HTML is a one-off print file). */
@@ -55,7 +55,7 @@ export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
     kind: 'html',
     label: 'Print-ready web page (.html)',
     short: 'Web page',
-    hint: 'Open it, then Print → Save as PDF for a book-sized PDF.',
+    hint: 'A web page laid out for printing, which opens in any browser.',
     ext: '.html',
     mime: 'text/html',
     pickerExt: ['.html'],
@@ -64,7 +64,7 @@ export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
     kind: 'thunder',
     label: 'Thunder Writer backup (.thunder.json)',
     short: 'Backup',
-    hint: 'Everything, exactly as it is here. Re-open it with File → Import.',
+    hint: 'Everything, exactly as it is here. Re-open it with File › Open from computer…',
     ext: '.thunder.json',
     mime: 'application/json',
     // Native pickers validate single extensions; the suggested name keeps ".thunder.json".

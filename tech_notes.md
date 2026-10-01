@@ -17,6 +17,7 @@ own key. The owner's original design (UI boxes and behaviour notes) is in
 - [AI providers, models and cost](#ai-providers-models-and-cost)
 - [Google Cloud setup](#google-cloud-setup)
 - [Backups](#backups)
+- [Support the developer](#support-the-developer)
 - [Deploying to Vercel](#deploying-to-vercel)
 - [Privacy and security model](#privacy-and-security-model)
 - [Architecture](#architecture)
@@ -80,6 +81,7 @@ Google's own consent popup.
 | `VITE_GOOGLE_CLIENT_ID` | OAuth 2.0 **Web** client id for Google Drive (Google Identity Services token model). | For Drive. Blank = the build has no Drive: its menu items, dialogs, the Home page's Drive fallback and the Settings section are left out. |
 | `VITE_GOOGLE_API_KEY` | Browser API key for the Google Picker ("Import from Google Drive…"). | For importing existing Drive files. Blank = no import from Drive. |
 | `VITE_GOOGLE_PROJECT_NUMBER` | The Picker's app id. | No. Defaults to the number at the start of the client id, which is almost always right. |
+| `VITE_BOOKSHOP_AFFILIATE_ID` | Your Bookshop.org affiliate id (digits): makes the **Support the developer** book picks affiliate links (`src/features/support/bookPicks.ts`). | No. Without it the picks are plain Bookshop.org links. |
 
 Restart `npm run dev` after editing `.env.local`, and redeploy after changing
 them on the host. Settings saved by versions before settings v4 could hold a
@@ -443,13 +445,18 @@ touched, so startup never reads backups.
 - *Where:* the **Backups ▾** menu in the writer header lists the open
   manuscript's backups (words, time, why it was kept) with **Back up now**.
   **All backups…** lists every manuscript's, including deleted ones, with
-  **Open copy** and **Download** (a `.thunder.json`). Opening a backup always
+  **Open copy** and **Download** (a `.thunder.json`, or an original file
+  exactly as it was on the computer). Opening a backup always
   makes a new manuscript, "<title> (backup <when>)"; nothing is overwritten.
   The copy isn't uploaded to Drive until it's edited (`isUntouchedCopy`, which
   Drive autosave skips), and the confirmation offers **Undo**, which closes it
-  and goes back while it's untouched. **File › Import .thunder.json…** on a
+  and goes back while it's untouched. **File › Open from computer…** on a
   downloaded backup or `.bak` replaces this browser's copy of that same
   manuscript, after asking and after a safety backup.
+- *Original files:* before Thunder Writer first saves over a file on the
+  computer (File › Open from computer › Keep saving to it), and whenever that
+  file turns out to have changed elsewhere, the file itself is kept byte for
+  byte (`'original-file'`).
 - **Clear all local data** removes them with everything else.
 
 **In Google Drive (`<title>.thunder.json.bak`).** Before Thunder Writer writes
@@ -463,8 +470,20 @@ manuscript doesn't leave an old one behind. If the `.bak` can't be written,
 the save fails and autosave retries: nothing is overwritten without it.
 "Open from Drive" doesn't list `.bak` files. **File › Import from Google
 Drive… › Thunder Writer saves** imports one as a new manuscript. **File ›
-Import .thunder.json…** replaces this browser's copy, as above. Drive's own version history (kept for about 30
+Open from computer…** replaces this browser's copy, as above. Drive's own version history (kept for about 30
 days for files like these) is a third layer.
+
+## Support the developer
+
+`src/features/support/`. Off by default (`supportDeveloper` in settings, saved
+in the browser). Off, the toolbar shows **♥ Support the developer** just left
+of **Preview Book**. On, that spot shows one book pick a day, marked "Ad", as
+a plain link to Bookshop.org (an affiliate link with
+`VITE_BOOKSHOP_AFFILIATE_ID`), opening in a new tab with `rel="sponsored"`.
+There are no ad scripts, cookies or tracking, so the privacy promises hold:
+nothing happens unless the writer clicks. Its ✕ asks **Please reconsider**
+(**Keep supporting** is the default) before turning it off. The picks are a
+short list in `bookPicks.ts`; edit them freely.
 
 ## Deploying to Vercel
 
@@ -615,7 +634,7 @@ src/
     import/                importManuscript(): .docx (mammoth, lazy-loaded), HTML/Google
                            Docs, Markdown and text → TipTap JSON; chapter/scene-break
                            detection; ImportHost (progress/result dialogs), drag-and-drop
-    export/                Save to computer (docx, Markdown, text, print HTML, backup),
+    export/                Export to computer (docx, Markdown, text, print HTML, backup; PDF via preview),
                            desktop copy (File System Access API), Cmd/Ctrl+S
     preview/               Book Preview: book paginator, layout engine, flip-book
                            viewer, navigation, header/footer settings and panel, print
@@ -674,9 +693,13 @@ read, never changed**, whether on the computer or picked in Drive.
 
 Entry points:
 
-- **From the computer:** **File › Import manuscript…**, dropping a file
+- **From the computer:** **File › Open from computer…**, dropping a file
   anywhere on the writer page, or **Import a manuscript** on the home page. If
   several files are dropped, only the first is imported (the result says so).
+  Open from computer also takes Thunder Writer files (`.thunder.json`, and the
+  `.bak` Thunder Writer keeps in Drive): one opens as that manuscript, and
+  replacing another version of it in this browser asks first and keeps that
+  version in Backups. See [Opening and saving back](#opening-a-file-and-saving-back-into-it).
 - **From Google Drive:** **File › Import from Google Drive…**, the **import it
   from Google Drive** link on the home page, or the Google Drive button in the
   import prompt. Google Docs need no download first. The Picker opens on
@@ -726,13 +749,40 @@ tidied.
 After the import, a dialog shows the word count, the chapter count, and
 anything that was left out.
 
-## Saving to the computer (export and desktop copy)
+### Opening a file and saving back into it
+
+`src/features/import/openFromComputer.ts`. **File › Open from computer…**
+works like a desktop app's Open in Chrome and Edge (File System Access API:
+`showOpenFilePicker`):
+
+- The file opens as above, and the dialog offers **Keep saving to
+  “<file>”**. That click asks the browser for write permission (it must come
+  from a click; the picker's own click has usually expired by then). Then the
+  file as it is now is kept byte for byte in Backups (`'original-file'`,
+  downloadable exactly as it was), and the file becomes the manuscript's
+  desktop copy (`linkDesktopCopy`). From the next change on it is rewritten
+  in its own format (`.docx`, `.md`, `.txt` or `.thunder.json`) like any
+  desktop copy, and Cmd/Ctrl+S writes it at once. Rewriting a `.docx` from the
+  manuscript drops what only Word keeps (comments, tracked changes, images);
+  the dialog says so. HTML and `.bak` files are never written to.
+- Opening a file that already saves back to a manuscript
+  (`FileSystemHandle.isSameEntry` against the stored handles) goes to that
+  manuscript instead of making a second one. If the file was modified since
+  Thunder Writer last wrote it (more than 2 s after), it is kept in Backups at
+  once, and the writer chooses **Use the file’s version** (this browser's is
+  kept in Backups first) or **Keep this browser’s version** (written into the
+  file now).
+- Firefox and Safari have no way to write back into a picked file: Open from
+  computer is a plain file chooser there, and the dialog says that Export to
+  computer saves a copy any time.
+
+## Saving to the computer (export, PDF and desktop copy)
 
 Code: `src/features/export/` (mounted by `WriterPage` via `<ExportHost />`,
 which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
 
-- **Save to computer ▾** (writer header, next to **File**; also **File › Save
-  to computer…**) saves a one-off copy of the open manuscript as:
+- **Export to computer ▾** (the first row of controls, after **File**; also
+  **File › Export to computer…**) saves a one-off copy of the open manuscript as:
   - Word `.docx` (recommended): book trim size, mirrored margins (gutter at
     the spine, patched in as `w:mirrorMargins` because the docx library has no
     option for it), font, size and line spacing, chapters as Heading 1, page
@@ -745,7 +795,13 @@ which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
     name carries it) so a re-import doesn't gain an extra paragraph. Markdown
     also drops alignment and leading indentation, and writes underline as
     `<u>…</u>`.
-  - A print-ready `.html` page (Print → Save as PDF gives a book-sized PDF).
+  - **PDF**: opens Book Preview, which prints every page as soon as the
+    layout is done (`printOnOpen`; `preview/pdfRequest.ts`) and then closes.
+    The print dialog's **Save as PDF** makes the file, named after the
+    manuscript (the page title is the manuscript's while printing). So the PDF
+    is exactly the preview's pages (trim size, running heads, folios), with no
+    second typesetting engine or embedded fonts to maintain. Tested in Chromium.
+  - A print-ready `.html` page.
     Its page-number margin boxes need Chrome 131+ or another browser that
     supports CSS page-margin boxes. Print colours are fixed to black on white.
   - A `.thunder.json` backup (the same envelope as Drive files).
@@ -767,17 +823,17 @@ which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
   editor, so the browser's "Save page" dialog never opens. It pushes the
   editor's debounced keystrokes into the store, writes IndexedDB immediately
   and waits for it before saying "Saved in your browser", then writes the
-  desktop copy if there is one (or opens **Save to your computer** the first
+  desktop copy if there is one (or opens **Export to your computer** the first
   time). Cmd/Ctrl+**Shift**+S is left to the editor (strikethrough).
 - **Round trips are tested** (`src/features/export/roundtrip.test.ts`): a saved
-  `.docx`, `.md` or `.txt` re-imported with **File › Import manuscript…** comes
+  `.docx`, `.md` or `.txt` re-imported with **File › Open from computer…** comes
   back with the same words, chapters, sections and scene breaks, and (Word and
   Markdown) the same bold, italic, underline, strikethrough, highlight, lists
   and block quotes.
 
 ## Book Preview and pagination
 
-Code: `src/features/preview/`. Opened from the toolbar's **Preview** button as
+Code: `src/features/preview/`. Opened from the toolbar's **Preview Book** button as
 `<BookPreview docId onClose … />`, a full-screen portal dialog (z-index 1000)
 that loads its own CSS, traps focus (with a document-level key and focus
 backstop) and returns focus to the opener on close.
@@ -793,6 +849,15 @@ Contents, Go to page and All pages (arrow keys work) help moving around.
 Single-page mode switches on automatically for narrow windows, and there is a
 toggle. Reduced-motion settings get instant changes with a cross-fade.
 **Print / PDF** prints every page at the exact trim size.
+
+**Paper & ink** (`printSettings.ts`; stored on `DocFormat.print`, read through
+`normalizePrint()`): interior paper (White, Cream, Groundwood) and ink (Black
+and white, Standard color, Premium color), each with a note on what it is for.
+Color is printed on white paper, so a color ink rules out the others. Only the
+pages' look changes: the paper tone, groundwood's grain, a deeper black for
+premium color. It is kept out of the layout options, so changing it never
+re-typesets the book, and the PDF and exports print on whatever paper the
+printer uses. Default: cream and black and white, the standard for novels.
 
 **Settings** (`headerFooter.ts`, `HeaderFooterPanel.tsx`) are stored per
 manuscript on `DocFormat.headerFooter` and `DocFormat.bookLayout`, and always
@@ -1027,7 +1092,7 @@ At commit 4b264d6 all three are clean, with 816 tests in 67 files.
   open on a right-hand page then use `break-before: left`, which Chrome, like
   `right`, treats as a plain page break.
 - While Book Preview is open, Cmd/Ctrl+S saves in the browser and writes an
-  existing desktop copy, but never opens **Save to your computer** (it would
+  existing desktop copy, but never opens **Export to your computer** (it would
   sit hidden behind the full-screen preview). The toast says to close the
   preview first. The preview shortcut (Cmd/Ctrl+Alt+P) does nothing while
   another modal dialog is open.

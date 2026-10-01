@@ -225,6 +225,40 @@ describe('backups in this browser', () => {
   })
 })
 
+describe('original files (File › Open from computer)', () => {
+  it('keeps the file byte for byte, downloads it exactly as it was, and opens it as a copy', async () => {
+    const { backUpOriginalFile } = await import('./backups')
+    const doc = makeDoc({ id: 'a', title: 'Storm', content: words('Old words here.') })
+    useDocuments.getState().hydrate([doc], 'a')
+    const original = new File(['# Storm\n\nThe file’s own words.'], 'Storm.md', { type: 'text/markdown', lastModified: T0 - DAY })
+    await expect(backUpOriginalFile(doc, original, T0)).resolves.toBe(true)
+    const [meta] = useBackups.getState().list
+    expect(meta).toMatchObject({
+      docId: 'a',
+      reason: 'original-file',
+      file: { name: 'Storm.md', type: 'text/markdown', size: original.size },
+      docUpdatedAt: T0 - DAY,
+    })
+
+    await downloadBackup(meta)
+    expect(downloads[0].name).toBe('Storm.md')
+    expect(await downloads[0].text).toBe(await original.text())
+
+    const copy = await openBackupAsCopy(meta)
+    expect(JSON.stringify(copy.content)).toContain('The file’s own words.')
+    expect(useDocuments.getState().docs.a).toBe(doc)
+  })
+
+  it('reports when the file couldn’t be kept', async () => {
+    const { backUpOriginalFile } = await import('./backups')
+    mem.fail = true
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await expect(backUpOriginalFile(makeDoc(), new File(['x'], 'x.txt'), T0)).resolves.toBe(false)
+    expect(useBackups.getState().writeError).toMatch(/couldn’t be saved/)
+    warn.mockRestore()
+  })
+})
+
 describe('automatic backups while writing', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0))
 

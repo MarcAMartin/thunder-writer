@@ -15,7 +15,7 @@ export interface ExportToast {
 
 interface ExportUiState {
   toast: ExportToast | null
-  /** The "Save to your computer" dialog. */
+  /** The "Export to your computer" dialog. */
   chooserOpen: boolean
   /** Why the dialog opened (shown as a note). */
   chooserNote: string | null
@@ -55,7 +55,7 @@ export function modKey(): string {
 }
 
 /**
- * One-off "Save to computer" for the current doc. Call from a click: the
+ * One-off "Export to computer" for the current doc. Call from a click: the
  * native Save dialog opens before the file is built.
  */
 export async function saveCurrentDocOnce(kind: ExportKind, docId?: string | null): Promise<SaveResult | null> {

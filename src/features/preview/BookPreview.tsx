@@ -30,6 +30,7 @@ import type { BookLayout, LayoutEnv } from './layout'
 import { initialNav, navReducer, shownView } from './navigation'
 import { OverviewGrid } from './OverviewGrid'
 import { PrintBook } from './PrintBook'
+import { describePrint, INK_CHOICES, normalizePrint, PAPER_CHOICES, paperAllowed, type PrintChoice, type PrintSettings } from './printSettings'
 import { Scrubber } from './Scrubber'
 import { buildViews, chapterAtPage, pagesOfView, viewLabel, viewOfPage, viewPages, type ViewMode } from './spreads'
 import { useBookLayout } from './useBookLayout'
@@ -44,6 +45,10 @@ export interface BookPreviewProps {
   onHeaderFooterChange?: (next: HeaderFooterSettings) => void
   layoutOptions?: Partial<BookLayoutOptions> | null
   onLayoutOptionsChange?: (next: BookLayoutOptions) => void
+  /** Paper & ink (e.g. DocFormat.print): how the pages look here. Missing fields get defaults. */
+  print?: Partial<PrintSettings> | null
+  /** Called on every Paper & ink change, so the host can persist it. */
+  onPrintChange?: (next: PrintSettings) => void
   /**
    * Top-level block index to open at (e.g. the block holding the writer's
    * cursor: `editor.state.doc.resolve(pos).index(0)`). Preferred over
@@ -54,6 +59,11 @@ export interface BookPreviewProps {
   initialPage?: number
   /** Called as the layout progresses (page count, done, timings). */
   onLayoutUpdate?: (info: LayoutUpdate) => void
+  /**
+   * Export to computer › PDF: print as soon as the layout is done, then close
+   * (the print dialog's "Save as PDF" makes the file).
+   */
+  printOnOpen?: boolean
   /** Test seam: replace line measurement / scheduling. */
   layoutEnv?: Partial<LayoutEnv>
 }
@@ -80,7 +90,7 @@ const WHEEL_STEP = 60
 const WHEEL_QUIET_MS = 220
 
 type ModePref = 'auto' | ViewMode
-type Panel = 'toc' | 'settings' | null
+type Panel = 'toc' | 'settings' | 'paper' | null
 
 function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T>(null)
@@ -132,6 +142,13 @@ export function BookPreview(props: BookPreviewProps) {
 
   const [hf, setHf] = useState(() => normalizeHeaderFooter(props.headerFooter))
   const [opts, setOpts] = useState(() => normalizeBookLayout(props.layoutOptions))
+  // Not part of the layout: changing paper never re-typesets the book.
+  const [printSpec, setPrintSpec] = useState(() => normalizePrint(props.print))
+  const changePrint = (patch: Partial<PrintSettings>) => {
+    const next = normalizePrint({ ...printSpec, ...patch })
+    setPrintSpec(next)
+    props.onPrintChange?.(next)
+  }
   const [modePref, setModePref] = useState<ModePref>('auto')
   const [zoom, setZoom] = useState<'fit' | 'actual'>('fit')
   const [panel, setPanel] = useState<Panel>(null)
@@ -443,6 +460,18 @@ export function BookPreview(props: BookPreviewProps) {
   const currentChapterIndex = shownChapter ? chapters.indexOf(shownChapter) : -1
   const canPrint = done && !printing
 
+  // Export › PDF: print once, as soon as every page is laid out.
+  const printedOnOpen = useRef(false)
+  useEffect(() => {
+    if (!props.printOnOpen || !done || printedOnOpen.current) return
+    printedOnOpen.current = true
+    setPrinting(true)
+  }, [props.printOnOpen, done])
+  const afterPrint = () => {
+    setPrinting(false)
+    if (props.printOnOpen) closeRef.current()
+  }
+
   let body: ReactNode
   if (!doc) body = <p className="bp-message">This manuscript is no longer available.</p>
   else if (error) body = <p className="bp-message">The book preview couldn’t be laid out: {error}</p>
@@ -503,7 +532,7 @@ export function BookPreview(props: BookPreviewProps) {
 
   return createPortal(
     <div
-      className="bp-overlay"
+      className={`bp-overlay bp-paper-${printSpec.paper} bp-ink-${printSpec.ink}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Book preview: ${title}`}
@@ -523,6 +552,7 @@ export function BookPreview(props: BookPreviewProps) {
               </span>
             )}
           </span>
+          <span className="bp-bar-meta bp-bar-print">{describePrint(printSpec)}</span>
         </div>
         <div className="bp-bar-tools" role="toolbar" aria-label="Preview">
           <button
@@ -566,6 +596,17 @@ export function BookPreview(props: BookPreviewProps) {
             title="Headers & footers"
           >
             <Icon d="M4 5h16M4 19h16M8 9h8M8 13h8" /> <span className="bp-btn-text">Headers &amp; footers</span>
+          </button>
+          <button
+            type="button"
+            className="bp-btn"
+            aria-expanded={panel === 'paper'}
+            aria-controls={panel === 'paper' ? `${titleId}-paper` : undefined}
+            onClick={() => setPanel(panel === 'paper' ? null : 'paper')}
+            title="Paper and ink for the printed book"
+          >
+            <Icon d="M6 3h8l4 4v14H6zM12 10.5c-1.4 1.9-2.3 3-2.3 4.2a2.3 2.3 0 0 0 4.6 0c0-1.2-.9-2.3-2.3-4.2z" />{' '}
+            <span className="bp-btn-text">Paper &amp; ink</span>
           </button>
           <button
             type="button"
@@ -620,6 +661,32 @@ export function BookPreview(props: BookPreviewProps) {
         >
           {body}
         </div>
+
+        {panel === 'paper' && (
+          <aside className="bp-panel bp-settings bp-paper-panel" id={`${titleId}-paper`} aria-label="Paper and ink">
+            <h3 className="bp-panel-title">Paper &amp; ink</h3>
+            <p className="bp-panel-note">
+              How the printed book will be made. The pages here take on the paper’s look; page breaks, the PDF and
+              other exports stay the same.
+            </p>
+            <PrintChoices
+              legend="Interior paper"
+              name={`${titleId}-paper-stock`}
+              choices={PAPER_CHOICES}
+              value={printSpec.paper}
+              disabled={(v) => !paperAllowed(v, printSpec.ink)}
+              disabledNote="Color is printed on white paper."
+              onChange={(paper) => changePrint({ paper })}
+            />
+            <PrintChoices
+              legend="Ink and color"
+              name={`${titleId}-ink`}
+              choices={INK_CHOICES}
+              value={printSpec.ink}
+              onChange={(ink) => changePrint({ ink })}
+            />
+          </aside>
+        )}
 
         {panel === 'settings' && (
           <aside className="bp-panel bp-settings" id={`${titleId}-settings`} aria-label="Headers and footers">
@@ -722,7 +789,7 @@ export function BookPreview(props: BookPreviewProps) {
         {!latest ? 'Setting type…' : latest.done ? `Typeset: ${latest.pages.length} ${latest.pages.length === 1 ? 'page' : 'pages'}` : 'Setting type…'}
       </div>
 
-      {printing && done && layout && <PrintBook layout={layout} settings={pageHf} title={title} onDone={() => setPrinting(false)} />}
+      {printing && done && layout && <PrintBook layout={layout} settings={pageHf} title={title} onDone={afterPrint} />}
     </div>,
     document.body,
   )
@@ -733,5 +800,49 @@ function Icon({ d }: { d: string }) {
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
       <path d={d} />
     </svg>
+  )
+}
+
+/** One set of Paper & ink radio choices, each with its description. */
+function PrintChoices<T extends string>(props: {
+  legend: string
+  name: string
+  choices: PrintChoice<T>[]
+  value: T
+  onChange: (v: T) => void
+  disabled?: (v: T) => boolean
+  disabledNote?: string
+}) {
+  return (
+    <fieldset className="bp-hf bp-print-choices">
+      <legend className="bp-hf-legend">{props.legend}</legend>
+      {props.choices.map((c) => {
+        const off = props.disabled?.(c.value) ?? false
+        const hintId = `${props.name}-${c.value}-hint`
+        return (
+          <label key={c.value} className={`bp-print-choice${off ? ' bp-print-choice-off' : ''}`}>
+            <input
+              type="radio"
+              name={props.name}
+              value={c.value}
+              checked={props.value === c.value}
+              disabled={off}
+              aria-describedby={hintId}
+              onChange={() => props.onChange(c.value)}
+            />
+            <span className="bp-print-choice-text">
+              <span className="bp-print-choice-label">
+                <span className={`bp-swatch bp-swatch-${c.value}`} aria-hidden="true" />
+                {c.label}
+              </span>
+              <span className="bp-print-choice-hint" id={hintId}>
+                {c.hint}
+                {off && props.disabledNote ? ` ${props.disabledNote}` : ''}
+              </span>
+            </span>
+          </label>
+        )
+      })}
+    </fieldset>
   )
 }

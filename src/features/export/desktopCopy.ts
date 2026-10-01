@@ -1,4 +1,4 @@
-import { createStore, del, get, set, type UseStore } from 'idb-keyval'
+import { createStore, del, entries as idbEntries, get, set, type UseStore } from 'idb-keyval'
 import { create } from 'zustand'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
@@ -231,6 +231,56 @@ export async function setUpDesktopCopy(docId: string, kind: CopyKind): Promise<S
 
 const stripExt = (name: string) => name.replace(/(\.thunder)?\.[A-Za-z0-9]+$/, '')
 
+/**
+ * File › Open from computer › Keep saving to it: makes the file the writer
+ * opened the manuscript's desktop copy. The caller already has write
+ * permission (asked from a click). The file holds this version, so nothing is
+ * written until the manuscript changes; `fileModifiedAt` (File.lastModified)
+ * lets a later open tell whether it was changed elsewhere since.
+ */
+export async function linkDesktopCopy(docId: string, handle: FileSystemFileHandle, kind: CopyKind, fileModifiedAt: number): Promise<void> {
+  entries.get(docId)?.scheduler?.dispose()
+  const record: CopyRecord = { docId, kind, fileName: handle.name, handle, setUpAt: Date.now(), lastWrittenAt: fileModifiedAt }
+  entries.set(docId, { record, scheduler: null })
+  try {
+    await set(docId, record, db())
+  } catch {
+    // Private windows may block IndexedDB: saving back still works until the tab closes.
+  }
+  activate(docId)
+}
+
+/** Marks the file as matching the manuscript (e.g. after loading the file's newer version into it). */
+export function noteDesktopCopyInSync(docId: string, fileModifiedAt: number): void {
+  const entry = entries.get(docId)
+  if (!entry) return
+  entry.record = { ...entry.record, lastWrittenAt: fileModifiedAt }
+  set(docId, entry.record, db()).catch(() => undefined)
+}
+
+/**
+ * The manuscript that already saves to this very file (FileSystemHandle.isSameEntry),
+ * so opening it again goes back to that manuscript instead of making a second one.
+ */
+export async function findDocForFile(handle: FileSystemFileHandle): Promise<{ docId: string; lastWrittenAt: number | null } | null> {
+  const records: CopyRecord[] = [...entries.values()].map((e) => e.record)
+  try {
+    for (const [, v] of await idbEntries<IDBValidKey, unknown>(db())) {
+      if (isRecord(v) && !records.some((r) => r.docId === v.docId)) records.push(v)
+    }
+  } catch {
+    // No stored copies to compare with.
+  }
+  for (const r of records) {
+    try {
+      if (await handle.isSameEntry(r.handle)) return { docId: r.docId, lastWrittenAt: r.lastWrittenAt }
+    } catch {
+      // A handle from another browser profile or a stale record: not this file.
+    }
+  }
+  return null
+}
+
 /** Grants write permission again after a reload. Call directly from a click or key press. */
 export async function resumeDesktopCopy(docId: string): Promise<boolean> {
   const entry = entries.get(docId)
@@ -250,6 +300,24 @@ export async function resumeDesktopCopy(docId: string): Promise<boolean> {
   s.resume()
   flushPendingEdits()
   return (await s.flush({ force: true })) === 'written'
+}
+
+/**
+ * Gets write permission for a linked file (after a reload) without writing yet,
+ * so a backup of what's in it can be taken first. Call from a click.
+ */
+export async function grantDesktopCopy(docId: string): Promise<boolean> {
+  const entry = entries.get(docId)
+  if (!entry) return false
+  let perm: PermissionState
+  try {
+    perm = await requestWritePermission(entry.record.handle)
+  } catch {
+    perm = 'denied'
+  }
+  if (entries.get(docId) !== entry || perm !== 'granted') return false
+  ;(entry.scheduler ?? activate(docId)).resume()
+  return true
 }
 
 /** Stops updating the file. The file already on the computer is left as it is. */

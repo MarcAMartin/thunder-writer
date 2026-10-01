@@ -6,6 +6,8 @@ import { downloadBlob } from '../export/saveToComputer'
 import { toBackupJson } from '../export/backup'
 import { sanitizeBaseName } from '../export/filename'
 import { isUntouchedDoc } from '../import/importFlow'
+import { importManuscript } from '../import/importManuscript'
+import { parseEnvelope } from '../storage/schema'
 import { backupsToPrune, type BackupMeta, type BackupReason } from './retention'
 import * as idb from './store'
 
@@ -113,6 +115,34 @@ export async function safetyBackup(doc: ThunderDoc | undefined, reason: BackupRe
   }
 }
 
+/**
+ * Keeps a file from the computer byte for byte, before Thunder Writer first
+ * saves over it (File › Open from computer › Keep saving to it). Resolves
+ * whether it was stored; never throws.
+ */
+export async function backUpOriginalFile(doc: ThunderDoc, file: File, now = Date.now()): Promise<boolean> {
+  try {
+    await serialized(async () => {
+      if (!useBackups.getState().loaded) await refreshBackups()
+      let meta: BackupMeta
+      try {
+        meta = await idb.writeFileBackup(doc, file, idb.countWords(doc.content), now)
+      } catch (e) {
+        useBackups.setState({ writeError: WRITE_FAILED })
+        throw e
+      }
+      const list = [meta, ...useBackups.getState().list].sort((a, b) => b.savedAt - a.savedAt)
+      const doomed = new Set(backupsToPrune(list, now))
+      await idb.deleteBackups([...doomed]).catch(() => undefined)
+      useBackups.setState({ list: list.filter((m) => !doomed.has(m.id)), loaded: true, error: null, writeError: null })
+    })
+    return true
+  } catch (e) {
+    console.warn('[thunder-writer] Could not keep a backup of the original file', e)
+    return false
+  }
+}
+
 /** "Back up now" for the open manuscript. */
 export async function backUpCurrentNow(): Promise<BackupMeta | null> {
   flushPendingEdits()
@@ -122,9 +152,24 @@ export async function backUpCurrentNow(): Promise<BackupMeta | null> {
   return (await backUpDoc(doc, 'manual')) ?? useBackups.getState().list.find((m) => m.docId === doc.id) ?? null
 }
 
-async function loadOrThrow(id: string): Promise<ThunderDoc> {
-  const doc = await idb.readBackup(id)
-  if (!doc) throw new Error('This backup can’t be read. It may have been removed, or this browser’s storage was cleared.')
+const UNREADABLE = 'This backup can’t be read. It may have been removed, or this browser’s storage was cleared.'
+
+/** What opening a backup puts in the new manuscript. */
+async function loadForCopy(meta: BackupMeta): Promise<{ title: string; content: unknown; format?: ThunderDoc['format'] }> {
+  if (meta.file) {
+    // An original file: read it the way File › Open from computer does.
+    const f = await idb.readFileBackup(meta.id)
+    if (!f) throw new Error(UNREADABLE)
+    if (/\.json(\.bak)?$/i.test(f.name)) {
+      const parsed = parseEnvelope(JSON.parse(new TextDecoder().decode(f.bytes)))
+      if (!parsed.ok) throw new Error(parsed.reason)
+      return parsed.doc
+    }
+    const r = await importManuscript({ name: f.name, mimeType: f.type || undefined, data: f.bytes })
+    return { title: r.title, content: r.content }
+  }
+  const doc = await idb.readBackup(meta.id)
+  if (!doc) throw new Error(UNREADABLE)
   return doc
 }
 
@@ -144,7 +189,7 @@ export const isUntouchedCopy = (id: string) => untouchedCopies.has(id)
 
 /** Opens a backup as a new manuscript, "<title> (backup <when>)". Nothing is overwritten. */
 export async function openBackupAsCopy(meta: BackupMeta): Promise<ThunderDoc> {
-  const doc = await loadOrThrow(meta.id)
+  const doc = await loadForCopy(meta)
   const docs = useDocuments.getState()
   const copy = docs.createDoc({ title: `${doc.title || 'Untitled Manuscript'} (${backupLabel(meta)})`, content: doc.content, format: doc.format })
   untouchedCopies.add(copy.id)
@@ -164,9 +209,19 @@ export function undoOpenCopy(copyId: string, previousId: string | null): boolean
   return true
 }
 
-/** Downloads a backup as a Thunder Writer file (File › Import .thunder.json… opens it again). */
+/**
+ * Downloads a backup: an original file exactly as it was on the computer, any
+ * other backup as a Thunder Writer file (File › Open from computer… opens it again).
+ */
 export async function downloadBackup(meta: BackupMeta): Promise<void> {
-  const doc = await loadOrThrow(meta.id)
+  if (meta.file) {
+    const f = await idb.readFileBackup(meta.id)
+    if (!f) throw new Error(UNREADABLE)
+    downloadBlob(new Blob([f.bytes], { type: f.type || 'application/octet-stream' }), f.name)
+    return
+  }
+  const doc = await idb.readBackup(meta.id)
+  if (!doc) throw new Error(UNREADABLE)
   const name = sanitizeBaseName(`${doc.title || 'Untitled Manuscript'} (${backupLabel(meta)})`)
   downloadBlob(new Blob([toBackupJson(doc)], { type: 'application/json' }), `${name}.thunder.json`)
 }

@@ -19,6 +19,16 @@ export interface SaveFilePickerOptions {
 
 export type ShowSaveFilePicker = (opts?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>
 
+export interface OpenFilePickerOptions {
+  multiple?: boolean
+  startIn?: SaveFilePickerOptions['startIn']
+  id?: string
+  types?: FilePickerAcceptType[]
+  excludeAcceptAllOption?: boolean
+}
+
+export type ShowOpenFilePicker = (opts?: OpenFilePickerOptions) => Promise<FileSystemFileHandle[]>
+
 type PermissionMode = { mode: 'read' | 'readwrite' }
 
 /** FileSystemFileHandle with the permission methods Chromium adds. */
@@ -35,6 +45,16 @@ export function getShowSaveFilePicker(): ShowSaveFilePicker | null {
 }
 
 export const hasNativeSaveDialog = () => getShowSaveFilePicker() !== null
+
+/** window.showOpenFilePicker (Chrome/Edge), or null. */
+export function getShowOpenFilePicker(): ShowOpenFilePicker | null {
+  if (typeof window === 'undefined') return null
+  const fn = (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker
+  return typeof fn === 'function' ? (fn.bind(window) as ShowOpenFilePicker) : null
+}
+
+/** Opening a file and saving back into it (File › Open from computer) needs both pickers' API. */
+export const canSaveBackToOpenedFiles = () => getShowOpenFilePicker() !== null && hasNativeSaveDialog()
 
 export async function queryWritePermission(handle: FileSystemFileHandle): Promise<PermissionState> {
   const h = handle as PermissionedFileHandle

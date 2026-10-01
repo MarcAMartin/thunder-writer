@@ -3,6 +3,7 @@ import { useEditorState, type Editor } from '@tiptap/react'
 import { useEditorContext } from '../../shell/EditorContext'
 import { useDocuments } from '../../store/documents'
 import type { DocFormat } from '../../types'
+import { SupportSlot } from '../support/SupportSlot'
 import { HeaderFooterButton, PreviewButton } from './BookTools'
 import { HEADING_LABELS } from './editorExtensions'
 import {
@@ -149,7 +150,11 @@ function useCurrentFormat() {
   return { format, resolved: resolveFormat(format), patch }
 }
 
-export function Toolbar() {
+/**
+ * `leading` starts the first row (the writer page puts File, Export to computer
+ * and Backups there), followed by Headers & footers… in the same button style.
+ */
+export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
   const { editor } = useEditorContext()
   const st = useEditorState({ editor, selector: ({ editor: e }) => selectState(e) })
   const { format, resolved, patch } = useCurrentFormat()
@@ -180,6 +185,11 @@ export function Toolbar() {
 
   return (
     <div className="ed-toolbar" role="toolbar" aria-label="Formatting">
+      <div className="ed-group ed-group-file">
+        {leading}
+        <HeaderFooterButton />
+      </div>
+      <Sep />
       <div className="ed-group">
         <ToolButton label="Undo" shortcut={`${mod}Z`} disabled={disabled || !st?.canUndo} onClick={run((e) => e.chain().focus().undo().run())}>
           <Icon name="undo" />
@@ -337,9 +347,9 @@ export function Toolbar() {
           />
           <span>Chapters start new page</span>
         </label>
-        <HeaderFooterButton />
       </div>
       <div className="ed-group ed-group-preview">
+        <SupportSlot />
         <PreviewButton editor={editor} />
       </div>
     </div>

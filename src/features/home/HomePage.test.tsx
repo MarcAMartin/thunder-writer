@@ -88,6 +88,11 @@ describe('HomePage', () => {
     renderHome()
     expect(screen.getByRole('heading', { level: 1, name: 'Thunder Writer' })).toBeInTheDocument()
     expect(screen.getByText(/not a word processor/i)).toBeInTheDocument()
+    // "free" stands out (its own styled, animated word) but reads as one sentence.
+    const lead = document.querySelector('.hm-lead')!
+    expect(lead.textContent?.replace(/\s+/g, ' ').trim()).toBe('A free idea processor, not a word processor.')
+    expect(lead.querySelector('.hm-free')).toHaveTextContent('free')
+    expect(lead.querySelector('.hm-free svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('"Start Writing" opens a fresh manuscript, from the hero and the closing section', () => {

@@ -5,7 +5,6 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { vi } from 'vitest'
 import { EditorContext } from '../../shell/EditorContext'
 import { currentDoc, useDocuments } from '../../store/documents'
-import { ImportButton } from './ImportButton'
 import { ImportHost } from './ImportHost'
 import { BUSY_NOTICE, importLocalFile, openImportPicker, useImportFlow } from './importFlow'
 import { useManuscriptDrop } from './useManuscriptDrop'
@@ -22,7 +21,9 @@ function renderHost(path = '/write') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <ImportHost />
-      <ImportButton />
+      <button type="button" onClick={() => openImportPicker()}>
+        Choose a file
+      </button>
     </MemoryRouter>,
   )
 }
@@ -64,7 +65,7 @@ describe('local import flow', () => {
 
   it('opens a file chooser from the button and imports the chosen file', async () => {
     renderHost()
-    await userEvent.click(screen.getByRole('button', { name: 'Import manuscript…' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }))
     const input = document.querySelector<HTMLInputElement>('input[type=file]')
     expect(input).not.toBeNull()
     expect(input!.accept).toContain('.docx')
@@ -74,15 +75,15 @@ describe('local import flow', () => {
     expect(document.querySelector('input[type=file]')).toBeNull()
   })
 
-  it('shows a "Choose a file to import" prompt for /write?import=local', async () => {
+  it('shows an "Open a manuscript" prompt for /write?import=local', async () => {
     renderHost('/write?import=local')
-    const dialog = await screen.findByRole('dialog', { name: 'Import a manuscript' })
+    const dialog = await screen.findByRole('dialog', { name: 'Open a manuscript' })
     expect(dialog).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Choose a file to import' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }))
     const input = document.querySelector<HTMLInputElement>('input[type=file]')
     await userEvent.upload(input!, mdFile())
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Manuscript imported' })).toBeInTheDocument())
-    expect(screen.queryByRole('dialog', { name: 'Import a manuscript' })).toBeNull()
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Manuscript opened' })).toBeInTheDocument())
+    expect(screen.queryByRole('dialog', { name: 'Open a manuscript' })).toBeNull()
   })
 })
 
@@ -164,12 +165,12 @@ describe('import feedback', () => {
         <LocationProbe />
       </MemoryRouter>,
     )
-    const dialog = await screen.findByRole('dialog', { name: 'Import a manuscript' })
+    const dialog = await screen.findByRole('dialog', { name: 'Open a manuscript' })
     expect(dialog).not.toHaveTextContent(/Download › Microsoft Word/)
     expect(dialog).toHaveTextContent(/Google Docs\? Import it straight from Google Drive/)
     await userEvent.click(screen.getByRole('button', { name: 'Import from Google Drive…' }))
     expect(screen.getByTestId('location')).toHaveTextContent('open=picker')
-    expect(screen.queryByRole('dialog', { name: 'Import a manuscript' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Open a manuscript' })).toBeNull()
     vi.unstubAllEnvs()
   })
 
@@ -181,7 +182,7 @@ describe('import feedback', () => {
         <ImportHost />
       </MemoryRouter>,
     )
-    const dialog = await screen.findByRole('dialog', { name: 'Import a manuscript' })
+    const dialog = await screen.findByRole('dialog', { name: 'Open a manuscript' })
     expect(screen.queryByRole('button', { name: /Import from Google Drive/ })).not.toBeInTheDocument()
     expect(dialog).toHaveTextContent(/Google Docs\? Choose File › Download › Microsoft Word \(\.docx\) there/)
     vi.unstubAllEnvs()

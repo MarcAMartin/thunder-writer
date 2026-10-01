@@ -16,11 +16,15 @@ export function PrintBook({ layout, settings, title, onDone }: { layout: BookLay
   useEffect(() => {
     const html = document.documentElement
     html.classList.add('bp-printing')
+    // "Save as PDF" names the file after the page title: make it the book's.
+    const pageTitle = document.title
+    if (title.trim()) document.title = title.trim()
     let done = false
     const finish = () => {
       if (done) return
       done = true
       html.classList.remove('bp-printing')
+      document.title = pageTitle
       onDone()
     }
     window.addEventListener('afterprint', finish)
@@ -35,6 +39,7 @@ export function PrintBook({ layout, settings, title, onDone }: { layout: BookLay
       cancelAnimationFrame(r1)
       window.removeEventListener('afterprint', finish)
       html.classList.remove('bp-printing')
+      document.title = pageTitle
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

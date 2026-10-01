@@ -55,7 +55,7 @@ Later, a **Trivia** card, marked "Possibly relevant", mentions a recent news
 story about the coastline your book is set on, with links to its sources. You
 don't need it today, so you hide it and keep going.
 
-When the chapter is done you press **Preview** and turn the pages of your book,
+When the chapter is done you press **Preview Book** and turn the pages of your book,
 with running heads and page numbers, the way a reader would see them.
 
 *(The names above are an illustration of the kinds of cards you'll see, not a
@@ -89,7 +89,7 @@ recording.)*
 
 ### Book Preview, with page turns
 
-Press **Preview** in the toolbar to see your manuscript typeset as a printed
+Press **Preview Book** in the toolbar to see your manuscript typeset as a printed
 book:
 
 - Two-page spreads, with chapters opening on right-hand pages, and running
@@ -112,26 +112,33 @@ book:
   Word does show heads on the blank pages it inserts before right-hand
   chapters.
 - **Print / PDF** prints the book at its exact trim size.
+- **Paper & ink** shows your pages on white, cream or groundwood paper, with a
+  note on what each paper and ink (black and white, standard or premium color)
+  is for.
 
 ### Bring the manuscript you already have
 
-- **Import from Word, Google Docs, Markdown, HTML or plain text.** Drop a file
-  onto the page, choose one from your computer, or pick a Google Doc straight
+- **Open Word, Google Docs, Markdown, HTML or plain text.** Use **File › Open
+  from computer…**, drop a file onto the page, or pick a Google Doc straight
   from your Drive.
 - **Chapters are found for you.** Lines like "Chapter 1", "Chapter Twelve: The
   Storm", "Part One", "Prologue" or "Epilogue" become chapter headings, and
   `* * *` style lines become scene breaks. Bold, italics, lists and quotes come
   across.
-- **Your original file is only read, never changed.** Afterwards you get a
+- **Your file is left alone unless you say otherwise.** Afterwards you get a
   summary: word count, chapter count, and anything that couldn't come across
-  (such as images).
+  (such as images). In Chrome and Edge you can choose **Keep saving to it**:
+  your changes then go back into that same file as you write. The file as it
+  was is kept first, in **Backups**. (Saving back into a Word file rewrites it
+  from your manuscript, so Word-only extras like comments are dropped.)
 
 ### Your manuscript, on your computer
 
-- **Save to computer** gives you a Word document laid out at your trim size,
+- **Export to computer** gives you a Word document laid out at your trim size,
   with chapters on new pages, page numbers and your running heads. You can
-  also save Markdown, plain text, a print-ready page (for a book-sized PDF) or
-  a Thunder Writer backup of this manuscript.
+  also export a **PDF** of your book's pages (as Preview Book shows them),
+  Markdown, plain text, a print-ready web page or a Thunder Writer backup of
+  this manuscript.
 - **Keep a copy on my computer** (Chrome and Edge): choose a file once, for
   example on your Desktop, and Thunder Writer keeps it up to date as you write.
 - **Cmd+S / Ctrl+S** does what you expect. It saves right away, updates your
@@ -266,7 +273,7 @@ been checked only in Chrome.
 ### What happens to my book if I clear my browser?
 
 Anything stored only in the browser goes with it. So connect Google Drive,
-keep a desktop copy, or use **Save to computer** for a backup now and then. A
+keep a desktop copy, or use **Export to computer** for a backup now and then. A
 backup covers the one manuscript you have open, so save one for each book
 (Drive, when connected, keeps all of them). Reference files and your AI keys
 live only in this browser and are never uploaded or included in a backup, so

@@ -118,6 +118,69 @@
   background: linear-gradient(transparent 62%, var(--tw-highlight) 62%);
   padding: 0 2px;
 }
+
+/*
+ * "free": pops in on arrival, a lightning-yellow stroke draws itself underneath,
+ * and every few seconds a flash sweeps across the letters. The resting state is
+ * the finished look, so with reduced motion (animations off, below) it simply shows.
+ */
+.hm-free {
+  position: relative;
+  display: inline-block;
+  font-style: italic;
+  font-weight: 700;
+  color: var(--tw-accent);
+  animation: hm-free-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.35) 0.25s both;
+}
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .hm-free {
+    /* The flash: a bolt-colored band parked off the word, swept across it now and then. */
+    background-image: linear-gradient(
+      105deg,
+      var(--tw-accent) 40%,
+      color-mix(in srgb, var(--tw-bolt) 80%, var(--tw-accent)) 50%,
+      var(--tw-accent) 60%
+    );
+    background-size: 250% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      hm-free-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.35) 0.25s both,
+      hm-free-flash 7s ease-in-out 1.6s infinite;
+  }
+}
+.hm-free-swoosh {
+  position: absolute;
+  left: -4%;
+  bottom: -0.3em;
+  width: 108%;
+  height: 0.45em;
+  overflow: visible;
+  pointer-events: none;
+}
+.hm-free-swoosh path {
+  fill: none;
+  stroke: var(--tw-bolt);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: hm-free-draw 0.7s ease-out 0.7s both;
+}
+@keyframes hm-free-pop {
+  from { opacity: 0; transform: translateY(0.2em) scale(0.8); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hm-free-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes hm-free-flash {
+  0%, 78% { background-position: 100% 0; }
+  92%, 100% { background-position: 0% 0; }
+}
 .hm-intro {
   margin: 18px 0 0;
   max-width: 34em;

@@ -128,6 +128,8 @@
   min-width: 8ch;
   max-width: 40ch;
   text-overflow: ellipsis;
+  /* Hug the words, so the save state sits right after them (browsers without it use the size attribute). */
+  field-sizing: content;
 }
 .ed-title:hover {
   border-color: var(--tw-border);
@@ -139,20 +141,33 @@
   background: var(--tw-surface);
 }
 
-.ed-filemenu {
+.ed-docstatus {
   display: flex;
   align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
 /* ------------------------------ toolbar ------------------------------ */
 
+/* The controls sit on their own tinted, rounded bar, set apart from the title above and the pages below. */
 .ed-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-  padding: 4px 14px 8px;
+  margin: 2px 12px 8px;
+  padding: 3px 10px;
+  border-radius: 18px;
+  background: var(--tw-surface-2);
+}
+/* On the bar's own tint, hover and "on" use the page surface so they still stand out. */
+.ed-toolbar .ed-tool:hover:not(:disabled),
+.ed-toolbar .ed-tool[aria-pressed='true'] {
+  background: var(--tw-surface);
+}
+.ed-toolbar .tw-btn:hover:not(:disabled) {
+  background: var(--tw-bg);
 }
 .ed-group {
   display: flex;
@@ -210,11 +225,12 @@
   font-size: 13px;
   white-space: nowrap;
 }
-.ed-hf-btn {
-  color: var(--tw-text-muted);
+.ed-group-file {
+  /* The same spacing as between File, Save to computer and Backups. */
+  gap: 10px;
 }
-.ed-hf-btn:hover:not(:disabled) {
-  color: var(--tw-text);
+.ed-hf-btn {
+  white-space: nowrap;
 }
 .ed-preview-btn {
   border-color: var(--tw-border);
@@ -225,6 +241,8 @@
 }
 .ed-group-preview {
   margin-left: auto;
+  /* The Support the developer pick sits just left of Preview Book. */
+  gap: 8px;
 }
 
 .ed-hf-dialog {

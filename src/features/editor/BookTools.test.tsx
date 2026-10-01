@@ -100,7 +100,7 @@ describe('Preview shortcut', () => {
 describe('Toolbar › Preview', () => {
   it('has a labelled Preview button with a tooltip naming the shortcut', async () => {
     await renderPage()
-    const btn = screen.getByRole('button', { name: 'Preview' })
+    const btn = screen.getByRole('button', { name: 'Preview Book' })
     expect(btn).toHaveAttribute('title', expect.stringMatching(/Book preview.*\((⌘⌥P|Ctrl\+Alt\+P)\)/))
     expect(btn).toHaveAttribute('aria-keyshortcuts')
     expect(btn.querySelector('svg')).not.toBeNull()
@@ -115,7 +115,7 @@ describe('Toolbar › Preview', () => {
       if (i === 3) pos = offset + 2
     })
     act(() => void editor.commands.setTextSelection(pos))
-    await user.click(screen.getByRole('button', { name: 'Preview' }))
+    await user.click(screen.getByRole('button', { name: 'Preview Book' }))
     await screen.findByRole('dialog', { name: 'Book preview stub' })
     const props = previewProps.at(-1)!
     expect(props.docId).toBe(DOC.id)
@@ -154,7 +154,7 @@ describe('Toolbar › Preview', () => {
   it('saves header/footer and book layout changes made in the preview to the manuscript, and marks it for Drive', async () => {
     const user = userEvent.setup()
     await renderPage()
-    await user.click(screen.getByRole('button', { name: 'Preview' }))
+    await user.click(screen.getByRole('button', { name: 'Preview Book' }))
     const dialog = await screen.findByRole('dialog', { name: 'Book preview stub' })
     useDocuments.setState({ dirtyForDrive: {} })
     await user.click(within(dialog).getByRole('button', { name: 'change heads' }))
@@ -166,19 +166,42 @@ describe('Toolbar › Preview', () => {
     // Reopening passes the saved settings back in.
     await user.click(within(dialog).getByRole('button', { name: 'close stub' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Book preview stub' })).toBeNull())
-    await user.click(screen.getByRole('button', { name: 'Preview' }))
+    await user.click(screen.getByRole('button', { name: 'Preview Book' }))
     await screen.findByRole('dialog', { name: 'Book preview stub' })
     expect(previewProps.at(-1)!.headerFooter).toMatchObject({ authorName: 'Ada Lovelace' })
     expect(previewProps.at(-1)!.layoutOptions).toMatchObject({ chaptersStartRecto: false })
   })
+
+  it('saves the Paper & ink chosen in the preview to the manuscript, and passes it back in', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Preview Book' }))
+    await screen.findByRole('dialog', { name: 'Book preview stub' })
+    useDocuments.setState({ dirtyForDrive: {} })
+    act(() => previewProps.at(-1)!.onPrintChange!({ paper: 'groundwood', ink: 'bw' }))
+    expect(useDocuments.getState().docs[DOC.id].format.print).toEqual({ paper: 'groundwood', ink: 'bw' })
+    expect(useDocuments.getState().dirtyForDrive[DOC.id]).toBe(true)
+    await waitFor(() => expect(previewProps.at(-1)!.print).toEqual({ paper: 'groundwood', ink: 'bw' }))
+  })
 })
 
 describe('Toolbar › Headers & footers…', () => {
-  it('opens the header/footer panel from the book-format controls and saves each change', async () => {
+  it('sits right after File, Export to computer and Backups, in the same button style', async () => {
+    await renderPage()
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    const button = within(toolbar).getByRole('button', { name: 'Headers & footers…' })
+    expect(button).toHaveClass('tw-btn')
+    // The first group: the File menu (stubbed here; it brings Export to computer and Backups), then this button.
+    const first = toolbar.querySelector('.ed-group')!
+    expect([...first.children]).toEqual([screen.getByTestId('filemenu'), button])
+    expect(within(screen.getByRole('group', { name: 'Book format' })).queryByRole('button', { name: /Headers/ })).toBeNull()
+  })
+
+  it('opens the header/footer panel and saves each change', async () => {
     const user = userEvent.setup()
     await renderPage()
-    const group = screen.getByRole('group', { name: 'Book format' })
-    await user.click(within(group).getByRole('button', { name: 'Headers & footers…' }))
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    await user.click(within(toolbar).getByRole('button', { name: 'Headers & footers…' }))
     const dialog = await screen.findByRole('dialog', { name: 'Headers & footers' })
     useDocuments.setState({ dirtyForDrive: {} })
     await user.type(within(dialog).getByLabelText('Author name'), 'Jo')

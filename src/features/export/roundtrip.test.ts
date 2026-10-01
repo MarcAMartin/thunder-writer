@@ -145,7 +145,7 @@ async function reimport(name: string, data: ArrayBuffer | string, mimeType?: str
 
 /* ----------------------------------- tests ----------------------------------- */
 
-describe('round trip: Save to computer → Import', () => {
+describe('round trip: Export to computer → Import', () => {
   const doc = manuscript()
   const original = doc.content
 

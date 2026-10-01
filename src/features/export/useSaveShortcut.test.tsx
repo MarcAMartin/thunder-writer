@@ -90,7 +90,7 @@ describe('useSaveShortcut', () => {
     expect(fireEvent.keyDown(window, { key: 'd', metaKey: true })).toBe(true)
   })
 
-  it('opens “Save to computer” when there is no desktop copy, then just reassures once dismissed', async () => {
+  it('opens “Export to computer” when there is no desktop copy, then just reassures once dismissed', async () => {
     render(<Harness />)
     press(window)
     await waitFor(() => expect(useExportUi.getState().chooserOpen).toBe(true))
@@ -107,7 +107,7 @@ describe('useSaveShortcut', () => {
     try {
       render(<Harness />)
       press(window)
-      await waitFor(() => expect(useExportUi.getState().toast?.text).toMatch(/^Saved in your browser\. To save to your computer, close the preview and press .+S\.$/))
+      await waitFor(() => expect(useExportUi.getState().toast?.text).toMatch(/^Saved in your browser\. To export to your computer, close the preview and press .+S\.$/))
       expect(useExportUi.getState().toast?.action).toBeUndefined()
       expect(useExportUi.getState().chooserOpen).toBe(false)
       // Even once the writer has dismissed the chooser, no action that would open it behind the preview.
@@ -226,7 +226,7 @@ describe('ExportHost', () => {
     const before = screen.getByRole('button', { name: 'before' })
     before.focus()
     press(window)
-    const dialog = await screen.findByRole('dialog', { name: 'Save to your computer' })
+    const dialog = await screen.findByRole('dialog', { name: 'Export to your computer' })
     // No File System Access API in jsdom: the explanation and a manual download are offered.
     expect(dialog).toHaveTextContent('Chrome and Microsoft Edge can')
     expect(screen.getByRole('button', { name: 'Download a Word copy now' })).toBeInTheDocument()

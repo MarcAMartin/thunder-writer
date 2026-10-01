@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
 import { DesktopCopyControl } from './DesktopCopyControl'
+import { PDF_EXPORT, requestPdfExport } from '../preview/pdfRequest'
 import { flushPendingDesktopCopy, restoreDesktopCopy, startDesktopCopyService } from './desktopCopy'
 import { saveCurrentDocOnce, useExportUi } from './exportUi'
 import { EXPORT_FORMATS, MENU_ORDER, type ExportKind } from './formats'
@@ -12,7 +13,7 @@ import './export.css'
 /**
  * Mount once on the writing page. Runs the desktop-copy service (restores the
  * current manuscript's copy, rewrites it as it changes), intercepts Cmd/Ctrl+S,
- * and renders the "Save to your computer" dialog and the save toast.
+ * and renders the "Export to your computer" dialog and the save toast.
  */
 export function ExportHost() {
   useDesktopCopyService()
@@ -80,7 +81,7 @@ export function ExportToast() {
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
 
-/** "Save to your computer": keep a desktop copy, or save a one-off copy in any format. */
+/** "Export to your computer": keep a desktop copy, or export a one-off copy in any format (PDF via Book Preview). */
 export function SaveChooserDialog() {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -138,7 +139,7 @@ export function SaveChooserDialog() {
     >
       <div className="ex-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
         <header className="ex-dialog-head">
-          <h2 id={titleId}>Save to your computer</h2>
+          <h2 id={titleId}>Export to your computer</h2>
           <button type="button" className="tw-btn tw-btn-ghost ex-close" onClick={close} aria-label="Close">
             ✕
           </button>
@@ -151,28 +152,50 @@ export function SaveChooserDialog() {
           )}
           <DesktopCopyControl />
           <section className="ex-once" aria-labelledby={`${titleId}-once`}>
-            <h3 id={`${titleId}-once`}>Save a copy once</h3>
+            <h3 id={`${titleId}-once`}>Export a copy once</h3>
             <ul className="ex-choices">
               {MENU_ORDER.map((kind) => {
                 const f = EXPORT_FORMATS[kind]
                 return (
-                  <li key={kind}>
-                    <button
-                      type="button"
-                      className={`ex-choice${kind === 'docx' ? ' ex-choice-primary' : ''}`}
-                      aria-disabled={saving !== null || undefined}
-                      aria-describedby={`${titleId}-${kind}`}
-                      onClick={() => saveOnce(kind)}
-                    >
-                      <span className="ex-item-label">
-                        {saving === kind ? `Saving ${f.label}…` : f.label}
-                        {kind === 'docx' && <span className="ex-badge">Recommended</span>}
-                      </span>
-                      <span id={`${titleId}-${kind}`} className="ex-item-hint">
-                        {f.hint}
-                      </span>
-                    </button>
-                  </li>
+                  <Fragment key={kind}>
+                    <li>
+                      <button
+                        type="button"
+                        className={`ex-choice${kind === 'docx' ? ' ex-choice-primary' : ''}`}
+                        aria-disabled={saving !== null || undefined}
+                        aria-describedby={`${titleId}-${kind}`}
+                        onClick={() => saveOnce(kind)}
+                      >
+                        <span className="ex-item-label">
+                          {saving === kind ? `Saving ${f.label}…` : f.label}
+                          {kind === 'docx' && <span className="ex-badge">Recommended</span>}
+                        </span>
+                        <span id={`${titleId}-${kind}`} className="ex-item-hint">
+                          {f.hint}
+                        </span>
+                      </button>
+                    </li>
+                    {kind === 'docx' && (
+                      <li>
+                        <button
+                          type="button"
+                          className="ex-choice"
+                          aria-disabled={saving !== null || undefined}
+                          aria-describedby={`${titleId}-pdf`}
+                          onClick={() => {
+                            if (saving) return
+                            closeRef.current()
+                            requestPdfExport()
+                          }}
+                        >
+                          <span className="ex-item-label">{PDF_EXPORT.label}</span>
+                          <span id={`${titleId}-pdf`} className="ex-item-hint">
+                            {PDF_EXPORT.hint}
+                          </span>
+                        </button>
+                      </li>
+                    )}
+                  </Fragment>
                 )
               })}
             </ul>

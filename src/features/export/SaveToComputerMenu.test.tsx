@@ -30,15 +30,26 @@ afterEach(() => {
 })
 
 describe('SaveToComputerMenu', () => {
+  it('reads "Export to computer" with a single space (the button’s gap only sets off the caret)', () => {
+    render(<SaveToComputerMenu />)
+    const trigger = screen.getByRole('button', { name: 'Export to computer' })
+    // The text is one inline run: "Export" and " to computer" are not separate flex items.
+    const text = trigger.firstElementChild as HTMLElement
+    expect(text.textContent).toBe('Export to computer')
+    expect(text.nextElementSibling).toHaveTextContent('▾')
+    expect(trigger.children).toHaveLength(2)
+  })
+
   it('lists every format with Word first, and supports keyboard navigation', async () => {
     const user = userEvent.setup()
     render(<SaveToComputerMenu />)
-    const trigger = screen.getByRole('button', { name: /Save to computer/ })
+    const trigger = screen.getByRole('button', { name: /Export to computer/ })
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
     await user.click(trigger)
     const items = screen.getAllByRole('menuitem')
     expect(items.map((i) => i.textContent)).toEqual([
       expect.stringContaining('Word document (.docx)Recommended'),
+      expect.stringContaining('PDF (.pdf)'),
       expect.stringContaining('Markdown (.md)'),
       expect.stringContaining('Plain text (.txt)'),
       expect.stringContaining('Print-ready web page (.html)'),
@@ -46,16 +57,27 @@ describe('SaveToComputerMenu', () => {
       expect.stringContaining('Keep a copy on my computer'),
     ])
     expect(items[0]).toHaveFocus()
-    expect(items[3]).toHaveAccessibleDescription(/Save as PDF/)
+    expect(items[1]).toHaveAccessibleDescription(/Book Preview .*Save as PDF/)
     await user.keyboard('{ArrowDown}')
     expect(items[1]).toHaveFocus()
     await user.keyboard('{End}')
-    expect(items[5]).toHaveFocus()
+    expect(items[6]).toHaveFocus()
     await user.keyboard('{ArrowDown}')
     expect(items[0]).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+
+  it('PDF opens the Book Preview to print (the print dialog’s “Save as PDF” makes the file)', async () => {
+    const { usePdfRequest } = await import('../preview/pdfRequest')
+    const before = usePdfRequest.getState().seq
+    const user = userEvent.setup()
+    render(<SaveToComputerMenu />)
+    await user.click(screen.getByRole('button', { name: 'Export to computer' }))
+    await user.click(screen.getByRole('menuitem', { name: /^PDF \(\.pdf\)/ }))
+    expect(usePdfRequest.getState().seq).toBe(before + 1)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('saves a Word file through the native Save dialog', async () => {
@@ -67,7 +89,7 @@ describe('SaveToComputerMenu', () => {
     const picker = vi.fn(async (_o: unknown) => handle)
     ;(window as Win).showSaveFilePicker = picker
     render(<SaveToComputerMenu />)
-    fireEvent.click(screen.getByRole('button', { name: /Save to computer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Export to computer/ }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Word document/ }))
     expect(picker).toHaveBeenCalledTimes(1) // inside the click
     expect(picker.mock.calls[0][0]).toMatchObject({ suggestedName: 'My Novel.docx', startIn: 'desktop' })
@@ -77,7 +99,7 @@ describe('SaveToComputerMenu', () => {
 
   it('opens the desktop copy dialog from the last item', () => {
     render(<SaveToComputerMenu />)
-    fireEvent.click(screen.getByRole('button', { name: /Save to computer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Export to computer/ }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Keep a copy on my computer/ }))
     expect(useExportUi.getState().chooserOpen).toBe(true)
   })
