@@ -89,7 +89,7 @@ describe('WriterPage', () => {
     await waitFor(() => expect(document.querySelector('.ed-prose')).not.toBeNull())
     expect(screen.getByTestId('pane')).toBeInTheDocument()
     expect(screen.getByTestId('filemenu')).toBeInTheDocument()
-    // File, Export to computer and Backups lead the first row of formatting controls.
+    // File, Export and Backups lead the first row of formatting controls.
     const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
     expect(within(toolbar).getByTestId('filemenu')).toBe(toolbar.querySelector('.ed-group')?.firstElementChild)
   })
@@ -202,14 +202,14 @@ describe('WriterPage', () => {
     expect(getEditor().getHTML()).toMatch(/^<h1/)
   })
 
-  it('puts Export to computer in the header and opens the dialog from it', async () => {
+  it('puts Export in the header and opens the dialog from it', async () => {
     useDocuments.getState().hydrate([docWith('x')], 'doc-1')
     renderPage()
     await waitFor(() => expect(getEditor().getText()).toBe('x'))
-    fireEvent.click(screen.getByRole('button', { name: /Export to computer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Export/ }))
     expect(screen.getByRole('menuitem', { name: /Word document \(\.docx\)/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('menuitem', { name: /Keep a copy on my computer/ }))
-    expect(await screen.findByRole('dialog', { name: 'Export to your computer' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Export' })).toBeInTheDocument()
   })
 
   it('Cmd/Ctrl+S inside the editor: no browser Save page, pending keystrokes reach the store at once', async () => {

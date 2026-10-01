@@ -81,7 +81,7 @@ export const otherDialogOpen = () => document.querySelector('[role="dialog"][ari
  */
 export function PreviewButton({ editor }: { editor: Editor | null }) {
   const { currentId, format, onHeaderFooterChange, onBookLayoutChange, onPrintChange } = useBookSettings()
-  /** `print`: opened by Export to computer › PDF, so it prints straight away and closes. */
+  /** `print`: opened by Export › PDF, so it prints straight away and closes. */
   const [open, setOpen] = useState<{ block: number | undefined; print?: boolean } | null>(null)
   const openRef = useRef(open)
   openRef.current = open
@@ -101,7 +101,7 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat || !isPreviewShortcut(e)) return
       e.preventDefault()
-      // Not over another open dialog (Headers & footers, Export to computer, a Drive conflict…):
+      // Not over another open dialog (Headers & footers, Export, a Drive conflict…):
       // the full-screen preview would cover it and take its focus.
       if (!openRef.current && !otherDialogOpen()) showRef.current()
     }
@@ -109,7 +109,7 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Export to computer › PDF.
+  // Export › PDF.
   const pdfSeq = usePdfRequest((s) => s.seq)
   const seenPdf = useRef(pdfSeq)
   useEffect(() => {
@@ -186,7 +186,7 @@ export function ExitFocusButton() {
 }
 
 /** Toolbar › Headers & footers…: running heads, footer line, page numbers and book layout, without opening the preview. */
-/** "Headers & footers…" beside File, Export to computer and Backups, in the same button style (it opens a dialog, hence the "…"). */
+/** "Headers & footers…" beside File, Export and Backups, in the same button style (it opens a dialog, hence the "…"). */
 export function HeaderFooterButton() {
   const { currentId, format } = useBookSettings()
   const [open, setOpen] = useState(false)

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 /**
- * "Export to computer › PDF": the writer page's Book Preview opens, typesets
+ * "Export › PDF": the writer page's Book Preview opens, typesets
  * the book and prints it (the print dialog's "Save as PDF" makes the file), so
  * the PDF is exactly the pages the preview shows. Each request bumps `seq`.
  */

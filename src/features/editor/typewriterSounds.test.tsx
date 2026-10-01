@@ -5,11 +5,12 @@ import { useSettings } from '../../store/settings'
 const played = vi.hoisted(() => [] as string[])
 vi.mock('./typewriterSounds', async (importActual) => ({
   ...(await importActual<typeof import('./typewriterSounds')>()),
-  playStrike: vi.fn(() => void played.push('strike')),
+  playStrike: vi.fn((size = 'key') => void played.push(size === 'wide' ? 'strike-wide' : 'strike')),
+  playRelease: vi.fn(() => void played.push('release')),
   playDelete: vi.fn(() => void played.push('delete')),
 }))
 
-const { soundForKey } = await import('./typewriterSounds')
+const { keySize, soundForKey } = await import('./typewriterSounds')
 const { useTypewriterSounds } = await import('./useTypewriterSounds')
 
 function Harness() {
@@ -47,6 +48,10 @@ describe('typewriter sounds', () => {
     expect(k('z', { ctrlKey: true })).toBeNull()
     expect(k('a', { isComposing: true })).toBeNull()
     expect(k('å', { altKey: true })).toBe('strike')
+    // The space bar and Enter are wide keys, with a deeper stroke.
+    expect(keySize(' ')).toBe('wide')
+    expect(keySize('Enter')).toBe('wide')
+    expect(keySize('a')).toBe('key')
   })
 
   it('is off by default, and then makes no sound', () => {
@@ -56,16 +61,21 @@ describe('typewriter sounds', () => {
     expect(played).toEqual([])
   })
 
-  it('when on, plays in the manuscript only: a strike per key, a knock for Backspace', () => {
+  it('when on, plays in the manuscript only: click going down, click coming up, a knock for Backspace', () => {
     vi.useFakeTimers()
     useSettings.setState({ typewriterSounds: true })
     render(<Harness />)
     const prose = screen.getByTestId('prose')
-    press(prose, 'a')
+    press(prose, 'a', { code: 'KeyA' })
+    fireEvent.keyUp(prose, { key: 'a', code: 'KeyA' })
     act(() => void vi.advanceTimersByTime(50))
-    press(prose, 'Backspace')
+    press(prose, ' ', { code: 'Space' })
+    fireEvent.keyUp(prose, { key: ' ', code: 'Space' })
+    act(() => void vi.advanceTimersByTime(50))
+    press(prose, 'Backspace', { code: 'Backspace' })
+    fireEvent.keyUp(prose, { key: 'Backspace', code: 'Backspace' })
     act(() => void vi.advanceTimersByTime(50))
     press(screen.getByLabelText('Manuscript title'), 'b')
-    expect(played).toEqual(['strike', 'delete'])
+    expect(played).toEqual(['strike', 'release', 'strike-wide', 'release', 'delete'])
   })
 })

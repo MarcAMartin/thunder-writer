@@ -655,7 +655,7 @@ src/
     import/                importManuscript(): .docx (mammoth, lazy-loaded), HTML/Google
                            Docs, Markdown and text → TipTap JSON; chapter/scene-break
                            detection; ImportHost (progress/result dialogs), drag-and-drop
-    export/                Export to computer (docx, Markdown, text, print HTML, backup; PDF via preview),
+    export/                Export (docx, Markdown, text, print HTML, backup; PDF via preview),
                            desktop copy (File System Access API), Cmd/Ctrl+S
     preview/               Book Preview: book paginator, layout engine, flip-book
                            viewer, navigation, header/footer settings and panel, print
@@ -832,21 +832,30 @@ off.
 **Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
 after "Chapters start new page"; `typewriterSounds` in settings, off by
 default). The sounds are synthesised with the Web Audio API, so there are no
-audio files. A key strike (band-passed noise click plus a falling triangle
-thump) plays for each character, Enter and Tab. A duller double knock
-(low-passed clicks plus a low thump) plays for Backspace and Delete. Nothing
-plays for shortcuts, arrows or IME composition, or outside the manuscript. Each
-strike varies a little, and sounds are at least 18 ms apart. The audio context
-starts on the first key press (browsers need a gesture), and ticking the box
-plays a sample.
+audio files. The voice is a clicky mechanical keyboard (blue switches, with a
+nod to the IBM Model M), built in layers so it isn't flat:
+
+- **Press:** the click jacket's 4–6 ms bright snap; a few ms later the key
+  bottoming out, as a band-passed plastic clack over a falling triangle tone
+  for the case; and a faint metallic spring ring.
+- **Release:** a second, quieter click when the key comes up (`keyup`).
+- **Space bar and Enter:** a deeper, heavier stroke with a stabilizer's rattle.
+- **Backspace and Delete:** a lower, hollower clack with that rattle, clearly
+  unlike a letter.
+
+Everything runs through a short generated "room" (a 90 ms convolution
+impulse) and a gentle compressor. Nothing plays for shortcuts, arrows or IME
+composition, or outside the manuscript. Each stroke varies a little, and
+presses are at least 18 ms apart. The audio context starts on the first key
+press (browsers need a gesture), and ticking the box plays a sample.
 
 ## Saving to the computer (export, PDF and desktop copy)
 
 Code: `src/features/export/` (mounted by `WriterPage` via `<ExportHost />`,
 which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
 
-- **Export to computer ▾** (the first row of controls, after **File**; also
-  **File › Export to computer…**) saves a one-off copy of the open manuscript as:
+- **Export ▾** (the first row of controls, after **File**; also
+  **File › Export…**) saves a one-off copy of the open manuscript as:
   - Word `.docx` (recommended): book trim size, mirrored margins (gutter at
     the spine, patched in as `w:mirrorMargins` because the docx library has no
     option for it), font, size and line spacing, chapters as Heading 1, page
@@ -887,7 +896,7 @@ which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
   editor, so the browser's "Save page" dialog never opens. It pushes the
   editor's debounced keystrokes into the store, writes IndexedDB immediately
   and waits for it before saying "Saved in your browser", then writes the
-  desktop copy if there is one (or opens **Export to your computer** the first
+  desktop copy if there is one (or opens **Export** the first
   time). Cmd/Ctrl+**Shift**+S is left to the editor (strikethrough).
 - **Round trips are tested** (`src/features/export/roundtrip.test.ts`): a saved
   `.docx`, `.md` or `.txt` re-imported with **File › Open from computer…** comes
@@ -1156,7 +1165,7 @@ At commit 4b264d6 all three are clean, with 816 tests in 67 files.
   open on a right-hand page then use `break-before: left`, which Chrome, like
   `right`, treats as a plain page break.
 - While Book Preview is open, Cmd/Ctrl+S saves in the browser and writes an
-  existing desktop copy, but never opens **Export to your computer** (it would
+  existing desktop copy, but never opens **Export** (it would
   sit hidden behind the full-screen preview). The toast says to close the
   preview first. The preview shortcut (Cmd/Ctrl+Alt+P) does nothing while
   another modal dialog is open.

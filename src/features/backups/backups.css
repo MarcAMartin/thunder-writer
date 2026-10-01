@@ -2,7 +2,7 @@
 
 .bk-wrap { position: relative; display: inline-flex; }
 .bk-trigger { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-/* Opens rightwards from the menu bar at the header's left, like File and Save to computer. */
+/* Opens rightwards from the menu bar at the header's left, like File and Export. */
 .bk-wrap .bk-menu { max-height: min(70vh, 560px); overflow-y: auto; }
 /* Back up now and All backups stay in view however long the list is. */
 .bk-menu-foot { position: sticky; bottom: -6px; margin: 0 -6px -6px; padding: 0 6px 6px; background: var(--tw-surface); display: flex; flex-direction: column; }
@@ -42,6 +42,6 @@
 .bk-row-main { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; padding: 6px 4px; }
 
 @media (max-width: 600px) {
-  /* Like Save to computer: the menu spans the screen under the header. */
+  /* Like Export: the menu spans the screen under the header. */
   .bk-wrap .bk-menu { position: fixed; top: 52px; left: 12px; right: 12px; width: auto; }
 }

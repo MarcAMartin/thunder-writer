@@ -186,12 +186,12 @@ describe('Toolbar › Preview', () => {
 })
 
 describe('Toolbar › Headers & footers…', () => {
-  it('sits right after File, Export to computer and Backups, in the same button style', async () => {
+  it('sits right after File, Export and Backups, in the same button style', async () => {
     await renderPage()
     const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
     const button = within(toolbar).getByRole('button', { name: 'Headers & footers…' })
     expect(button).toHaveClass('tw-btn')
-    // The first group: the File menu (stubbed here; it brings Export to computer and Backups), then this button.
+    // The first group: the File menu (stubbed here; it brings Export and Backups), then this button.
     const first = toolbar.querySelector('.ed-group')!
     expect([...first.children]).toEqual([
       screen.getByTestId('filemenu'),
@@ -321,6 +321,8 @@ describe('Focus Mode', () => {
     expect(screen.queryByTestId('pane')).toBeNull()
     expect(document.querySelector('.ed-main')).toBeInTheDocument()
     const exit = screen.getByRole('button', { name: 'Exit Focus Mode' })
+    // Light or dark, still reachable in Focus Mode.
+    expect(document.querySelector('.ed-focus-theme')?.querySelector('button')).toHaveAccessibleName(/^Theme: /)
     await waitFor(() => expect(document.activeElement).toBe(document.querySelector('.ed-prose')))
 
     await user.click(exit)

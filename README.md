@@ -134,7 +134,7 @@ book:
 
 ### Your manuscript, on your computer
 
-- **Export to computer** gives you a Word document laid out at your trim size,
+- **Export** gives you a Word document laid out at your trim size,
   with chapters on new pages, page numbers and your running heads. You can
   also export a **PDF** of your book's pages (as Preview Book shows them),
   Markdown, plain text, a print-ready web page or a Thunder Writer backup of
@@ -277,7 +277,7 @@ been checked only in Chrome.
 ### What happens to my book if I clear my browser?
 
 Anything stored only in the browser goes with it. So connect Google Drive,
-keep a desktop copy, or use **Export to computer** for a backup now and then. A
+keep a desktop copy, or use **Export** for a backup now and then. A
 backup covers the one manuscript you have open, so save one for each book
 (Drive, when connected, keeps all of them). Reference files and your AI keys
 live only in this browser and are never uploaded or included in a backup, so

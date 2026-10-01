@@ -212,7 +212,7 @@ export function DesktopCopyControl({ docId: explicitId }: { docId?: string }) {
 
 /**
  * Compact status for the header: "My Novel.docx · saved 12:04 PM". Clicking
- * resumes after a reload (one click), or opens "Export to your computer".
+ * resumes after a reload (one click), or opens "Export".
  * Renders nothing when no desktop copy is set up.
  */
 export function DesktopCopyBadge() {

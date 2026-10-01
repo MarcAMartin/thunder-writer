@@ -7,7 +7,7 @@ import { PDF_EXPORT, requestPdfExport } from '../preview/pdfRequest'
 import './export.css'
 
 /**
- * "Export to computer ▾": one-off exports in every format (Word, then PDF), plus
+ * "Export ▾": one-off exports in every format (Word, then PDF), plus
  * the entry point for "Keep a copy on my computer". Keyboard: Enter/Space/↓ opens,
  * ↑/↓/Home/End move, Escape closes.
  */
@@ -70,7 +70,6 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
         ref={triggerRef}
         type="button"
         className="tw-btn ex-trigger"
-        aria-label="Export to computer"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -83,11 +82,7 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
           }
         }}
       >
-        {/* Narrow screens show just "Export ▾"; the accessible name stays "Export to computer". One text span, so the
-            button's flex gap falls only before the caret, not inside "Export to computer". */}
-        <span>
-          Export<span className="ex-trigger-long"> to computer</span>
-        </span>
+        <span>Export</span>
         <span className="tw-caret" aria-hidden="true">
           ▾
         </span>
@@ -99,7 +94,7 @@ export function SaveToComputerMenu({ align = 'start' }: { align?: 'start' | 'end
           ref={menuRef}
           className={`ex-menu${align === 'end' ? ' ex-menu-end' : ''}`}
           role="menu"
-          aria-label="Export to computer"
+          aria-label="Export"
           onKeyDown={onMenuKey}
         >
           <div className="ex-group-label" aria-hidden="true">

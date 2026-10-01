@@ -30,12 +30,11 @@ afterEach(() => {
 })
 
 describe('SaveToComputerMenu', () => {
-  it('reads "Export to computer" with a single space (the button’s gap only sets off the caret)', () => {
+  it('reads "Export", with the caret set off by the button’s gap', () => {
     render(<SaveToComputerMenu />)
-    const trigger = screen.getByRole('button', { name: 'Export to computer' })
-    // The text is one inline run: "Export" and " to computer" are not separate flex items.
+    const trigger = screen.getByRole('button', { name: 'Export' })
     const text = trigger.firstElementChild as HTMLElement
-    expect(text.textContent).toBe('Export to computer')
+    expect(text.textContent).toBe('Export')
     expect(text.nextElementSibling).toHaveTextContent('▾')
     expect(trigger.children).toHaveLength(2)
   })
@@ -43,7 +42,7 @@ describe('SaveToComputerMenu', () => {
   it('lists every format with Word first, and supports keyboard navigation', async () => {
     const user = userEvent.setup()
     render(<SaveToComputerMenu />)
-    const trigger = screen.getByRole('button', { name: /Export to computer/ })
+    const trigger = screen.getByRole('button', { name: /Export/ })
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
     await user.click(trigger)
     const items = screen.getAllByRole('menuitem')
@@ -74,7 +73,7 @@ describe('SaveToComputerMenu', () => {
     const before = usePdfRequest.getState().seq
     const user = userEvent.setup()
     render(<SaveToComputerMenu />)
-    await user.click(screen.getByRole('button', { name: 'Export to computer' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     await user.click(screen.getByRole('menuitem', { name: /^PDF \(\.pdf\)/ }))
     expect(usePdfRequest.getState().seq).toBe(before + 1)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -89,7 +88,7 @@ describe('SaveToComputerMenu', () => {
     const picker = vi.fn(async (_o: unknown) => handle)
     ;(window as Win).showSaveFilePicker = picker
     render(<SaveToComputerMenu />)
-    fireEvent.click(screen.getByRole('button', { name: /Export to computer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Export/ }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Word document/ }))
     expect(picker).toHaveBeenCalledTimes(1) // inside the click
     expect(picker.mock.calls[0][0]).toMatchObject({ suggestedName: 'My Novel.docx', startIn: 'desktop' })
@@ -99,7 +98,7 @@ describe('SaveToComputerMenu', () => {
 
   it('opens the desktop copy dialog from the last item', () => {
     render(<SaveToComputerMenu />)
-    fireEvent.click(screen.getByRole('button', { name: /Export to computer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Export/ }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Keep a copy on my computer/ }))
     expect(useExportUi.getState().chooserOpen).toBe(true)
   })

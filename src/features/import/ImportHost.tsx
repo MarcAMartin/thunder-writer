@@ -181,7 +181,7 @@ function DoneDialog(props: {
       setImportNotice(`Saving to “${target.file.name}” on your computer as you write.`)
       onStart()
     } else if (outcome === 'denied') {
-      setProblem(`The browser didn’t allow Thunder Writer to save into “${target.file.name}”. Try again, or use Export to computer for a copy.`)
+      setProblem(`The browser didn’t allow Thunder Writer to save into “${target.file.name}”. Try again, or use Export for a copy.`)
     }
   }
 
@@ -246,8 +246,8 @@ function DoneDialog(props: {
       {opened && !target && (
         <p className="im-hint">
           {canSaveBackToOpenedFiles()
-            ? 'Thunder Writer can’t save back into this kind of file, so it wasn’t changed. Export to computer saves a copy in any format.'
-            : 'The file itself wasn’t changed. Saving back into a file works in Chrome and Edge; here, Export to computer saves a copy whenever you like.'}
+            ? 'Thunder Writer can’t save back into this kind of file, so it wasn’t changed. Export saves a copy in any format.'
+            : 'The file itself wasn’t changed. Saving back into a file works in Chrome and Edge; here, Export saves a copy whenever you like.'}
         </p>
       )}
     </Modal>

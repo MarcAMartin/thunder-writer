@@ -164,7 +164,7 @@ export function WriterPage() {
               Settings
             </Link>
           </div>
-          {/* File, Export to computer and Backups lead the first row of controls, as in word processors. */}
+          {/* File, Export and Backups lead the first row of controls, as in word processors. */}
           <Toolbar
             leading={
               <FileMenu
@@ -200,8 +200,14 @@ export function WriterPage() {
           </div>
         )}
         {focus && <ExitFocusButton />}
+        {/* Light or dark without leaving Focus Mode. */}
+        {focus && (
+          <div className="ed-focus-theme">
+            <ThemeToggle />
+          </div>
+        )}
         <StatusBar />
-        {/* Export to computer: desktop copy service, Cmd/Ctrl+S, the Export dialog and its toast. */}
+        {/* Export: desktop copy service, Cmd/Ctrl+S, the Export dialog and its toast. */}
         <ExportHost />
         <ImportHost dragging={dragging} />
       </div>

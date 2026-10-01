@@ -35,7 +35,7 @@ export function isPreviewCovering(): boolean {
  *    the browser copy (IndexedDB) now, so "Saved in your browser" is true;
  *  - with a desktop copy for this manuscript: write it now (asking for
  *    permission again first if a reload took it away) and confirm with a toast;
- *  - without one: open "Export to your computer" (Word first); once the writer
+ *  - without one: open "Export" (Word first); once the writer
  *    has closed that dialog this session, just confirm the browser save and
  *    offer the dialog from the toast.
  *  - while the Book preview is open: never open the dialog (it would be hidden
@@ -57,15 +57,15 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
   const browserSave = saveInBrowserNow()
   const offerChooser = (label: string) => (covered ? undefined : { label, run: () => useExportUi.getState().openChooser() })
   const browserFailed = (err: string, extra = '') =>
-    useExportUi.getState().showToast(`Not saved in your browser: ${err}${extra}`, 'error', offerChooser('Export to computer…'))
-  /** Opens "Export to your computer", or while the preview covers the page, says how to get to it. */
+    useExportUi.getState().showToast(`Not saved in your browser: ${err}${extra}`, 'error', offerChooser('Export…'))
+  /** Opens "Export", or while the preview covers the page, says how to get to it. */
   const chooser = (note?: string) => {
     if (!covered) {
       useExportUi.getState().openChooser(note)
       return
     }
     const why = note ? `${note.replace(/ Choose where to keep your copy\.$/, '')} ` : ''
-    useExportUi.getState().showToast(`${BROWSER}. ${why}To export to your computer, close the preview and press ${mod}S.`, 'info')
+    useExportUi.getState().showToast(`${BROWSER}. ${why}To export, close the preview and press ${mod}S.`, 'info')
   }
   const openChooser = (note?: string) => {
     if (covered) {
@@ -89,7 +89,7 @@ export async function handleSaveShortcut(opts: { saveAs?: boolean } = {}): Promi
       else if (covered) chooser()
       else
         useExportUi.getState().showToast(`${BROWSER}.`, 'ok', {
-          label: 'Also export to computer…',
+          label: 'Also export…',
           run: () => useExportUi.getState().openChooser(),
         })
     } else {

@@ -153,7 +153,7 @@ function useCurrentFormat() {
 }
 
 /**
- * `leading` starts the first row (the writer page puts File, Export to computer
+ * `leading` starts the first row (the writer page puts File, Export
  * and Backups there), followed by Headers & footers… in the same button style.
  */
 export function Toolbar({ leading }: { leading?: ReactNode } = {}) {

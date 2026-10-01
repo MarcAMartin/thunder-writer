@@ -27,7 +27,7 @@ type ModalKind = 'open' | 'drive' | 'conflict' | null
 type Note = { text: string; tone: 'ok' | 'error' } | null
 
 export interface FileMenuProps {
-  /** Rendered right after the File button (the writer page puts "Export to computer ▾" here). */
+  /** Rendered right after the File button (the writer page puts "Export ▾" here). */
   afterMenu?: ReactNode
   /** Rendered right after the save status (the writer page puts the desktop-copy badge here). */
   afterStatus?: ReactNode
@@ -37,7 +37,7 @@ export interface FileMenuProps {
    * the element isn't mounted yet, so nothing shows; omit to keep it after the menus.
    */
   statusContainer?: HTMLElement | null
-  /** Adds "Export to computer…" to the menu (opens the Export to your computer panel). */
+  /** Adds "Export…" to the menu (opens the Export panel). */
   onSaveToComputer?: () => void
 }
 
@@ -212,7 +212,7 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer, statusConta
                 }}
                 disabled={!doc}
               >
-                Export to computer…
+                Export…
               </MenuItem>
             )}
             <MenuItem onClick={act(exportBackup)} disabled={!doc}>

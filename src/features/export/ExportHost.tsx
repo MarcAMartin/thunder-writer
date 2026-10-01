@@ -13,7 +13,7 @@ import './export.css'
 /**
  * Mount once on the writing page. Runs the desktop-copy service (restores the
  * current manuscript's copy, rewrites it as it changes), intercepts Cmd/Ctrl+S,
- * and renders the "Export to your computer" dialog and the save toast.
+ * and renders the "Export" dialog and the save toast.
  */
 export function ExportHost() {
   useDesktopCopyService()
@@ -81,7 +81,7 @@ export function ExportToast() {
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
 
-/** "Export to your computer": keep a desktop copy, or export a one-off copy in any format (PDF via Book Preview). */
+/** "Export": keep a desktop copy, or export a one-off copy in any format (PDF via Book Preview). */
 export function SaveChooserDialog() {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -139,7 +139,7 @@ export function SaveChooserDialog() {
     >
       <div className="ex-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
         <header className="ex-dialog-head">
-          <h2 id={titleId}>Export to your computer</h2>
+          <h2 id={titleId}>Export</h2>
           <button type="button" className="tw-btn tw-btn-ghost ex-close" onClick={close} aria-label="Close">
             ✕
           </button>

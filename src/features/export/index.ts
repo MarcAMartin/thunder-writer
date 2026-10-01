@@ -1,4 +1,4 @@
-// Public surface of the export feature ("Export to computer" + desktop copy).
+// Public surface of the export feature ("Export" + desktop copy).
 export { ExportHost, ExportToast, SaveChooserDialog, useDesktopCopyService } from './ExportHost'
 export { SaveToComputerMenu } from './SaveToComputerMenu'
 export { DesktopCopyBadge, DesktopCopyControl } from './DesktopCopyControl'

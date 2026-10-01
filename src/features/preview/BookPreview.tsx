@@ -60,7 +60,7 @@ export interface BookPreviewProps {
   /** Called as the layout progresses (page count, done, timings). */
   onLayoutUpdate?: (info: LayoutUpdate) => void
   /**
-   * Export to computer › PDF: print as soon as the layout is done, then close
+   * Export › PDF: print as soon as the layout is done, then close
    * (the print dialog's "Save as PDF" makes the file).
    */
   printOnOpen?: boolean

@@ -115,27 +115,27 @@ describe('FileMenu', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('hosts Export to computer: slots beside the button and status, and a menu item that returns focus to File', async () => {
+  it('hosts Export: slots beside the button and status, and a menu item that returns focus to File', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(
       <MemoryRouter initialEntries={['/write']}>
-        <FileMenu afterMenu={<button type="button">Export to computer</button>} afterStatus={<span>copy badge</span>} onSaveToComputer={onSave} />
+        <FileMenu afterMenu={<button type="button">Export</button>} afterStatus={<span>copy badge</span>} onSaveToComputer={onSave} />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('button', { name: 'Export to computer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getByText('copy badge')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^file/i }))
-    await user.click(screen.getByRole('menuitem', { name: 'Export to computer…' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export…' }))
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: /^file/i })).toHaveFocus()
   })
 
-  it('has no Export to computer item unless the page provides it', async () => {
+  it('has no Export item unless the page provides it', async () => {
     const user = userEvent.setup()
     renderAt()
     await user.click(screen.getByRole('button', { name: /file/i }))
-    expect(screen.queryByRole('menuitem', { name: 'Export to computer…' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Export…' })).not.toBeInTheDocument()
   })
 
   it('creates a new manuscript from the menu', async () => {
