@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
 import { EditorContent, type Editor } from '@tiptap/react'
+import { clampSetting, useSettings } from '../../store/settings'
 import type { HeaderFooterSettings } from '../../types'
 import { folioOf, normalizeHeaderFooter, resolveHeaderFooter, sideOfFolio, type PageFurniture } from '../preview/headerFooter'
 import { pageGeometry, trimLabel, FONT_OPTIONS, type ResolvedFormat } from './presets'
@@ -14,6 +15,30 @@ const MIN_SCALE = 0.5
 export function fitScale(available: number, pageWidth: number): number {
   if (!(available > 0) || !(pageWidth > 0)) return 1
   return Math.max(MIN_SCALE, Math.min(1, (available - SIDE_PADDING * 2) / pageWidth))
+}
+
+/** The page's scale at a zoom level (status bar slider): 100% is the page fitted to the width. */
+export function pageScale(available: number, pageWidth: number, zoomPercent: number): number {
+  return fitScale(available, pageWidth) * (clampSetting('pageZoom', zoomPercent) / 100)
+}
+
+/**
+ * Keeps the writer's place when the page scale changes: the line at the middle
+ * of the window stays there, and a page wider than the window is centered.
+ */
+function useKeepPlaceOnZoom(scrollRef: RefObject<HTMLDivElement | null>, zoomRef: RefObject<HTMLDivElement | null>, scale: number) {
+  const prev = useRef(scale)
+  useLayoutEffect(() => {
+    const from = prev.current
+    prev.current = scale
+    const el = scrollRef.current
+    const zoom = zoomRef.current
+    if (!el || !zoom || from === scale || !(from > 0)) return
+    const top = zoom.offsetTop
+    const middle = el.scrollTop + el.clientHeight / 2 - top
+    el.scrollTop = Math.max(0, middle * (scale / from) - el.clientHeight / 2 + top)
+    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+  }, [scale, scrollRef, zoomRef])
 }
 
 function useElementSize<T extends HTMLElement>() {
@@ -87,7 +112,10 @@ export function PageView({
   const pitch = geo.pageHeight + SHEET_GAP
   const [scrollRef, scrollSize] = useElementSize<HTMLDivElement>()
   const [flowRef, flowSize] = useElementSize<HTMLDivElement>()
-  const scale = fitScale(scrollSize.width, geo.pageWidth)
+  const zoomRef = useRef<HTMLDivElement>(null)
+  const zoom = useSettings((s) => s.pageZoom)
+  const scale = pageScale(scrollSize.width, geo.pageWidth, zoom)
+  useKeepPlaceOnZoom(scrollRef, zoomRef, scale)
 
   const [sheetInfo, setSheetInfo] = useState<SheetInfo[]>([])
   const pageCount = usePagination(editor, {
@@ -108,6 +136,7 @@ export function PageView({
   const sheets = Math.max(pageCount, Math.ceil((stackHeight + SHEET_GAP) / pitch))
 
   const stackStyle = {
+    left: SIDE_PADDING,
     width: geo.pageWidth,
     height: stackHeight,
     transform: scale === 1 ? undefined : `scale(${scale})`,
@@ -149,7 +178,8 @@ export function PageView({
           {pageCount} {pageCount === 1 ? 'page' : 'pages'}
         </strong>
       </p>
-      <div className="ed-zoom" style={{ width: geo.pageWidth * scale, height: stackHeight * scale }}>
+      {/* The side padding travels with the page, so a zoomed page wider than the window keeps a margin when scrolled. */}
+      <div className="ed-zoom" ref={zoomRef} style={{ width: geo.pageWidth * scale + SIDE_PADDING * 2, height: stackHeight * scale }}>
         <div className="ed-stack" style={stackStyle} onMouseDown={onMouseDown}>
           <div className="ed-sheets" aria-hidden="true">
             {Array.from({ length: sheets }, (_, i) => {

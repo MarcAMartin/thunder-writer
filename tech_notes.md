@@ -23,7 +23,7 @@ own key. The owner's original design (UI boxes and behaviour notes) is in
 - [Privacy and security model](#privacy-and-security-model)
 - [Architecture](#architecture)
 - [Import pipeline](#import-pipeline)
-- [Focus Mode and typewriter sounds](#focus-mode-and-typewriter-sounds)
+- [Focus Mode, page zoom and typewriter sounds](#focus-mode-page-zoom-and-typewriter-sounds)
 - [Saving to the computer (export, PDF and desktop copy)](#saving-to-the-computer-export-pdf-and-desktop-copy)
 - [Book Preview and pagination](#book-preview-and-pagination)
 - [Performance](#performance)
@@ -839,7 +839,7 @@ works like a desktop app's Open in Chrome and Edge (File System Access API:
   computer is a plain file chooser there, and the dialog says that Export to
   computer saves a copy any time.
 
-## Focus Mode and typewriter sounds
+## Focus Mode, page zoom and typewriter sounds
 
 **Focus Mode** (`src/features/editor/focusMode.ts`; toolbar button after
 Headers & footers…, in the app icon's navy). Turning it on hides the header,
@@ -856,6 +856,18 @@ natural size. Both snapshots of the pages slide by the extra room above them
 `tw-leaving-focus`), so they never show twice. Without View Transitions it is
 a short fade; with reduced motion, instant. Leaving the writer page turns it
 off.
+
+**Page zoom** (the slider at the left of the status bar; `pageZoom` in
+settings, 100–250% in steps of 10, default 100, clamped by `SETTING_BOUNDS`).
+100% is the page fitted to the window as before (`fitScale`, at most 1);
+`pageScale` multiplies that by the zoom, and the result is the one transform
+scale on the page stack, so pagination (which divides measurements by the
+scale) needs nothing else. The 32 px side padding is part of `.ed-zoom`'s
+width, so a zoomed page wider than the window keeps a margin when scrolled
+sideways, and the page details bar is sticky on the left as well as the top.
+When the scale changes, the line at the middle of the window stays there and
+a page wider than the window is centered. The zoom also applies in Focus
+Mode, where the status bar is hidden.
 
 **Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
 after "Chapters start new page"; `typewriterSounds` in settings, off by

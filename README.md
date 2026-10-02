@@ -200,6 +200,7 @@ them from the File menu.
   out. **Exit Focus Mode** (or Esc) brings it all back.
 - **Typewriter sounds**, if you like them: a key strike as you type, a softer
   knock when you delete. Off until you tick the box.
+- **Zoom** the pages from 100% up to 250% with the slider at the bottom left.
 
 ## Try it
 

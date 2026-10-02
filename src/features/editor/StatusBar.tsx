@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useEditorContext } from '../../shell/EditorContext'
 import { useSession } from '../../store/session'
+import { clampSetting, SETTING_BOUNDS, useSettings } from '../../store/settings'
 import { describeElapsed, formatCost, formatCount, formatElapsed } from './format'
 
 /** Word count, recomputed shortly after edits (not on every keystroke). */
@@ -50,6 +51,30 @@ function Stat({ label, value, title, sr }: { label: string; value: string; title
   )
 }
 
+/** Page zoom, 100–250%: 100% fits the page to the window, more makes it bigger. */
+function ZoomSlider() {
+  const zoom = useSettings((s) => clampSetting('pageZoom', s.pageZoom))
+  const set = useSettings((s) => s.set)
+  const id = useId()
+  return (
+    <div className="ed-zoomctl">
+      <label htmlFor={id}>Zoom</label>
+      <input
+        id={id}
+        type="range"
+        {...SETTING_BOUNDS.pageZoom}
+        step={10}
+        value={zoom}
+        aria-valuetext={`${zoom}%`}
+        onChange={(e) => set({ pageZoom: clampSetting('pageZoom', Number(e.target.value)) })}
+      />
+      <span className="ed-zoomctl-value" aria-hidden="true">
+        {zoom}%
+      </span>
+    </div>
+  )
+}
+
 export function StatusBar() {
   const words = useWordCount()
   const startedAt = useSession((s) => s.startedAt)
@@ -66,6 +91,7 @@ export function StatusBar() {
 
   return (
     <footer className="ed-status" aria-label="Writing session">
+      <ZoomSlider />
       <dl className="ed-stats">
         <Stat label="Words" value={formatCount(words)} />
         <Stat label="Time" value={formatElapsed(elapsed)} title="Time elapsed this session" sr={describeElapsed(elapsed)} />

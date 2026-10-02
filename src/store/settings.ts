@@ -35,6 +35,8 @@ export interface SettingsState {
   supportDeveloper: boolean
   /** Typewriter sounds while typing (a key strike) and deleting (a softer knock). Off until turned on. */
   typewriterSounds: boolean
+  /** Page zoom in the editor, in percent (status bar slider): 100 is the page fitted to the window. */
+  pageZoom: number
   /** Autosave to Drive every N seconds while there are unsynced changes. 0 = only on change debounce. */
   driveAutosaveSec: number
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
@@ -50,6 +52,7 @@ export const SETTING_BOUNDS = {
   maxOpenSuggestions: { min: 1, max: 5 },
   triviaCooldownSec: { min: 120, max: 86_400 },
   driveAutosaveSec: { min: 0, max: 3600 },
+  pageZoom: { min: 100, max: 250 },
 } as const
 
 export type BoundedSetting = keyof typeof SETTING_BOUNDS
@@ -116,6 +119,7 @@ export const useSettings = create<SettingsState>()(
       suggestionsCollapsed: false,
       supportDeveloper: true,
       typewriterSounds: false,
+      pageZoom: 100,
       driveAutosaveSec: 60,
       set: (patch) => set(patch),
     }),
