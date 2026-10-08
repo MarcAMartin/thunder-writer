@@ -119,6 +119,12 @@ and are entered in Settings.
   Drive autosave interval, and only in builds with Drive; nothing to set up),
   theme, and "Clear all local data". Sections can be deep-linked: `#ai`, `#claude`,
   `#openai`, `#suggestions`, `#drive`, `#appearance`, `#data`.
+- `/privacy`: the Privacy Policy (`/policy` redirects to it), and `/terms`: the
+  Terms of Service (`src/features/legal/`). Both are linked from the home page
+  footer; Google's OAuth consent screen points to them. The policy describes
+  every place data goes (see [Privacy and security model](#privacy-and-security-model)),
+  so when the app starts sending anything new anywhere, update the policy and
+  `LEGAL_EFFECTIVE_DATE`.
 
 ## AI providers, models and cost
 

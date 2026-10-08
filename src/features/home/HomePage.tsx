@@ -17,7 +17,7 @@ import {
   SpellIcon,
   StoryIcon,
 } from './icons'
-import { IMPORT_LOCAL_PATH, NEW_MANUSCRIPT_PATH, OPEN_PICKER_PATH, SETTINGS_PATH } from './routes'
+import { IMPORT_LOCAL_PATH, NEW_MANUSCRIPT_PATH, OPEN_PICKER_PATH, PRIVACY_PATH, SETTINGS_PATH, TERMS_PATH } from './routes'
 import './home.css'
 
 interface Item {
@@ -247,6 +247,12 @@ export function HomePage() {
             </TipJarLink>
             <Link to={SETTINGS_PATH} className="hm-nav-link">
               Settings
+            </Link>
+            <Link to={PRIVACY_PATH} className="hm-nav-link">
+              Privacy
+            </Link>
+            <Link to={TERMS_PATH} className="hm-nav-link">
+              Terms
             </Link>
           </span>
         </div>

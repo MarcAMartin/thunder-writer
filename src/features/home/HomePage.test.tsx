@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocuments } from '../../store/documents'
@@ -177,6 +177,13 @@ describe('HomePage', () => {
     renderHome()
     fireEvent.click(screen.getByRole('link', { name: /import a manuscript/i }))
     expect(screen.getByTestId('location')).toHaveTextContent('/write?import=local')
+  })
+
+  it('links the Privacy Policy and Terms of Service from the footer', () => {
+    renderHome()
+    const footer = screen.getByRole('contentinfo')
+    expect(within(footer).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
+    expect(within(footer).getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms')
   })
 
   it('offers a direct Google Drive import (the Picker) only when this build has it', () => {

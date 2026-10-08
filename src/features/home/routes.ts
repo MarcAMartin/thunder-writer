@@ -5,6 +5,10 @@ export const NEW_MANUSCRIPT_PATH = '/write?new=1'
 /** The storage FileMenu reads `?open=drive` to open its "Open from Google Drive" list on arrival. */
 export const OPEN_FROM_DRIVE_PATH = '/write?open=drive'
 export const SETTINGS_PATH = '/settings'
+export const PRIVACY_PATH = '/privacy'
+/** Another address for the Privacy Policy; it redirects to PRIVACY_PATH. */
+export const POLICY_PATH = '/policy'
+export const TERMS_PATH = '/terms'
 /** The writer's ImportHost reads `?import=local` and shows a "Choose a file to import" prompt. */
 export const IMPORT_LOCAL_PATH = '/write?import=local'
 /** The storage FileMenu reads `?open=picker` and offers to import a file picked in Google Drive. */
