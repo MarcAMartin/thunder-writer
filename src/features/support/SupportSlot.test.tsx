@@ -19,11 +19,11 @@ describe('Support the developer', () => {
 
   it('shows the Venmo tip jar whether book picks are on or off', () => {
     const { unmount } = render(<SupportSlot />)
-    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/MarcAMartin')
+    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/ThunderWriter')
     unmount()
     useSettings.setState({ supportDeveloper: true })
     render(<SupportSlot />)
-    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/MarcAMartin')
+    expect(screen.getByRole('link', { name: /Tip jar/ })).toHaveAttribute('href', 'https://venmo.com/u/ThunderWriter')
   })
 
   it('when off: just an offer, no ad', () => {

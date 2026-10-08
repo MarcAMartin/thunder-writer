@@ -514,7 +514,7 @@ nothing happens unless the writer clicks. Its ✕ asks **Please reconsider**
 short list in `bookPicks.ts`; edit them freely.
 
 **Tip jar.** `src/features/support/tipJar.tsx`. A plain link to the
-developer's Venmo profile (`https://venmo.com/u/MarcAMartin`;
+developer's Venmo profile (`https://venmo.com/u/ThunderWriter`;
 `VITE_VENMO_HANDLE` overrides the handle at build time). It appears as
 **☕ Tip jar** beside the book pick / Support Developer button, as an
 alternative in the **Please reconsider** dialog, and as **Tip the developer**

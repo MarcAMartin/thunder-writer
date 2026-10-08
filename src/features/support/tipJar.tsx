@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import './support.css'
 
-export const DEFAULT_VENMO_HANDLE = 'MarcAMartin'
+export const DEFAULT_VENMO_HANDLE = 'ThunderWriter'
 
 const venmoHandle = () => {
   const v = import.meta.env.VITE_VENMO_HANDLE
