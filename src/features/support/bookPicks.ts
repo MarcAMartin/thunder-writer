@@ -12,16 +12,36 @@ export interface BookPick {
   author: string
   /** ISBN-13 of the edition linked to. */
   isbn: string
-  /** Why a writer might want it, in a few words. */
+  /** What the book is, in a few words. */
   blurb: string
 }
 
+/**
+ * The New York Times hardcover best sellers, list dated October 18, 2026:
+ * fiction 1–12, then nonfiction 1–8, with the ISBN-13 the list gives for each
+ * edition. Refresh from a newer list now and then.
+ */
 export const BOOK_PICKS: BookPick[] = [
-  { title: 'Bird by Bird', author: 'Anne Lamott', isbn: '9780385480017', blurb: 'On writing and life, one page at a time' },
-  { title: 'On Writing', author: 'Stephen King', isbn: '9781439156810', blurb: 'A memoir of the craft' },
-  { title: 'Steering the Craft', author: 'Ursula K. Le Guin', isbn: '9780544611610', blurb: 'Exercises in narrative' },
-  { title: 'Save the Cat! Writes a Novel', author: 'Jessica Brody', isbn: '9780399579745', blurb: 'Plotting, beat by beat' },
-  { title: 'The Elements of Style', author: 'Strunk & White', isbn: '9780205309023', blurb: 'The classic on clear prose' },
+  { title: 'Threshing Day', author: 'Rebecca Yarros', isbn: '9781682818084', blurb: 'Thirteen Empyrean stories of riders and dragons' },
+  { title: 'The French Illusion', author: 'John Grisham', isbn: '9780385550543', blurb: 'A kidnapped honeymoon and a CIA gambit' },
+  { title: 'Hollywood, Ending', author: 'John Green', isbn: '9780525426073', blurb: 'Two rising actors, one Warhol biopic' },
+  { title: 'American Hagwon', author: 'Min Jin Lee', isbn: '9781538752036', blurb: 'A Korean family’s journey from Seoul to California' },
+  { title: 'The Calamity Club', author: 'Kathryn Stockett', isbn: '9781954118812', blurb: 'Women banding together in Depression-era Mississippi' },
+  { title: 'Hollow Bones', author: 'Jodi Picoult', isbn: '9780593726259', blurb: 'A new marriage shaken by old secrets' },
+  { title: 'Baldur’s Gate 3: Astarion', author: 'T. Kingfisher', isbn: '9798217298594', blurb: 'A vampire spawn’s bid for freedom' },
+  { title: 'The Dawn of the Cursed Queen', author: 'Amber V. Nicole', isbn: '9781496758088', blurb: 'Gods, monsters, and a queen’s sacrifice' },
+  { title: 'Heated Rivalry', author: 'Rachel Reid', isbn: '9781335004048', blurb: 'Rival hockey captains in a secret romance' },
+  { title: 'Sometimes I Scare Myself', author: 'Jeneva Rose', isbn: '9798212182881', blurb: 'Three horror stories, one curse at a time' },
+  { title: 'Ruthless', author: 'Danielle Steel', isbn: '9780593973301', blurb: 'A journalist and a tycoon in St. Barts' },
+  { title: 'Yesteryear', author: 'Caro Claire Burke', isbn: '9780593804216', blurb: 'A tradwife influencer wakes up in 1855' },
+  { title: 'The Steps', author: 'Sylvester Stallone', isbn: '9780063443914', blurb: 'Stallone’s road from New York to Rocky' },
+  { title: 'Swan Song', author: 'Charles Spencer', isbn: '9798217379743', blurb: 'A brother’s memoir of Diana' },
+  { title: 'The American Way of Killing', author: 'Malcolm Gladwell', isbn: '9780316603782', blurb: 'Inside America’s epidemic of gun violence' },
+  { title: 'What Could Possibly Go Right?', author: 'Danny Meyer', isbn: '9780593731772', blurb: 'Scaling a culture of hospitality' },
+  { title: 'Fictional Selves', author: 'Kyle MacLachlan', isbn: '9798217086320', blurb: 'An actor’s life through his characters' },
+  { title: 'The Cauldron', author: 'Simon Sebag Montefiore', isbn: '9780593805053', blurb: 'How the modern Middle East was made' },
+  { title: 'This Cursed Beautiful Land', author: 'Evan Gershkovich', isbn: '9798217087266', blurb: 'A journalist imprisoned in Putin’s Russia' },
+  { title: 'Work in Progress', author: 'Devon Rodriguez', isbn: '9780593734483', blurb: 'A Bronx portrait artist’s memoir' },
 ]
 
 const affiliateId = () => {
