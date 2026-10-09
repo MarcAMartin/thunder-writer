@@ -124,11 +124,11 @@ export function SuggestionsPane() {
             <BoltIcon size={28} />
             <p className="sg-empty-title">Bring your own AI key</p>
             <p className="sg-muted">
-              Suggestions come from Claude or OpenAI, called straight from your browser with your own key. Nothing goes
-              through a Thunder Writer server — there isn't one.
+              Suggestions come from Claude, OpenAI or any model on OpenRouter, called straight from your browser with your
+              own key. Nothing goes through a Thunder Writer server — there isn't one.
             </p>
             <Link to="/settings#ai" className="tw-btn tw-btn-primary sg-settings-link">
-              Add your Claude or OpenAI key
+              Add your AI key
             </Link>
           </div>
         ) : (

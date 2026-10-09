@@ -11,9 +11,12 @@ export interface SettingsState {
   provider: AIProvider
   claudeApiKey: string
   openaiApiKey: string
+  openrouterApiKey: string
   /** Model ids. Defaults are the cheapest capable models per the design notes. */
   claudeModel: string
   openaiModel: string
+  /** An OpenRouter model id, e.g. "anthropic/claude-haiku-5.5" (any model in its catalog). */
+  openrouterModel: string
   /** Master switch for background suggestions. */
   suggestionsEnabled: boolean
   /** Minimum seconds between automatic suggestion requests (anti-chattiness timeout). */
@@ -66,6 +69,8 @@ export function clampSetting(key: BoundedSetting, value: number): number {
 
 export const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5'
 export const DEFAULT_OPENAI_MODEL = 'gpt-6-luna'
+/** Cheap and capable, with structured output, in OpenRouter's catalog (checked 2026-10). */
+export const DEFAULT_OPENROUTER_MODEL = 'anthropic/claude-haiku-5.5'
 
 export const DEFAULT_TRIVIA_WEB_SEARCH = true
 /** At most one web-searched trivia request every 10 minutes by default. */
@@ -108,8 +113,10 @@ export const useSettings = create<SettingsState>()(
       provider: 'claude',
       claudeApiKey: '',
       openaiApiKey: '',
+      openrouterApiKey: '',
       claudeModel: DEFAULT_CLAUDE_MODEL,
       openaiModel: DEFAULT_OPENAI_MODEL,
+      openrouterModel: DEFAULT_OPENROUTER_MODEL,
       suggestionsEnabled: true,
       suggestionCooldownSec: 45,
       suggestionIdleSec: 4,
@@ -131,8 +138,22 @@ export const useSettings = create<SettingsState>()(
   ),
 )
 
-export const activeApiKey = (s: Pick<SettingsState, 'provider' | 'claudeApiKey' | 'openaiApiKey'>) =>
-  s.provider === 'claude' ? s.claudeApiKey : s.openaiApiKey
+type KeySettings = Pick<SettingsState, 'provider' | 'claudeApiKey' | 'openaiApiKey' | 'openrouterApiKey'>
 
-export const hasApiKey = (s: Pick<SettingsState, 'provider' | 'claudeApiKey' | 'openaiApiKey'>) =>
-  activeApiKey(s).trim().length > 0
+export const activeApiKey = (s: KeySettings) =>
+  s.provider === 'claude' ? s.claudeApiKey : s.provider === 'openrouter' ? s.openrouterApiKey : s.openaiApiKey
+
+export const hasApiKey = (s: KeySettings) => activeApiKey(s).trim().length > 0
+
+type ModelSettings = Pick<SettingsState, 'provider' | 'claudeModel' | 'openaiModel' | 'openrouterModel'>
+
+/** The model suggestions use: the chosen one for the active provider, or its default when blank. */
+export function activeModel(s: ModelSettings): string {
+  const [chosen, fallback] =
+    s.provider === 'claude'
+      ? [s.claudeModel, DEFAULT_CLAUDE_MODEL]
+      : s.provider === 'openrouter'
+        ? [s.openrouterModel, DEFAULT_OPENROUTER_MODEL]
+        : [s.openaiModel, DEFAULT_OPENAI_MODEL]
+  return (chosen ?? '').trim() || fallback
+}

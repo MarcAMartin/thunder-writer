@@ -40,7 +40,7 @@ describe('SuggestionsPane', () => {
   it('without an API key links the writer to Settings', () => {
     useSettings.setState({ claudeApiKey: '' })
     renderPane()
-    const link = screen.getByRole('link', { name: 'Add your Claude or OpenAI key' })
+    const link = screen.getByRole('link', { name: 'Add your AI key' })
     expect(link).toHaveAttribute('href', '/settings#ai')
     expect(screen.getByRole('button', { name: /Generate Suggestions/ })).toBeDisabled()
   })

@@ -31,7 +31,7 @@ describe('SettingsPage', () => {
   it('renders every section with navigation home and back to writing', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
-    for (const name of ['AI provider', 'Claude', 'OpenAI', 'Suggestions', 'Google Drive', 'Appearance', 'Data in this browser'])
+    for (const name of ['AI provider', 'Claude', 'OpenAI', 'OpenRouter', 'Suggestions', 'Google Drive', 'Appearance', 'Data in this browser'])
       expect(screen.getByRole('region', { name })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Thunder Writer home' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /back to writing/i })).toHaveAttribute('href', '/write')
@@ -44,7 +44,7 @@ describe('SettingsPage', () => {
   it('switches provider and theme immediately', async () => {
     const user = userEvent.setup()
     renderPage()
-    await user.click(screen.getByRole('radio', { name: /openai/i }))
+    await user.click(screen.getByRole('radio', { name: /OpenAI \(ChatGPT\)/ }))
     expect(useSettings.getState().provider).toBe('openai')
     await user.click(screen.getByRole('radio', { name: 'Dark' }))
     expect(useSettings.getState().theme).toBe('dark')
@@ -115,6 +115,51 @@ describe('SettingsPage', () => {
     fireEvent.change(model, { target: { value: '' } })
     fireEvent.blur(model)
     expect(useSettings.getState().claudeModel).toBe(DEFAULT_CLAUDE_MODEL)
+  })
+})
+
+describe('SettingsPage: OpenRouter', () => {
+  const catalog = {
+    data: [
+      { id: 'anthropic/claude-haiku-5.5', name: 'Anthropic: Claude Haiku 5.5', pricing: { prompt: '0.0000001', completion: '0.0000005' }, supported_parameters: ['structured_outputs'] },
+      { id: 'google/gemini-3.8-flash', name: 'Google: Gemini 3.8 Flash', pricing: { prompt: '0.00000075', completion: '0.00000375' } },
+    ],
+  }
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(async () => {
+    useSettings.setState(useSettings.getInitialState())
+    ;(await import('../suggestions/providers/openrouterModels')).resetOpenRouterModels()
+    fetchMock = vi.fn(async () => new Response(JSON.stringify(catalog)))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('is a provider choice with its own key and a searchable model list with prices', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    // Nothing is fetched from openrouter.ai until OpenRouter is in use.
+    expect(fetchMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('radio', { name: /OpenRouter \(any model\)/ }))
+    expect(useSettings.getState().provider).toBe('openrouter')
+
+    const section = screen.getByRole('region', { name: 'OpenRouter' })
+    expect(within(section).getByText('Active provider')).toBeInTheDocument()
+    const key = within(section).getByLabelText('OpenRouter API key')
+    expect(key).toHaveAttribute('type', 'password')
+    await user.type(key, 'sk-or-v1-abc')
+    expect(useSettings.getState().openrouterApiKey).toBe('sk-or-v1-abc')
+
+    expect(await within(section).findByText(/Anthropic: Claude Haiku 5\.5: \$0\.10 in \/ \$0\.50 out per million tokens/)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('https://openrouter.ai/api/v1/models', expect.anything())
+    const model = within(section).getByLabelText('Model')
+    const options = [...document.querySelectorAll(`#${model.getAttribute('list')} option`)].map((o) => o.getAttribute('value'))
+    expect(options).toEqual(['anthropic/claude-haiku-5.5', 'google/gemini-3.8-flash'])
+
+    fireEvent.change(model, { target: { value: 'google/gemini-3.8-flash' } })
+    expect(useSettings.getState().openrouterModel).toBe('google/gemini-3.8-flash')
+    expect(within(section).getByText(/Gemini 3\.8 Flash: \$0\.75 in \/ \$3\.75 out/)).toBeInTheDocument()
+    fireEvent.change(model, { target: { value: 'nobody/nothing' } })
+    expect(within(section).getByText(/Not in OpenRouter’s catalog/)).toBeInTheDocument()
   })
 })
 

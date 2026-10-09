@@ -60,7 +60,7 @@ const FEATURES: Item[] = [
   {
     icon: <LockIcon />,
     title: 'Private by design',
-    body: 'Your API keys and files never touch our servers — there are none. Requests go straight from your browser to Claude or OpenAI.',
+    body: 'Your API keys and files never touch our servers — there are none. Requests go straight from your browser to Claude, OpenAI or OpenRouter.',
   },
   {
     icon: <CloudIcon />,
@@ -224,7 +224,7 @@ export function HomePage() {
               The blank page is waiting.
             </h2>
             <p className="hm-section-sub">
-              Start now — add your Claude or OpenAI key in Settings whenever you want suggestions.
+              Start now — add your Claude, OpenAI or OpenRouter key in Settings whenever you want suggestions.
             </p>
             <div className="hm-ctas hm-ctas-center">
               <Link to={NEW_MANUSCRIPT_PATH} className="tw-btn tw-btn-primary hm-cta hm-cta-primary">

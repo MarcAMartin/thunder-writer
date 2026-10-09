@@ -2,14 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { EditorBridge } from '../../contracts'
 import { openSuggestions, useSession } from '../../store/session'
-import {
-  activeApiKey,
-  clampSetting,
-  DEFAULT_CLAUDE_MODEL,
-  DEFAULT_OPENAI_MODEL,
-  hasApiKey,
-  useSettings,
-} from '../../store/settings'
+import type { AIProvider } from '../../types'
+import { activeApiKey, activeModel, clampSetting, hasApiKey, useSettings } from '../../store/settings'
 import { FOCUS_CHARS } from './constants'
 import { buildPrompt, buildTriviaPrompt } from './prompt'
 import { getProvider, SuggestionError, type SuggestionErrorKind, type SuggestionProvider } from './providers'
@@ -19,7 +13,7 @@ import { loadLastTriviaAt, loadSearchUnavailable, saveLastTriviaAt, saveSearchUn
 
 export interface EngineOptions {
   /** Override provider lookup (tests). */
-  providerFor?: (id: 'claude' | 'openai') => SuggestionProvider
+  providerFor?: (id: AIProvider) => SuggestionProvider
 }
 
 export interface SuggestionEngine {
@@ -47,10 +41,7 @@ export function webTriviaAvailable(
   return unavailableFor !== searchId(s.provider, model, activeApiKey(s))
 }
 
-export function activeModel(s: ReturnType<typeof useSettings.getState>): string {
-  const m = (s.provider === 'claude' ? s.claudeModel : s.openaiModel).trim()
-  return m || (s.provider === 'claude' ? DEFAULT_CLAUDE_MODEL : DEFAULT_OPENAI_MODEL)
-}
+export { activeModel }
 
 /**
  * Background suggestion engine. Mounted once by SuggestionsPane. Watches the

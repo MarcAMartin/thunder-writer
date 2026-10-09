@@ -5,7 +5,7 @@ For developers and maintainers. The product overview is in
 
 Thunder Writer is a static, browser-only React app. There is **no backend**.
 Manuscripts live in IndexedDB and, optionally, the writer's own Google Drive.
-AI calls go straight from the browser to Anthropic or OpenAI with the writer's
+AI calls go straight from the browser to Anthropic, OpenAI or OpenRouter with the writer's
 own key. The owner's original design (UI boxes and behaviour notes) is in
 [ThunderWriter.drawio](ThunderWriter.drawio).
 
@@ -136,13 +136,15 @@ links to Settings.
 1. Get a key:
    - **Claude:** create one in the [Anthropic Console](https://console.anthropic.com/) (API keys).
    - **OpenAI:** create one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-2. Open **Settings → AI provider**, choose Claude or OpenAI, and paste the key
+   - **OpenRouter** (any model): create one at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) and add credits.
+2. Open **Settings → AI provider**, choose Claude, OpenAI or OpenRouter, and paste the key
    into that provider's section. **Test key** makes a free model-lookup call to
    confirm it works.
 3. The models default to the cheapest suitable ones: `claude-haiku-4-5` for
-   Claude and `gpt-6-luna` for OpenAI (`DEFAULT_CLAUDE_MODEL` /
-   `DEFAULT_OPENAI_MODEL` in `src/store/settings.ts`). Any other model id can
-   be typed in.
+   Claude, `gpt-6-luna` for OpenAI and `anthropic/claude-haiku-5.5` on
+   OpenRouter (`DEFAULT_CLAUDE_MODEL` / `DEFAULT_OPENAI_MODEL` /
+   `DEFAULT_OPENROUTER_MODEL` in `src/store/settings.ts`). Any other model id
+   can be typed in.
 
 Both SDKs are constructed with `dangerouslyAllowBrowser: true` (see
 [Privacy and security model](#privacy-and-security-model)), a 60 s request
@@ -151,6 +153,37 @@ regular requests use structured output (`output_config.format` with a JSON
 schema); OpenAI uses the Responses API. OpenAI reasoning families (GPT-5.x,
 GPT-6.x, o-series) are sent with `reasoning.effort: 'low'`, because reasoning
 tokens bill as output.
+
+**OpenRouter** (`providers/openrouter.ts`) lets the writer use any model in
+OpenRouter's catalog with one key. It speaks the OpenAI Chat Completions API,
+so it uses the OpenAI SDK with `baseURL: https://openrouter.ai/api/v1` (CORS is
+open, including the SDK's `x-stainless-*` headers) and sends OpenRouter's app
+attribution headers (`HTTP-Referer`, `X-Title`). Details:
+
+- **Model catalog:** `openrouterModels.ts` fetches the public catalog
+  (`/api/v1/models`, no key) once per page load. It does this only when
+  OpenRouter is in use: it's the active provider, the Settings model box is
+  focused, or a request is made. It supplies the Settings model picker (name
+  and price per million tokens), each model's supported output formats, and a
+  fallback price.
+- **Output format:** models that support `structured_outputs` get the strict
+  JSON schema; models with plain `response_format` get JSON mode; others get
+  neither. Every request also spells out the JSON shape in the instructions,
+  and the reply is parsed leniently (code fences and stray prose tolerated).
+  If a provider rejects the format, the request is retried once without it.
+- **Cost:** requests ask for usage accounting (`usage: { include: true }`), so
+  the status bar shows OpenRouter's own cost for each request. If it is
+  missing, the cost is tokens × catalog price.
+- **Reasoning:** `reasoning: { effort: 'low', exclude: true }` keeps reasoning
+  models brief.
+- **Errors:** a 402 (out of credits) gets its own message.
+- **No web search:** with OpenRouter, trivia comes from the model's own
+  knowledge, because the provider has no `generateTrivia`.
+- **Test key:** calls `/api/v1/key`, which is free, and reports remaining
+  credit when the key has a limit. It then checks the model id against the
+  catalog.
+- **Default model:** `DEFAULT_OPENROUTER_MODEL` is
+  `anthropic/claude-haiku-5.5`.
 
 ### Cadence (the "not too chatty" rules)
 
@@ -606,13 +639,13 @@ Steps:
   browser, and in the writer's Google Drive if connected. Reference files are
   in the `thunder-writer-context` database. Desktop-copy file handles are in
   `thunder-writer-export`.
-- **Keys:** Claude/OpenAI keys are stored in this browser's `localStorage`
+- **Keys:** Claude/OpenAI/OpenRouter keys are stored in this browser's `localStorage`
   (`thunder-writer:settings`) and sent only to their own provider. The trivia
   cooldown keeps only a timestamp in `localStorage`. A "web search
   unavailable" note for the tab stores the provider, model and a short
   non-reversible fingerprint of the key, never the key itself.
-- **AI requests** go directly from the browser to `api.anthropic.com` or
-  `api.openai.com`, using the SDKs' `dangerouslyAllowBrowser: true` option
+- **AI requests** go directly from the browser to `api.anthropic.com`,
+  `api.openai.com` or `openrouter.ai`, using the SDKs' `dangerouslyAllowBrowser: true` option
   (the SDKs refuse to run in a browser without it, because a key in a web page
   is exposed to that page). Requests contain the manuscript (or, for long
   books, the opening plus the region around the cursor), reference files
@@ -642,7 +675,7 @@ Steps:
   `localStorage`. It hasn't been added because it can't be checked here against
   real Google sign-in, the Picker and both providers. It would need to allow at
   least `connect-src` for `api.anthropic.com`,
-  `api.openai.com`, `www.googleapis.com` and `formsubmit.co` (the Suggestion
+  `api.openai.com`, `openrouter.ai`, `www.googleapis.com` and `formsubmit.co` (the Suggestion
   form), plus the Google Identity Services
   and Picker script and frame origins (`accounts.google.com`,
   `apis.google.com`, `docs.google.com`). Test it against sign-in, the Picker

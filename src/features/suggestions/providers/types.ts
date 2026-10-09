@@ -84,7 +84,9 @@ export class SuggestionError extends Error {
   }
 }
 
-export const providerLabel = (p: AIProvider) => (p === 'claude' ? 'Claude' : 'OpenAI')
+const PROVIDER_LABELS: Record<AIProvider, string> = { claude: 'Claude', openai: 'OpenAI', openrouter: 'OpenRouter' }
+
+export const providerLabel = (p: AIProvider) => PROVIDER_LABELS[p] ?? 'OpenAI'
 
 export function authMessage(p: AIProvider): string {
   return `Your ${providerLabel(p)} API key was rejected. Check it in Settings.`

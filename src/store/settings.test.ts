@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  activeApiKey,
+  activeModel,
   clampSetting,
+  DEFAULT_OPENROUTER_MODEL,
   DEFAULT_TRIVIA_COOLDOWN_SEC,
+  hasApiKey,
   migrateSettings,
   RETIRED_GOOGLE_KEYS,
   SETTING_BOUNDS,
@@ -106,5 +110,31 @@ describe('Google Cloud values are no longer settings (v4)', () => {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? '{}')
     expect(stored.version).toBe(4)
     expect(JSON.stringify(stored)).not.toMatch(/googleusercontent|AIza-old/)
+  })
+})
+
+describe('OpenRouter settings', () => {
+  it('uses the OpenRouter key and model when OpenRouter is the provider', () => {
+    const s = {
+      provider: 'openrouter' as const,
+      claudeApiKey: 'sk-ant',
+      openaiApiKey: 'sk-oa',
+      openrouterApiKey: ' sk-or ',
+      claudeModel: 'claude-haiku-4-5',
+      openaiModel: 'gpt-6-luna',
+      openrouterModel: 'google/gemini-3.8-flash',
+    }
+    expect(activeApiKey(s)).toBe(' sk-or ')
+    expect(hasApiKey(s)).toBe(true)
+    expect(hasApiKey({ ...s, openrouterApiKey: '  ' })).toBe(false)
+    expect(activeModel(s)).toBe('google/gemini-3.8-flash')
+    expect(activeModel({ ...s, openrouterModel: ' ' })).toBe(DEFAULT_OPENROUTER_MODEL)
+    expect(activeModel({ ...s, provider: 'claude' })).toBe('claude-haiku-4-5')
+  })
+
+  it('a browser that saved settings before OpenRouter gets its defaults', () => {
+    const fresh = useSettings.getInitialState()
+    expect(fresh.openrouterApiKey).toBe('')
+    expect(fresh.openrouterModel).toBe(DEFAULT_OPENROUTER_MODEL)
   })
 })

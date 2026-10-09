@@ -22,15 +22,15 @@ export function PrivacyPage() {
         <ul>
           <li>No account, no Thunder Writer server, no analytics, no advertising trackers, and no cookies set by Thunder Writer.</li>
           <li>Your writing is stored in your browser and, if you connect it, in your own Google Drive.</li>
-          <li>AI suggestions go straight from your browser to Anthropic or OpenAI, using your own API key.</li>
+          <li>AI suggestions go straight from your browser to Anthropic, OpenAI or OpenRouter, using your own API key.</li>
           <li>Nothing is sold or shared for advertising. There is nothing to sell: the developer doesn’t have your data.</li>
         </ul>
       </LegalSection>
 
       <LegalSection id="browser" title="What stays in your browser">
         <p>
-          Your manuscripts, their backups, reference files you add, and your settings (including any Claude or OpenAI API
-          key) are saved in this browser’s storage (IndexedDB and localStorage) on your device. They stay there until you
+          Your manuscripts, their backups, reference files you add, and your settings (including any Claude, OpenAI or OpenRouter
+          API key) are saved in this browser’s storage (IndexedDB and localStorage) on your device. They stay there until you
           remove them with <Link to={`${SETTINGS_PATH}#data`}>Settings → Clear all local data</Link> or by clearing this
           site’s data in your browser.
         </p>
@@ -78,17 +78,24 @@ export function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="ai" title="AI suggestions (Anthropic and OpenAI)">
+      <LegalSection id="ai" title="AI suggestions (Anthropic, OpenAI and OpenRouter)">
         <p>
           Suggestions only run after you add your own API key. Your browser then sends requests directly to Anthropic (
-          <code>api.anthropic.com</code>) or OpenAI (<code>api.openai.com</code>), under your own account with them. A
-          request contains your manuscript’s text (for long books, the opening and the part around your cursor), reference
-          files you added, and the titles of recent suggestions. Requests never pass through the developer.
+          <code>api.anthropic.com</code>), OpenAI (<code>api.openai.com</code>) or OpenRouter (<code>openrouter.ai</code>),
+          under your own account with them. A request contains your manuscript’s text (for long books, the opening and the
+          part around your cursor), reference files you added, and the titles of recent suggestions. Requests never pass
+          through the developer.
+        </p>
+        <p>
+          OpenRouter passes each request on to the company that runs the model you chose. Your OpenRouter privacy settings
+          control which of those companies it may use, for example to exclude ones that may train on your data. When
+          OpenRouter is your provider, Thunder Writer also loads OpenRouter’s public list of models and prices.
         </p>
         <p>
           How the provider handles that data is governed by its API terms and privacy policy:{' '}
           <Ext href="https://www.anthropic.com/legal/privacy">Anthropic</Ext>,{' '}
-          <Ext href="https://openai.com/policies/privacy-policy">OpenAI</Ext>.
+          <Ext href="https://openai.com/policies/privacy-policy">OpenAI</Ext>,{' '}
+          <Ext href="https://openrouter.ai/privacy">OpenRouter</Ext> (and the model’s provider).
         </p>
         <p>
           If web-searched trivia is on, the provider may also run web searches using short queries its model writes about

@@ -82,6 +82,8 @@ export function isOpenAIReasoningModel(model: string): boolean {
 export function webSearchCostUsd(provider: AIProvider, model: string, count: number): number {
   const n = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
   if (provider === 'claude') return n * CLAUDE_WEB_SEARCH_USD
+  // OpenRouter requests never search (and report their own cost).
+  if (provider === 'openrouter') return 0
   const m = model.trim()
   const price = OPENAI_PRICING[m]
   const block =
@@ -89,7 +91,9 @@ export function webSearchCostUsd(provider: AIProvider, model: string, count: num
   return n * (OPENAI_WEB_SEARCH_USD + block)
 }
 
+/** The built-in price table's entry. OpenRouter has none: its requests report their cost, or use its catalog. */
 export function priceFor(provider: AIProvider, model: string): ModelPrice | null {
+  if (provider === 'openrouter') return null
   const table = provider === 'claude' ? CLAUDE_PRICING : OPENAI_PRICING
   return table[model.trim()] ?? null
 }

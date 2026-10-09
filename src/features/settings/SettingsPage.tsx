@@ -4,12 +4,15 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   DEFAULT_CLAUDE_MODEL,
   DEFAULT_OPENAI_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   SETTING_BOUNDS,
   useSettings,
   type SettingsState,
 } from '../../store/settings'
 import type { AIProvider, ThemeMode } from '../../types'
 import { clearAllLocalData } from '../storage/clearAll'
+import { providerLabel } from '../suggestions/providers/types'
+import { describeOpenRouterPrice, loadOpenRouterModels, type OpenRouterModel } from '../suggestions/providers/openrouterModels'
 import { isDriveConfigured } from '../storage/driveSession'
 import { parseNumberField } from './fields'
 import { testApiKey, type KeyTestResult } from './keyTest'
@@ -66,6 +69,11 @@ export function SettingsPage() {
             options={[
               { value: 'claude', label: 'Claude (Anthropic)', hint: 'Default. Haiku is fast and inexpensive.' },
               { value: 'openai', label: 'OpenAI (ChatGPT)', hint: 'Uses a low-cost model (gpt-6-luna) by default.' },
+              {
+                value: 'openrouter',
+                label: 'OpenRouter (any model)',
+                hint: 'One key for hundreds of models from Anthropic, OpenAI, Google, Meta, Mistral, DeepSeek and more.',
+              },
             ]}
           />
         </Section>
@@ -118,6 +126,16 @@ export function SettingsPage() {
           />
         </Section>
 
+        <Section id="openrouter" title="OpenRouter" lede="Used when OpenRouter is the provider. Pick any model in its catalog.">
+          <OpenRouterFields
+            active={s.provider === 'openrouter'}
+            apiKey={s.openrouterApiKey}
+            model={s.openrouterModel}
+            onKey={(openrouterApiKey) => save({ openrouterApiKey })}
+            onModel={(openrouterModel) => save({ openrouterModel })}
+          />
+        </Section>
+
         <Section id="suggestions" title="Suggestions" lede="Keep the assistant helpful, not chatty.">
           <Toggle
             label="Suggest while I write"
@@ -159,7 +177,8 @@ export function SettingsPage() {
                 links its sources. Costs about $0.01 per search on Claude or OpenAI, plus tokens, because search results
                 count as input (OpenAI&apos;s gpt-4o-mini and gpt-4.1-mini add a fixed 8,000 input tokens per search). Each
                 trivia attempt normally runs one search (on Claude, rarely two if a long search is resumed). Only trivia
-                ever searches; grammar and style notes never do.
+                ever searches; grammar and style notes never do. With OpenRouter there is no web search: trivia comes from the
+                model&apos;s own knowledge.
                 <br />
                 Privacy: when this is on, the provider may send short search queries derived from your manuscript to its
                 search backend. When off, trivia comes only from the model&apos;s own knowledge.
@@ -330,11 +349,13 @@ function TextField({
   autoComplete,
   list,
   onBlur,
+  onFocus,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   onBlur?: () => void
+  onFocus?: () => void
   hint?: ReactNode
   placeholder?: string
   autoComplete?: string
@@ -357,6 +378,7 @@ function TextField({
         list={list}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
+        onFocus={onFocus}
         aria-describedby={hint ? `${id}-hint` : undefined}
       />
       {hint && (
@@ -489,16 +511,19 @@ function ProviderFields(props: {
   apiKey: string
   model: string
   defaultModel: string
-  modelOptions: string[]
+  /** Suggestions for the model box: ids, or ids with a label (name and price). */
+  modelOptions: (string | { value: string; label: string })[]
   keyPlaceholder: string
   keyHelp: ReactNode
-  modelHelp: string
+  modelHelp: ReactNode
   onKey: (v: string) => void
   onModel: (v: string) => void
+  /** Called when the model box is focused (OpenRouter loads its catalog then). */
+  onModelFocus?: () => void
 }) {
   const listId = useId()
   const [test, setTest] = useState<(KeyTestResult & { pending?: false }) | { pending: true } | null>(null)
-  const name = props.provider === 'claude' ? 'Claude' : 'OpenAI'
+  const name = providerLabel(props.provider)
 
   const runTest = async () => {
     setTest({ pending: true })
@@ -548,6 +573,7 @@ function ProviderFields(props: {
         }}
         list={listId}
         autoComplete="off"
+        onFocus={props.onModelFocus}
         hint={
           <>
             {props.modelHelp}
@@ -563,11 +589,85 @@ function ProviderFields(props: {
         }
       />
       <datalist id={listId}>
-        {props.modelOptions.map((m) => (
-          <option key={m} value={m} />
-        ))}
+        {props.modelOptions.map((m) =>
+          typeof m === 'string' ? <option key={m} value={m} /> : <option key={m.value} value={m.value} label={m.label} />,
+        )}
       </datalist>
     </>
+  )
+}
+
+/**
+ * OpenRouter's catalog for the model box: loaded only once OpenRouter is in use
+ * (it is the active provider, or the model box was focused), so other writers
+ * never contact openrouter.ai.
+ */
+function useOpenRouterModels(wanted: boolean) {
+  const [models, setModels] = useState<OpenRouterModel[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (!wanted || models) return
+    let live = true
+    loadOpenRouterModels()
+      .then((m) => live && setModels(m))
+      .catch(() => live && setFailed(true))
+    return () => {
+      live = false
+    }
+  }, [wanted, models])
+  return { models, failed }
+}
+
+function OpenRouterFields(props: {
+  active: boolean
+  apiKey: string
+  model: string
+  onKey: (v: string) => void
+  onModel: (v: string) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const { models, failed } = useOpenRouterModels(props.active || focused)
+  const chosen = models?.find((m) => m.id === (props.model || DEFAULT_OPENROUTER_MODEL)) ?? null
+  const price = chosen ? describeOpenRouterPrice(chosen) : null
+  const options = models
+    ? models.map((m) => ({ value: m.id, label: [m.name, describeOpenRouterPrice(m)].filter(Boolean).join(' · ') }))
+    : [DEFAULT_OPENROUTER_MODEL]
+
+  return (
+    <ProviderFields
+      provider="openrouter"
+      active={props.active}
+      apiKey={props.apiKey}
+      model={props.model}
+      defaultModel={DEFAULT_OPENROUTER_MODEL}
+      modelOptions={options}
+      keyPlaceholder="sk-or-…"
+      keyHelp={
+        <>
+          Create a key at{' '}
+          <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
+            openrouter.ai
+          </a>{' '}
+          and add credits there; OpenRouter bills you for what each model uses.
+        </>
+      }
+      modelHelp={
+        <>
+          {chosen ? `${chosen.name}${price ? `: ${price}.` : '.'}` : null}
+          {models && props.model && !chosen && 'Not in OpenRouter’s catalog. Check the id.'}
+          {!models && !failed && (props.active || focused) && 'Loading OpenRouter’s models…'}
+          {failed && 'Couldn’t load OpenRouter’s model list; you can still type a model id.'}{' '}
+          Type to search, or browse{' '}
+          <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer">
+            openrouter.ai/models
+          </a>{' '}
+          and paste a model id.
+        </>
+      }
+      onKey={props.onKey}
+      onModel={props.onModel}
+      onModelFocus={() => setFocused(true)}
+    />
   )
 }
 

@@ -168,10 +168,12 @@ book:
 
 - **No accounts, no servers.** Thunder Writer is a web page that runs on your
   machine. There is no Thunder Writer server to send your writing to.
-- **You bring your own AI key**, from Anthropic (Claude) or OpenAI. For
-  suggestions, your words go from your browser directly to the provider you
+- **You bring your own AI key**, from Anthropic (Claude), OpenAI, or
+  OpenRouter, which gives you hundreds of models (Gemini, Llama, Mistral,
+  DeepSeek and more) with one key. For suggestions, your words go from your browser directly to the provider you
   choose. If you connect Google Drive, your manuscripts are saved there too.
-- **Current-events trivia (on by default) uses web search.** The provider
+- **Current-events trivia (on by default) uses web search** with Claude or
+  OpenAI (OpenRouter models answer from their own knowledge). The provider
   may run a web search based on your book's topics or setting, so short search
   queries drawn from your manuscript can reach its search service. Turn it
   off under **Settings → Suggestions** if you'd rather it didn't.
@@ -182,8 +184,9 @@ book:
 
 ### A tiny AI bill, shown live
 
-- The defaults are the cheapest suitable models: **Claude Haiku 4.5** or
-  OpenAI's **GPT-6 Luna**.
+- The defaults are the cheapest suitable models: **Claude Haiku 4.5**,
+  OpenAI's **GPT-6 Luna**, or Claude Haiku 5.5 on OpenRouter. On OpenRouter you
+  can pick any model; Settings shows each one's price.
 - The status bar shows your running AI cost for the session, next to your word
   count, writing time and suggestions accepted.
 - A suggestion request to Haiku 4.5 costs about a cent or less (see the
@@ -211,8 +214,10 @@ them from the File menu.
    [technical notes](tech_notes.md#getting-started).
    <!-- TODO: link the hosted app here once the production URL is final. -->
 2. **Add your AI key** under **Settings → AI provider**: a
-   [Claude key](https://console.anthropic.com/) or an
-   [OpenAI key](https://platform.openai.com/api-keys). **Test key** checks it
+   [Claude key](https://console.anthropic.com/), an
+   [OpenAI key](https://platform.openai.com/api-keys) or an
+   [OpenRouter key](https://openrouter.ai/settings/keys) for any model.
+   **Test key** checks it
    without spending anything.
 3. **Start Writing** for a fresh manuscript, or **Continue Writing** to pick
    up where you left off. On a computer you haven't written on before,
@@ -232,7 +237,7 @@ Settings.
 
 Thunder Writer never receives your writing. When suggestions are on, your
 browser sends the relevant part of your manuscript (and your reference files)
-directly to Anthropic or OpenAI, using your own API key. With current-events
+directly to Anthropic, OpenAI or OpenRouter, using your own API key. With current-events
 trivia on (the default), the provider may also run web searches based on your
 book's topics or setting; turn it off under **Settings → Suggestions** to stop
 that. What happens to your text at the provider is governed by that
@@ -241,6 +246,9 @@ Read them before you start: Anthropic's
 [Commercial Terms](https://www.anthropic.com/legal/commercial-terms) and
 [Privacy Policy](https://www.anthropic.com/legal/privacy), and OpenAI's
 [data controls for the API](https://developers.openai.com/api/docs/guides/your-data).
+With OpenRouter, the request goes on to the company that runs the model you
+picked; OpenRouter's [privacy settings](https://openrouter.ai/settings/privacy)
+let you exclude providers that may train on your data.
 If you'd rather
 send nothing, leave the key blank. You can still write, import, preview and
 save.

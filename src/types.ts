@@ -3,7 +3,8 @@
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export type AIProvider = 'claude' | 'openai'
+/** Where suggestions come from: Anthropic, OpenAI, or any model through OpenRouter. */
+export type AIProvider = 'claude' | 'openai' | 'openrouter'
 
 /** A physical book trim size with typesetting defaults so writers see real page breaks. */
 export interface BookPreset {

@@ -37,10 +37,10 @@ export function TermsPage() {
       <LegalSection id="ai" title="AI suggestions">
         <ul>
           <li>
-            Suggestions use your own Anthropic or OpenAI API key. You’re responsible for that key, for what your provider
-            charges you, and for following its terms (
+            Suggestions use your own Anthropic, OpenAI or OpenRouter API key. You’re responsible for that key, for what your
+            provider charges you, and for following its terms (
             <Ext href="https://www.anthropic.com/legal/commercial-terms">Anthropic</Ext>,{' '}
-            <Ext href="https://openai.com/policies">OpenAI</Ext>).
+            <Ext href="https://openai.com/policies">OpenAI</Ext>, <Ext href="https://openrouter.ai/terms">OpenRouter</Ext>).
           </li>
           <li>
             Suggestions are written by AI. They can be wrong, incomplete or unoriginal, and trivia can be inaccurate. Check
@@ -52,7 +52,7 @@ export function TermsPage() {
 
       <LegalSection id="third-parties" title="Other services">
         <p>
-          Google Drive, Anthropic, OpenAI, FormSubmit, Bookshop.org and Venmo are run by other companies under their own
+          Google Drive, Anthropic, OpenAI, OpenRouter, FormSubmit, Bookshop.org and Venmo are run by other companies under their own
           terms. Thunder Writer connects to them only when you choose to use them, and the developer isn’t responsible for
           them.
         </p>

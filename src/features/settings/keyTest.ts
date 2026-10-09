@@ -1,4 +1,5 @@
 import type { AIProvider } from '../../types'
+import { findOpenRouterModel, OPENROUTER_API } from '../suggestions/providers/openrouterModels'
 
 export interface KeyTestResult {
   ok: boolean
@@ -12,7 +13,9 @@ export interface KeyTestResult {
 export async function testApiKey(provider: AIProvider, apiKey: string, model: string): Promise<KeyTestResult> {
   const key = apiKey.trim()
   if (!key) return { ok: false, message: 'Enter a key first.' }
-  return provider === 'claude' ? testClaude(key, model) : testOpenAI(key, model)
+  if (provider === 'claude') return testClaude(key, model)
+  if (provider === 'openrouter') return testOpenRouter(key, model)
+  return testOpenAI(key, model)
 }
 
 async function testClaude(apiKey: string, model: string): Promise<KeyTestResult> {
@@ -46,3 +49,31 @@ async function testOpenAI(apiKey: string, model: string): Promise<KeyTestResult>
     return { ok: false, message: e instanceof Error ? e.message : 'Key test failed.' }
   }
 }
+
+/**
+ * OpenRouter: the key's own info endpoint (free) proves the key, and the public
+ * catalog says whether the model id exists. Reports remaining credit when the
+ * key has a limit.
+ */
+async function testOpenRouter(apiKey: string, model: string, fetchImpl: typeof fetch = fetch): Promise<KeyTestResult> {
+  let res: Response
+  try {
+    res = await fetchImpl(`${OPENROUTER_API}/key`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch {
+    return { ok: false, message: 'Could not reach OpenRouter. Check your connection.' }
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, message: 'OpenRouter rejected this key. Check it at openrouter.ai/settings/keys.' }
+  if (res.status === 429) return { ok: true, message: 'Key accepted (rate limited right now — try again shortly).' }
+  if (!res.ok) return { ok: false, message: `OpenRouter had a problem (${res.status}). Try again in a moment.` }
+  const info = ((await res.json().catch(() => null)) as { data?: { limit?: unknown; limit_remaining?: unknown } } | null)?.data
+  const remaining = typeof info?.limit_remaining === 'number' ? info.limit_remaining : null
+  const credit = remaining !== null ? ` $${remaining.toFixed(2)} of this key’s limit left.` : ''
+  const found = await findOpenRouterModel(model, fetchImpl)
+  if (!found) return { ok: true, message: `Key works.${credit} Couldn’t find model “${model}” in OpenRouter’s catalog; check the id.` }
+  return { ok: true, message: `Key works. ${found.name} is available.${credit}` }
+}
+
+export { testOpenRouter }
