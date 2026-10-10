@@ -162,19 +162,59 @@
   border-radius: 18px;
   background: var(--tw-surface-2);
 }
-/* The toolbar folds to one row (the chevron at its right end). */
+/* The toolbar folds to one row with the handle centered along its bottom edge. */
 .ed-toolbar-collapsed .ed-sep-format,
 .ed-toolbar-collapsed .ed-group-format,
 .ed-toolbar-collapsed .ed-group-extras,
 .ed-toolbar-collapsed .ed-hf-btn,
-.ed-toolbar-collapsed .ed-group-preview > :not(.ed-preview-btn, .ed-toolbar-toggle) {
+.ed-toolbar-collapsed .ed-group-preview > :not(.ed-preview-btn) {
   display: none;
 }
-.ed-toolbar-toggle {
-  color: var(--tw-text-muted);
+.ed-toolbar-foldrow {
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: center;
+  margin: 1px 0 2px;
 }
-.ed-toolbar-toggle:hover:not(:disabled) {
+/* A small beveled button: lit from above, with a soft edge below. */
+.ed-toolbar-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 12px 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--tw-text-muted);
+  background: linear-gradient(to bottom, var(--tw-surface), color-mix(in srgb, var(--tw-surface) 55%, var(--tw-surface-2)));
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 70%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--tw-border) 60%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ed-toolbar-fold:hover {
   color: var(--tw-text);
+  border-color: color-mix(in srgb, var(--tw-accent) 35%, var(--tw-border));
+}
+.ed-toolbar-fold:active {
+  background: linear-gradient(to top, var(--tw-surface), color-mix(in srgb, var(--tw-surface) 55%, var(--tw-surface-2)));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+.ed-toolbar-fold:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 2px;
+}
+:root[data-theme='dark'] .ed-toolbar-fold {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* On the bar's own tint, hover and "on" use the page surface so they still stand out. */

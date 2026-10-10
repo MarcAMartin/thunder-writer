@@ -98,12 +98,12 @@ describe('Preview shortcut', () => {
   })
 })
 
-describe('Toolbar › Fewer tools', () => {
+describe('Toolbar › Collapse tools', () => {
   it('folds the toolbar to one row of everyday tools, remembered, and unfolds it again', async () => {
     useSettings.getState().set({ toolbarCollapsed: false })
     await renderPage()
     const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
-    const toggle = screen.getByRole('button', { name: 'Fewer tools' })
+    const toggle = screen.getByRole('button', { name: 'Collapse tools' })
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(toggle).toHaveAttribute('aria-controls', toolbar.id)
     fireEvent.click(toggle)
@@ -112,7 +112,7 @@ describe('Toolbar › Fewer tools', () => {
     // Book setup is what folds away (editor.css hides these); Preview Book stays.
     expect(toolbar.querySelector('.ed-group-format')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Preview Book' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'More tools' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show tools' }))
     expect(useSettings.getState().toolbarCollapsed).toBe(false)
     expect(toolbar).not.toHaveClass('ed-toolbar-collapsed')
   })

@@ -373,20 +373,22 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
       <div className="ed-group ed-group-preview">
         <SupportSlot />
         <PreviewButton editor={editor} />
-        {/* Folds the toolbar to one row of everyday tools; the book setup controls come back with More tools. */}
+      </div>
+      {/* A centered handle along the toolbar's bottom edge folds it to one row of everyday tools. */}
+      <div className="ed-toolbar-foldrow">
         <button
           type="button"
-          className="ed-tool ed-toolbar-toggle"
-          aria-label={collapsed ? 'More tools' : 'Fewer tools'}
+          className="ed-toolbar-fold"
           aria-controls={toolbarId}
           aria-expanded={!collapsed}
-          title={collapsed ? 'More tools: book size, font, spacing and more' : 'Fewer tools: fold the toolbar to one row'}
+          title={collapsed ? 'Show book size, font, spacing and the other tools' : 'Fold the toolbar to one row of everyday tools'}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setSettings({ toolbarCollapsed: !collapsed })}
         >
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-            <path d={collapsed ? 'M4 6.5 8 10.5l4-4' : 'M4 9.5 8 5.5l4 4'} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+            <path d={collapsed ? 'M4 6.5 8 10.5l4-4' : 'M4 9.5 8 5.5l4 4'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+          {collapsed ? 'Show tools' : 'Collapse tools'}
         </button>
       </div>
     </div>
