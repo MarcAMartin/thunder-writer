@@ -13,6 +13,12 @@ export interface PaginationInput {
   lineHeightPx: number
   /** CSS transform scale applied to the page stack (fit-to-width). Default 1. */
   scale?: number
+  /**
+   * The text is shown in columns (side-by-side page views). Each pass then
+   * measures it laid out as one column, as in the scrolling view, so the page
+   * breaks are the same in every view.
+   */
+  linearize?: boolean
   /** Called after each pass with what each sheet holds (for running heads). */
   onSheets?: (sheets: SheetInfo[]) => void
 }
@@ -77,7 +83,7 @@ export function usePagination(editor: Editor | null, input: PaginationInput): nu
   useEffect(() => {
     inputRef.current = input
     scheduleRef.current(0)
-  }, [input.contentHeight, input.pagePitch, input.chapterStartsNewPage, input.lineHeightPx, input.scale])
+  }, [input.contentHeight, input.pagePitch, input.chapterStartsNewPage, input.lineHeightPx, input.scale, input.linearize])
 
   useEffect(() => {
     if (!editor) return
@@ -208,10 +214,25 @@ export function resetLineStartCache() {
   lineStartCache = { font: '', byNode: new WeakMap() }
 }
 
+/** Class that lays the columned text out as one column while it is measured (see editor.css). */
+export const MEASURING_CLASS = 'ed-measuring'
+
 /** One measurement + pagination pass. Returns null when layout isn't measurable (hidden, jsdom). */
 export function repaginate(view: EditorView, input: PaginationInput): number | null {
   const root = view.dom as HTMLElement
   if (!root.isConnected || root.offsetHeight === 0) return null
+  if (!input.linearize) return measureAndPaginate(view, input)
+  // One column for the measurement, back to columns before anything is painted.
+  root.classList.add(MEASURING_CLASS)
+  try {
+    return measureAndPaginate(view, input)
+  } finally {
+    root.classList.remove(MEASURING_CLASS)
+  }
+}
+
+function measureAndPaginate(view: EditorView, input: PaginationInput): number {
+  const root = view.dom as HTMLElement
 
   // Fractional client rects (offsetTop rounds to whole px, which makes the
   // measure/render loop flap). Divide by the fit-to-width scale to get layout px.

@@ -66,6 +66,13 @@ export interface BookPreviewProps {
   printOnOpen?: boolean
   /** Test seam: replace line measurement / scheduling. */
   layoutEnv?: Partial<LayoutEnv>
+  /**
+   * Phones: a reading view. The toolbar is just one button back to writing
+   * (`closeLabel`); pages still turn by swipe, buttons and the page slider.
+   */
+  compact?: boolean
+  /** Label of the compact view's button that closes the preview. */
+  closeLabel?: string
 }
 
 export interface LayoutUpdate {
@@ -532,7 +539,7 @@ export function BookPreview(props: BookPreviewProps) {
 
   return createPortal(
     <div
-      className={`bp-overlay bp-paper-${printSpec.paper} bp-ink-${printSpec.ink}`}
+      className={`bp-overlay bp-paper-${printSpec.paper} bp-ink-${printSpec.ink}${props.compact ? ' bp-compact' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Book preview: ${title}`}
@@ -554,6 +561,13 @@ export function BookPreview(props: BookPreviewProps) {
           </span>
           <span className="bp-bar-meta bp-bar-print">{describePrint(printSpec)}</span>
         </div>
+        {props.compact ? (
+          <div className="bp-bar-tools" role="toolbar" aria-label="Preview">
+            <button type="button" className="bp-btn bp-compact-close" onClick={() => closeRef.current()}>
+              <Icon d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" /> <span>{props.closeLabel ?? 'Close'}</span>
+            </button>
+          </div>
+        ) : (
         <div className="bp-bar-tools" role="toolbar" aria-label="Preview">
           <button
             type="button"
@@ -622,6 +636,7 @@ export function BookPreview(props: BookPreviewProps) {
             <Icon d="M6 6l12 12M18 6L6 18" />
           </button>
         </div>
+        )}
       </header>
 
       <div className="bp-main">

@@ -1219,3 +1219,23 @@ html.bp-open body {
 .bp-bar-print {
   display: block;
 }
+
+/* Phones: the preview as a reading view, with one button back to writing. */
+.bp-compact .bp-bar-print {
+  display: none;
+}
+.bp-bar-tools .bp-btn.bp-compact-close,
+.bp-btn.bp-compact-close {
+  gap: 6px;
+  padding: 0 14px 0 11px;
+  font-weight: 600;
+  color: var(--tw-accent-contrast);
+  background: var(--tw-accent);
+  border-color: var(--tw-accent);
+  border-radius: 999px;
+}
+.bp-bar-tools .bp-btn.bp-compact-close:hover,
+.bp-btn.bp-compact-close:hover {
+  background: var(--tw-accent);
+  filter: brightness(1.08);
+}

@@ -70,6 +70,18 @@ async function openPreview(props: HostProps = {}) {
 const live = (dialog: HTMLElement) => dialog.querySelector('[aria-live="polite"]')!
 
 describe('BookPreview', () => {
+  it('compact (phones): a reading view whose only tool is the button back to writing', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<BookPreview docId="d1" onClose={onClose} layoutEnv={env} compact closeLabel="Write" />)
+    const dialog = await screen.findByRole('dialog', { name: 'Book preview: The Frozen River' })
+    const tools = within(dialog).getByRole('toolbar', { name: 'Preview' })
+    expect(within(tools).getAllByRole('button').map((b) => b.textContent?.trim())).toEqual(['Write'])
+    expect(within(dialog).queryByRole('button', { name: /Paper & ink|Contents|Print/ })).toBeNull()
+    await user.click(within(tools).getByRole('button', { name: 'Write' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('Export › PDF: prints the whole book once laid out, named after the manuscript, then closes', async () => {
     const titles: string[] = []
     const print = vi.spyOn(window, 'print').mockImplementation(() => {

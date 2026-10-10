@@ -155,6 +155,42 @@ export function PreviewButton({ editor }: { editor: Editor | null }) {
   )
 }
 
+/**
+ * Phones: the two views are Write (the pages, scrolling) and Read (the book
+ * preview, one page at a time, with only a button back to writing).
+ */
+export function ReadButton({ editor }: { editor: Editor | null }) {
+  const { currentId, format } = useBookSettings()
+  const [open, setOpen] = useState<{ block: number | undefined } | null>(null)
+  const show = () => {
+    if (!useDocuments.getState().currentId) return
+    flushPendingEdits()
+    setOpen({ block: cursorBlock(editor) })
+  }
+  return (
+    <>
+      <button type="button" className="tw-btn ed-read-btn" disabled={!currentId} onMouseDown={(e) => e.preventDefault()} onClick={show}>
+        <BookIcon />
+        Read
+      </button>
+      {open && currentId && (
+        <Suspense fallback={null}>
+          <BookPreview
+            docId={currentId}
+            initialBlock={open.block}
+            headerFooter={format?.headerFooter}
+            layoutOptions={format?.bookLayout}
+            print={format?.print}
+            compact
+            closeLabel="Write"
+            onClose={() => setOpen(null)}
+          />
+        </Suspense>
+      )}
+    </>
+  )
+}
+
 /** The bolt from the app icon, in its yellow, for the Focus Mode buttons. */
 function FocusBolt() {
   return (

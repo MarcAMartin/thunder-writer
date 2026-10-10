@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
 import { ThemeToggle } from '../../shell/ThemeToggle'
+import { NARROW_QUERY, useMediaQuery } from '../../shell/useMediaQuery'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
@@ -20,7 +21,7 @@ import { PageView } from './PageView'
 import { resolveFormat } from './presets'
 import { StatusBar } from './StatusBar'
 import { DocTitle, Toolbar } from './Toolbar'
-import { ExitFocusButton, otherDialogOpen } from './BookTools'
+import { ExitFocusButton, otherDialogOpen, ReadButton } from './BookTools'
 import { setFocusMode, useFocusMode } from './focusMode'
 import { useTypewriterSounds } from './useTypewriterSounds'
 import { useManuscriptEditor } from './useManuscriptEditor'
@@ -102,6 +103,7 @@ export function WriterPage() {
   /** Beside the title: where the File menu (now in the toolbar) puts the save status. */
   const [statusSlot, setStatusSlot] = useState<HTMLDivElement | null>(null)
   const focus = useFocusMode((s) => s.on)
+  const narrow = useMediaQuery(NARROW_QUERY)
   useTypewriterSounds()
 
   // Focus Mode: Escape leaves it (not while a dialog is open, which Escape closes instead),
@@ -131,7 +133,7 @@ export function WriterPage() {
 
   return (
     <EditorContext.Provider value={ctx}>
-      <div className={focus ? 'ed-app ed-focus' : 'ed-app'}>
+      <div className={`ed-app${focus ? ' ed-focus' : ''}${narrow ? ' ed-narrow' : ''}`}>
         <a
           className="ed-skip"
           href="#manuscript"
@@ -151,6 +153,8 @@ export function WriterPage() {
             <DocTitle />
             <div ref={setStatusSlot} className="ed-docstatus" />
             <div className="ed-topbar-spacer" />
+            {/* Phones: Read opens the book preview; the toolbar and suggestions step aside (editor.css). */}
+            {narrow && <ReadButton editor={editor} />}
             <ThemeToggle />
             <SuggestionButton />
             <Link to="/settings" className="tw-btn tw-btn-ghost ed-settings-link">
@@ -186,8 +190,8 @@ export function WriterPage() {
             </div>
           )}
         </main>
-        {/* Out of Focus Mode entirely, so suggestions pause rather than pile up unseen. */}
-        {!focus && (
+        {/* Out of Focus Mode and phones entirely, so suggestions pause rather than pile up unseen. */}
+        {!focus && !narrow && (
           <div className="ed-side">
             <SuggestionsPane />
           </div>

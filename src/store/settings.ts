@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AIProvider, ThemeMode } from '../types'
+import type { PageLayout } from '../features/editor/pageLayouts'
 
 /**
  * User settings. Persisted to localStorage only; never sent anywhere except the
@@ -40,6 +41,8 @@ export interface SettingsState {
   typewriterSounds: boolean
   /** Page zoom in the editor, in percent (status bar slider): 100 is the page fitted to the window. */
   pageZoom: number
+  /** How the editor lays out its pages (status bar, lower right): one column, two across, or flipping spreads. */
+  pageLayout: PageLayout
   /** Autosave to Drive every N seconds while there are unsynced changes. 0 = only on change debounce. */
   driveAutosaveSec: number
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
@@ -127,6 +130,7 @@ export const useSettings = create<SettingsState>()(
       supportDeveloper: true,
       typewriterSounds: false,
       pageZoom: 100,
+      pageLayout: 'scroll',
       driveAutosaveSec: 60,
       set: (patch) => set(patch),
     }),

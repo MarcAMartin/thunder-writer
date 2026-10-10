@@ -908,6 +908,40 @@ When the scale changes, the line at the middle of the window stays there and
 a page wider than the window is centered. The zoom also applies in Focus
 Mode, where the status bar is hidden.
 
+**Page views** (status bar, lower right; `pageLayout` in settings;
+`pageLayouts.ts`): **Scroll**, **Side by side** (two pages across, rows
+scrolling down) and **Flip** (two pages at a time). All three stay editable,
+because there is still one ProseMirror column:
+
+- **Columns:** the side-by-side views flow that column into CSS columns one
+  page band tall (`column-height` / `--ed-pitch`). Side by side wraps them into
+  rows of two with `column-wrap: wrap`, which only Chrome and Edge support, so
+  the option is disabled elsewhere. Flip uses one long row of plain columns.
+- **Page breaks:** the page-break spacers already end exactly on band edges
+  (the editor has no vertical margins), so each column holds exactly one page.
+  Pagination measures the text as a single column: `repaginate` adds
+  `.ed-measuring` for the pass and removes it before paint. A browser check
+  found every line on the same page, within 1 px, in all three views.
+- **Sheets** are placed by `sheetPosition`.
+- **Flip details:** the view clips the stack to one spread and slides it
+  (`translate`, 460 ms). The ‹ › buttons, a swipe or the scroll wheel turn the
+  pages, and the view turns to wherever the cursor goes as it moves or the text
+  grows. A click in a page's margin puts the cursor on that page.
+- **Switching views** keeps the same pages in front of the writer.
+
+**Notifications:** saves, Google Drive (connected, disconnected, saved,
+errors) and backups (with Undo) all use one pop-up, `useExportUi().showToast`,
+rendered by `ExportToast`. It drops in at the top middle of the window, above
+the Book Preview, and fades out after 3.5 s, or 7–9 s for errors and messages
+with an action.
+
+**Phones** (`NARROW_QUERY`, 760 px and below): the writer has two views.
+**Write** is the pages in the scroll view at 100%, with no zoom carried over.
+**Read** (`ReadButton`) is the Book Preview in `compact` mode: one page at a
+time, with just a **Write** button. The toolbar, status bar and suggestions are
+hidden, so no AI requests run. The File menu stays mounted but hidden, so
+`?open=drive` links, Drive dialogs and the save status still work.
+
 **Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
 after "Chapters start new page"; `typewriterSounds` in settings, off by
 default). The sounds are synthesised with the Web Audio API, so there are no
