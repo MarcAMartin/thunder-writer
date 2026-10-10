@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocuments } from '../../store/documents'
 import { makeDoc } from '../storage/testDocs'
+import { ExportToast } from '../export/ExportHost'
+import { useExportUi } from '../export/exportUi'
 
 const mem = vi.hoisted(() => new Map<string, Map<IDBValidKey, unknown>>())
 vi.mock('idb-keyval', () => {
@@ -30,6 +32,7 @@ const T0 = Date.UTC(2026, 8, 30, 15, 40)
 
 beforeEach(async () => {
   mem.clear()
+  useExportUi.setState({ toast: null })
   useBackups.setState({ list: [], loaded: false, error: null, writeError: null })
   const storm = makeDoc({ id: 'a', title: 'The Long Storm', content: words('Now it rains.'), updatedAt: 50 })
   useDocuments.setState({ docs: { a: storm, b: makeDoc({ id: 'b', title: 'Other Book' }) }, currentId: 'a', hydrated: true, dirtyForDrive: {} })
@@ -47,7 +50,7 @@ const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 describe('BackupsMenu', () => {
   it('lists the open manuscript’s backups, newest first, with words and why each was kept', async () => {
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     expect(menu).toHaveAccessibleName('Backups of The Long Storm')
     const items = await within(menu).findAllByRole('menuitem', { description: /\bwords?\b/ })
@@ -65,7 +68,7 @@ describe('BackupsMenu', () => {
   it('choosing a backup opens it as a new manuscript and leaves this one as it is', async () => {
     const user = userEvent.setup()
     const before = useDocuments.getState().docs.a
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     const items = await within(menu).findAllByRole('menuitem', { description: /\bwords?\b/ })
     await user.click(items[1])
@@ -78,7 +81,7 @@ describe('BackupsMenu', () => {
 
   it('Undo closes an untouched copy and goes back; an edited copy is kept', async () => {
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     let menu = await openMenu(user)
     await user.click((await within(menu).findAllByRole('menuitem', { description: /\bwords?\b/ }))[0])
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
@@ -101,14 +104,14 @@ describe('BackupsMenu', () => {
   it('says when the latest backup couldn’t be saved', async () => {
     useBackups.setState({ writeError: 'The latest backup couldn’t be saved in this browser (its storage may be full).' })
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     expect(await within(menu).findByRole('menuitem', { name: /latest backup couldn’t be saved/ })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('"Back up now" keeps the current version', async () => {
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     await user.click(within(menu).getByRole('menuitem', { name: 'Back up now' }))
     expect(await screen.findByText('Backed up “The Long Storm”.')).toBeInTheDocument()
@@ -118,7 +121,7 @@ describe('BackupsMenu', () => {
   it('says so when the manuscript has no backups yet', async () => {
     useDocuments.setState({ currentId: 'fresh', docs: { fresh: makeDoc({ id: 'fresh', title: 'Book Three' }) } })
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     // Focused first, so a screen reader hears it too; it can't be chosen.
     const none = await within(menu).findByRole('menuitem', { name: /No backups of this manuscript yet/ })
@@ -128,7 +131,7 @@ describe('BackupsMenu', () => {
 
   it('"All backups…" lists every manuscript’s, including deleted ones, and opens a copy', async () => {
     const user = userEvent.setup()
-    render(<BackupsMenu />)
+    render(<><BackupsMenu /><ExportToast /></>)
     const menu = await openMenu(user)
     await user.click(within(menu).getByRole('menuitem', { name: /All backups/ }))
     const dialog = await screen.findByRole('dialog', { name: 'All backups' })

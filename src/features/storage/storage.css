@@ -100,19 +100,6 @@
   .fm-tone-busy .fm-status-dot { animation: none; }
 }
 
-.fm-note-slot { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; pointer-events: none; }
-.fm-note {
-  display: inline-block;
-  max-width: 360px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--tw-surface);
-  border: 1px solid var(--tw-border);
-  box-shadow: var(--tw-shadow);
-  color: var(--tw-text);
-}
-.fm-note-error { border-color: var(--tw-danger); color: var(--tw-danger); }
 
 /* Dialogs */
 .fm-overlay {

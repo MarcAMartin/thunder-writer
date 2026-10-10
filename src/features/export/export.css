@@ -182,7 +182,7 @@
 .ex-toast-slot {
   position: fixed;
   left: 50%;
-  bottom: 44px;
+  top: 14px;
   transform: translateX(-50%);
   /* Above the full-screen Book preview (z-index 1000), so Cmd/Ctrl+S confirms the save there too. */
   z-index: 1010;
@@ -194,19 +194,21 @@
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 10px 18px 10px 14px;
   border-radius: 999px;
-  font-size: 13.5px;
+  font-size: 14px;
+  font-weight: 500;
   background: var(--tw-surface);
   color: var(--tw-text);
-  border: 1px solid var(--tw-border);
-  box-shadow: var(--tw-shadow);
-  animation: ex-rise 160ms ease-out;
+  border: 1px solid color-mix(in srgb, var(--tw-success) 45%, var(--tw-border));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.16);
+  animation: ex-drop 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
-.ex-toast-error { border-color: var(--tw-danger); color: var(--tw-danger); border-radius: 12px; }
-.ex-toast-info { border-radius: 12px; }
-.ex-toast .ex-dot { background: var(--tw-success); }
+.ex-toast-leaving { animation: ex-lift 200ms ease-in forwards; }
+.ex-toast-error { border-color: var(--tw-danger); color: var(--tw-danger); border-radius: 14px; }
+.ex-toast-info { border-color: color-mix(in srgb, var(--tw-accent) 45%, var(--tw-border)); border-radius: 14px; }
+.ex-toast .ex-dot { width: 9px; height: 9px; flex: none; background: var(--tw-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tw-success) 20%, transparent); }
 .ex-toast-error .ex-dot { background: var(--tw-danger); }
 .ex-toast-info .ex-dot { background: var(--tw-accent); }
 .ex-toast-btn {
@@ -221,5 +223,6 @@
   padding: 0;
 }
 .ex-toast-btn:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; border-radius: 4px; }
-@keyframes ex-rise { from { opacity: 0; transform: translateY(6px); } }
-@media (prefers-reduced-motion: reduce) { .ex-toast { animation: none; } }
+@keyframes ex-drop { from { opacity: 0; transform: translateY(-14px) scale(0.96); } }
+@keyframes ex-lift { to { opacity: 0; transform: translateY(-10px); } }
+@media (prefers-reduced-motion: reduce) { .ex-toast, .ex-toast-leaving { animation: none; } }

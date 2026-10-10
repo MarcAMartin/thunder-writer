@@ -4,6 +4,7 @@ import type { ThunderDoc } from '../../types'
 import { AllBackupsModal } from './AllBackupsModal'
 import { backUpCurrentNow, formatBackupTime, openBackupAsCopy, refreshBackups, undoOpenCopy, useBackups } from './backups'
 import { describeReason, describeSize, type BackupMeta } from './retention'
+import { useExportUi } from '../export/exportUi'
 // The menu and dialog build on these; load them first so backups.css can refine them.
 import '../export/export.css'
 import '../storage/storage.css'
@@ -22,12 +23,10 @@ const n = (v: number) => v.toLocaleString()
 export function BackupsMenu() {
   const [open, setOpen] = useState(false)
   const [all, setAll] = useState(false)
-  const [note, setNote] = useState<{ text: string; tone: 'ok' | 'error'; undo?: () => void } | null>(null)
   const menuId = useId()
   const hintId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const doc = useDocuments(currentDoc)
   const list = useBackups((s) => s.list)
   const loaded = useBackups((s) => s.loaded)
@@ -36,10 +35,9 @@ export function BackupsMenu() {
   const mine = doc ? list.filter((m) => m.docId === doc.id) : []
   const title = doc?.title || 'Untitled Manuscript'
 
+  // Messages pop up as app notifications at the top of the window (with Undo when there is one).
   const flash = (text: string, tone: 'ok' | 'error' = 'ok', undo?: () => void) => {
-    if (noteTimer.current) clearTimeout(noteTimer.current)
-    setNote({ text, tone, undo })
-    noteTimer.current = setTimeout(() => setNote(null), tone === 'error' || undo ? 8000 : 4000)
+    useExportUi.getState().showToast(text, tone, undo ? { label: 'Undo', run: undo } : undefined)
   }
 
   /** After a backup opened as a copy: say so, with Undo (removes the copy while it's untouched). */
@@ -47,10 +45,6 @@ export function BackupsMenu() {
     flash(`Opened the backup from ${when} as “${copy.title}”.`, 'ok', () => {
       flash(undoOpenCopy(copy.id, previousId) ? 'Closed the copy.' : 'The copy has been edited, so it was kept.')
     })
-  useEffect(() => () => {
-    if (noteTimer.current) clearTimeout(noteTimer.current)
-  }, [])
-
   useEffect(() => {
     if (open) void refreshBackups()
   }, [open])
@@ -173,19 +167,6 @@ export function BackupsMenu() {
           </div>
         </div>
       )}
-
-      <div className="bk-note-slot" aria-live="polite">
-        {note && (
-          <span className={`fm-note fm-note-${note.tone}`}>
-            {note.text}
-            {note.undo && (
-              <button type="button" className="bk-undo" onClick={note.undo}>
-                Undo
-              </button>
-            )}
-          </span>
-        )}
-      </div>
 
       {all && (
         <AllBackupsModal

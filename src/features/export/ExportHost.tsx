@@ -46,31 +46,54 @@ export function useDesktopCopyService(): void {
   }, [currentId])
 }
 
+/**
+ * The app's notifications (saves, Google Drive, backups): a pill that drops in
+ * at the top middle of the window and fades away on its own.
+ */
 export function ExportToast() {
   const toast = useExportUi((s) => s.toast)
   const dismiss = useExportUi((s) => s.dismissToast)
+  // The last toast stays on screen briefly after it is dismissed, so it can fade out.
+  const [leaving, setLeaving] = useState<typeof toast>(null)
+  const last = useRef(toast)
   useEffect(() => {
     if (!toast) return
     const ms = toast.tone === 'error' ? 9000 : toast.action ? 7000 : 3500
     const t = setTimeout(() => dismiss(toast.id), ms)
     return () => clearTimeout(t)
   }, [toast, dismiss])
+  useEffect(() => {
+    const previous = last.current
+    last.current = toast
+    if (toast || !previous) {
+      setLeaving(null)
+      return
+    }
+    setLeaving(previous)
+    const t = setTimeout(() => setLeaving(null), 220)
+    return () => clearTimeout(t)
+  }, [toast])
+  const shown = toast ?? leaving
   return (
     <div className="ex-toast-slot" aria-live="polite" aria-atomic="true">
-      {toast && (
-        <div className={`ex-toast ex-toast-${toast.tone}`} role={toast.tone === 'error' ? 'alert' : 'status'}>
+      {shown && (
+        <div
+          key={shown.id}
+          className={`ex-toast ex-toast-${shown.tone}${toast ? '' : ' ex-toast-leaving'}`}
+          role={shown.tone === 'error' ? 'alert' : 'status'}
+        >
           <span className="ex-dot" aria-hidden="true" />
-          <span>{toast.text}</span>
-          {toast.action && (
+          <span>{shown.text}</span>
+          {shown.action && toast && (
             <button
               type="button"
               className="ex-toast-btn"
               onClick={() => {
-                dismiss(toast.id)
-                toast.action!.run()
+                dismiss(shown.id)
+                shown.action!.run()
               }}
             >
-              {toast.action.label}
+              {shown.action.label}
             </button>
           )}
         </div>

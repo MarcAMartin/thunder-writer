@@ -21,10 +21,10 @@ import { OpenLocalModal } from './OpenLocalModal'
 import { loadPickerApi, type PickedFile } from './picker'
 import { makeEnvelope } from './schema'
 import { ResolveConflictModal } from './ResolveConflictModal'
+import { useExportUi } from '../export/exportUi'
 import './storage.css'
 
 type ModalKind = 'open' | 'drive' | 'conflict' | null
-type Note = { text: string; tone: 'ok' | 'error' } | null
 
 export interface FileMenuProps {
   /** Rendered right after the File button (the writer page puts "Export ▾" here). */
@@ -49,14 +49,12 @@ export interface FileMenuProps {
 export function FileMenu({ afterMenu, afterStatus, onSaveToComputer, statusContainer }: FileMenuProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [modal, setModal] = useState<ModalKind>(null)
-  const [note, setNote] = useState<Note>(null)
   /** Import from Google Drive in progress; `pick` null = show a prompt button first (?open=picker). */
   const [driveImport, setDriveImport] = useState<{ pick: Promise<PickedFile | null> | null; run: number } | null>(null)
   const importRun = useRef(0)
   const [searchParams, setSearchParams] = useSearchParams()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const doc = useDocuments(currentDoc)
   const createDoc = useDocuments((s) => s.createDoc)
@@ -64,13 +62,9 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer, statusConta
   const configured = isDriveConfigured()
   const pickerReady = configured && isPickerConfigured()
 
+  // Drive and file messages pop up as app notifications at the top of the window.
   const flash = useCallback((text: string, tone: 'ok' | 'error' = 'ok') => {
-    if (noteTimer.current) clearTimeout(noteTimer.current)
-    setNote({ text, tone })
-    noteTimer.current = setTimeout(() => setNote(null), tone === 'error' ? 7000 : 3500)
-  }, [])
-  useEffect(() => () => {
-    if (noteTimer.current) clearTimeout(noteTimer.current)
+    useExportUi.getState().showToast(text, tone)
   }, [])
 
   // Deep links: /write?open=drive (Home › Continue Writing with nothing in this browser) and /write?open=picker (import from Drive).
@@ -268,10 +262,6 @@ export function FileMenu({ afterMenu, afterStatus, onSaveToComputer, statusConta
         if (statusContainer === undefined) return status
         return statusContainer ? createPortal(status, statusContainer) : null
       })()}
-
-      <div className="fm-note-slot" aria-live="polite">
-        {note && <span className={`fm-note fm-note-${note.tone}`}>{note.text}</span>}
-      </div>
 
 
       {modal === 'open' && <OpenLocalModal onClose={() => setModal(null)} />}
