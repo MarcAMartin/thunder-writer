@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 
-/** Phones and narrow windows: the writer shows a simplified layout (see WriterPage). */
-export const NARROW_QUERY = '(max-width: 760px)'
+/**
+ * Phones (either way up) and very narrow windows: the writer shows a simplified
+ * layout (see WriterPage). Measured on the short side, so tablets, even an
+ * iPad mini held upright (744 px), get the full desktop app, while a phone
+ * held sideways (about 430 px tall, touch) keeps the phone layout.
+ */
+export const NARROW_QUERY = '(max-width: 599px), (max-height: 499px) and (pointer: coarse)'
 
 const matches = (query: string) => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches
 

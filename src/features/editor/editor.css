@@ -878,6 +878,14 @@
   background: var(--tw-accent);
   filter: brightness(1.08);
 }
+.tw-btn.ed-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding-inline: 12px 14px;
+  font-weight: 600;
+}
 .ed-read-btn .ed-icon {
   color: var(--tw-bolt);
 }
@@ -909,6 +917,11 @@
     max-height: 40vh;
     border-left: 0;
     border-top: 1px solid var(--tw-border);
+  }
+  /* Under the pages (e.g. an iPad mini held upright), the suggestions use the full width. */
+  .ed-side > .sg-pane:not(.sg-rail) {
+    width: auto;
+    min-width: 0;
   }
   .ed-status {
     grid-row: 4;

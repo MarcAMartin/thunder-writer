@@ -207,8 +207,9 @@ them from the File menu.
 - **Three page views**, bottom right: **Scroll** (one page after another),
   **Side by side** (two pages across, in Chrome and Edge) and **Flip** (two
   pages at a time, turned like a book). You can type in all three.
-- **On a phone**, Thunder Writer keeps it simple: **Write** (your pages) and
-  **Read** (the book, a page at a time).
+- **On a phone**, Thunder Writer keeps it simple: **Write** (your pages),
+  **Read** (the book, a page at a time) and **Open** (your manuscripts in Google
+  Drive, a Google Doc to import, or a new one). An iPad gets the full app.
 
 ## Try it
 

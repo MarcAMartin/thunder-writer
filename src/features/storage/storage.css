@@ -28,6 +28,8 @@
   flex-direction: column;
 }
 
+.fm-menu-right { left: auto; right: 0; max-width: calc(100vw - 24px); }
+
 .fm-item {
   font: inherit;
   font-size: 14px;

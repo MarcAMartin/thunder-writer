@@ -935,12 +935,25 @@ rendered by `ExportToast`. It drops in at the top middle of the window, above
 the Book Preview, and fades out after 3.5 s, or 7–9 s for errors and messages
 with an action.
 
-**Phones** (`NARROW_QUERY`, 760 px and below): the writer has two views.
+**Phones** (`NARROW_QUERY`: under 600 px wide, or under 500 px tall with a
+touch pointer). This tests the short side, so a phone stays in the phone
+layout even sideways, and every iPad gets the desktop app, including an iPad
+mini held upright at 744 px. The writer has two views.
 **Write** is the pages in the scroll view at 100%, with no zoom carried over.
 **Read** (`ReadButton`) is the Book Preview in `compact` mode: one page at a
 time, with just a **Write** button. The toolbar, status bar and suggestions are
 hidden, so no AI requests run. The File menu stays mounted but hidden, so
-`?open=drive` links, Drive dialogs and the save status still work.
+`?open=drive` links, Drive dialogs and the save status still work. The
+header's **Open** menu (`MobileOpenMenu`) uses those same links:
+
+- **Your manuscripts in Google Drive** sets `?open=drive`, which opens the
+  Drive list, with Connect if needed.
+- **Import a Google Doc or Word file** sets `?open=picker`, which asks for one
+  more tap, because the Picker needs a click.
+- **New manuscript** sets `?new=1`.
+
+Between 600 and 760 px wide (for example an upright iPad mini), the regular
+app puts the suggestions under the pages at full width.
 
 **Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
 after "Chapters start new page"; `typewriterSounds` in settings, off by

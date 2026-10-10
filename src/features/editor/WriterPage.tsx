@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
 import { ThemeToggle } from '../../shell/ThemeToggle'
 import { NARROW_QUERY, useMediaQuery } from '../../shell/useMediaQuery'
+import { MobileOpenMenu } from '../storage/MobileOpenMenu'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
@@ -154,6 +155,7 @@ export function WriterPage() {
             <div ref={setStatusSlot} className="ed-docstatus" />
             <div className="ed-topbar-spacer" />
             {/* Phones: Read opens the book preview; the toolbar and suggestions step aside (editor.css). */}
+            {narrow && <MobileOpenMenu />}
             {narrow && <ReadButton editor={editor} />}
             <ThemeToggle />
             <SuggestionButton />
