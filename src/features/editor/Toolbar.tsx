@@ -190,7 +190,6 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
     : [...FONT_OPTIONS, { label: resolved.fontFamily.split(',')[0].replace(/'/g, ''), value: resolved.fontFamily }]
 
   return (
-    <div className="ed-toolbar-wrap">
     <div id={toolbarId} className={`ed-toolbar${collapsed ? ' ed-toolbar-collapsed' : ''}`} role="toolbar" aria-label="Formatting">
       <div className="ed-group ed-group-file">
         {leading}
@@ -374,23 +373,22 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
       <div className="ed-group ed-group-preview">
         <SupportSlot />
         <PreviewButton editor={editor} />
+        {/* Folds the toolbar to one row of everyday tools; the book setup controls come back with More tools. */}
+        <button
+          type="button"
+          className="ed-tool ed-toolbar-toggle"
+          aria-label={collapsed ? 'More tools' : 'Fewer tools'}
+          aria-controls={toolbarId}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'More tools: book size, font, spacing and more' : 'Fewer tools: fold the toolbar to one row'}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setSettings({ toolbarCollapsed: !collapsed })}
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d={collapsed ? 'M4 6.5 8 10.5l4-4' : 'M4 9.5 8 5.5l4 4'} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
-    </div>
-      {/* Folds the toolbar to one row of everyday tools; the book setup controls come back with More tools. */}
-      <button
-        type="button"
-        className="ed-toolbar-toggle"
-        aria-controls={toolbarId}
-        aria-expanded={!collapsed}
-        title={collapsed ? 'Show all the tools, including book size, font and spacing' : 'Fold the toolbar to one row of everyday tools'}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setSettings({ toolbarCollapsed: !collapsed })}
-      >
-        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-          <path d={collapsed ? 'M2.5 4.5 6 8l3.5-3.5' : 'M2.5 7.5 6 4l3.5 3.5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        {collapsed ? 'More tools' : 'Fewer tools'}
-      </button>
     </div>
   )
 }

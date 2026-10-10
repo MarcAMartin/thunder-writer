@@ -207,7 +207,7 @@ them from the File menu.
 - **Three page views**, in the lower right of the pages: **Scroll** (one page after another),
   **Side by side** (two pages across, in Chrome and Edge) and **Flip** (two
   pages at a time, turned like a book). You can type in all three.
-- **Fewer tools**: the tab under the toolbar folds it to one row of everyday
+- **Fewer tools**: the chevron at the right end of the toolbar folds it to one row of everyday
   tools (book size, font and spacing tuck away until you choose More tools).
 - **On a phone**, Thunder Writer keeps it simple: **Write** (your pages),
   **Read** (the book, a page at a time) and **Open** (your manuscripts in Google

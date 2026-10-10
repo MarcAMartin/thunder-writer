@@ -930,8 +930,8 @@ because there is still one ProseMirror column:
   grows. A click in a page's margin puts the cursor on that page.
 - **Switching views** keeps the same pages in front of the writer.
 
-**Fewer tools** (`toolbarCollapsed` in settings): the tab under the toolbar
-folds it to one row. It hides the book setup controls (book size, font, size,
+**Fewer tools** (`toolbarCollapsed` in settings): the chevron button at the
+right end of the toolbar folds it to one row. It hides the book setup controls (book size, font, size,
 line spacing, Chapters start new page, Typewriter sounds), Headers &
 footers…, and the book pick and tip jar. Preview Book and the everyday tools
 stay.
