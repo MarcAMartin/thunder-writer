@@ -17,6 +17,7 @@ import {
   supportsSpread,
   visibleWidth,
 } from './pageLayouts'
+import { PageLayoutSwitch } from './PageLayoutSwitch'
 import { pageGeometry, trimLabel, FONT_OPTIONS, type ResolvedFormat } from './presets'
 import { usePagination, type SheetInfo } from './usePagination'
 
@@ -280,6 +281,9 @@ export function PageView({
   }
 
   return (
+    <>
+    {/* Phones always scroll, so the switch is for larger screens. */}
+    {!narrow && <PageLayoutSwitch />}
     <div className={`ed-scroll ed-scroll-${layout}`} ref={scrollRef} onWheel={onWheel}>
       <p className="ed-pageinfo" aria-live="polite">
         <span>{format.label.replace(/\s*\(.*\)$/, '')}</span>
@@ -372,5 +376,6 @@ export function PageView({
         )}
       </div>
     </div>
+    </>
   )
 }

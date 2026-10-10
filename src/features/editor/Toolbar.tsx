@@ -138,7 +138,7 @@ function ToolButton(props: {
   )
 }
 
-const Sep = () => <span className="ed-sep" aria-hidden="true" />
+const Sep = ({ className = '' }: { className?: string }) => <span className={`ed-sep ${className}`.trim()} aria-hidden="true" />
 
 /* ------------------------------ toolbar ------------------------------ */
 
@@ -162,7 +162,9 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
   const { format, resolved, patch } = useCurrentFormat()
   const ids = { block: useId(), preset: useId(), font: useId(), size: useId(), lh: useId(), chapter: useId(), sounds: useId() }
   const typewriter = useSettings((s) => s.typewriterSounds)
+  const collapsed = useSettings((s) => s.toolbarCollapsed)
   const setSettings = useSettings((s) => s.set)
+  const toolbarId = useId()
   const disabled = !editor || !st
 
   const run = (fn: (e: Editor) => void) => () => {
@@ -188,7 +190,8 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
     : [...FONT_OPTIONS, { label: resolved.fontFamily.split(',')[0].replace(/'/g, ''), value: resolved.fontFamily }]
 
   return (
-    <div className="ed-toolbar" role="toolbar" aria-label="Formatting">
+    <div className="ed-toolbar-wrap">
+    <div id={toolbarId} className={`ed-toolbar${collapsed ? ' ed-toolbar-collapsed' : ''}`} role="toolbar" aria-label="Formatting">
       <div className="ed-group ed-group-file">
         {leading}
         <HeaderFooterButton />
@@ -270,7 +273,7 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
           </ToolButton>
         ))}
       </div>
-      <Sep />
+      <Sep className="ed-sep-format" />
       <div className="ed-group ed-group-format" role="group" aria-label="Book format">
         <label className="ed-sr" htmlFor={ids.preset}>
           Book size
@@ -353,7 +356,7 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
           <span>Chapters start new page</span>
         </label>
       </div>
-      <div className="ed-group">
+      <div className="ed-group ed-group-extras">
         <label className="ed-check" htmlFor={ids.sounds} title="A key strike as you type, and a softer knock when you delete">
           <input
             id={ids.sounds}
@@ -372,6 +375,22 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
         <SupportSlot />
         <PreviewButton editor={editor} />
       </div>
+    </div>
+      {/* Folds the toolbar to one row of everyday tools; the book setup controls come back with More tools. */}
+      <button
+        type="button"
+        className="ed-toolbar-toggle"
+        aria-controls={toolbarId}
+        aria-expanded={!collapsed}
+        title={collapsed ? 'Show all the tools, including book size, font and spacing' : 'Fold the toolbar to one row of everyday tools'}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setSettings({ toolbarCollapsed: !collapsed })}
+      >
+        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
+          <path d={collapsed ? 'M2.5 4.5 6 8l3.5-3.5' : 'M2.5 7.5 6 4l3.5 3.5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {collapsed ? 'More tools' : 'Fewer tools'}
+      </button>
     </div>
   )
 }

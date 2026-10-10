@@ -908,7 +908,8 @@ When the scale changes, the line at the middle of the window stays there and
 a page wider than the window is centered. The zoom also applies in Focus
 Mode, where the status bar is hidden.
 
-**Page views** (status bar, lower right; `pageLayout` in settings;
+**Page views** (`PageLayoutSwitch`, which floats in the lower right of the
+page area and is hidden in Focus Mode and on phones; `pageLayout` in settings;
 `pageLayouts.ts`): **Scroll**, **Side by side** (two pages across, rows
 scrolling down) and **Flip** (two pages at a time). All three stay editable,
 because there is still one ProseMirror column:
@@ -928,6 +929,12 @@ because there is still one ProseMirror column:
   pages, and the view turns to wherever the cursor goes as it moves or the text
   grows. A click in a page's margin puts the cursor on that page.
 - **Switching views** keeps the same pages in front of the writer.
+
+**Fewer tools** (`toolbarCollapsed` in settings): the tab under the toolbar
+folds it to one row. It hides the book setup controls (book size, font, size,
+line spacing, Chapters start new page, Typewriter sounds), Headers &
+footers…, and the book pick and tip jar. Preview Book and the everyday tools
+stay.
 
 **Notifications:** saves, Google Drive (connected, disconnected, saved,
 errors) and backups (with Undo) all use one pop-up, `useExportUi().showToast`,

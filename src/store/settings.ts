@@ -41,8 +41,10 @@ export interface SettingsState {
   typewriterSounds: boolean
   /** Page zoom in the editor, in percent (status bar slider): 100 is the page fitted to the window. */
   pageZoom: number
-  /** How the editor lays out its pages (status bar, lower right): one column, two across, or flipping spreads. */
+  /** How the editor lays out its pages (switch in the lower right of the pages): one column, two across, or flipping spreads. */
   pageLayout: PageLayout
+  /** Toolbar folded to one row of everyday tools (the book setup controls tucked away). */
+  toolbarCollapsed: boolean
   /** Autosave to Drive every N seconds while there are unsynced changes. 0 = only on change debounce. */
   driveAutosaveSec: number
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
@@ -131,6 +133,7 @@ export const useSettings = create<SettingsState>()(
       typewriterSounds: false,
       pageZoom: 100,
       pageLayout: 'scroll',
+      toolbarCollapsed: false,
       driveAutosaveSec: 60,
       set: (patch) => set(patch),
     }),

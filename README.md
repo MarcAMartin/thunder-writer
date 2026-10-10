@@ -204,9 +204,11 @@ them from the File menu.
 - **Typewriter sounds**, if you like them: a key strike as you type, a softer
   knock when you delete. Off until you tick the box.
 - **Zoom** the pages from 100% up to 250% with the slider at the bottom left.
-- **Three page views**, bottom right: **Scroll** (one page after another),
+- **Three page views**, in the lower right of the pages: **Scroll** (one page after another),
   **Side by side** (two pages across, in Chrome and Edge) and **Flip** (two
   pages at a time, turned like a book). You can type in all three.
+- **Fewer tools**: the tab under the toolbar folds it to one row of everyday
+  tools (book size, font and spacing tuck away until you choose More tools).
 - **On a phone**, Thunder Writer keeps it simple: **Write** (your pages),
   **Read** (the book, a page at a time) and **Open** (your manuscripts in Google
   Drive, a Google Doc to import, or a new one). An iPad gets the full app.

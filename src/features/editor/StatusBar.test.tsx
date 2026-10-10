@@ -9,30 +9,6 @@ beforeEach(() => {
   useSettings.getState().set({ pageZoom: 100, pageLayout: 'scroll' })
 })
 
-describe('StatusBar page view', () => {
-  it('switches between scroll, side by side and flip in the lower right', () => {
-    const { container } = render(<StatusBar />)
-    const group = screen.getByRole('group', { name: 'Page view' })
-    expect(container.querySelector('.ed-status')?.lastElementChild).toBe(group)
-    expect(screen.getByRole('button', { name: 'Scroll' })).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Flip' }))
-    expect(useSettings.getState().pageLayout).toBe('flip')
-    expect(screen.getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('offers side by side only where the browser can lay pages out in rows', () => {
-    const supports = CSS.supports
-    CSS.supports = (() => true) as typeof CSS.supports
-    try {
-      render(<StatusBar />)
-      fireEvent.click(screen.getByRole('button', { name: 'Side by side' }))
-      expect(useSettings.getState().pageLayout).toBe('spread')
-    } finally {
-      CSS.supports = supports
-    }
-  })
-})
-
 describe('StatusBar zoom', () => {
   it('starts at 100% and zooms the page up to 250% in steps of 10', () => {
     const { container } = render(<StatusBar />)

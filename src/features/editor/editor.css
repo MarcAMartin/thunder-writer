@@ -33,6 +33,7 @@
 }
 
 .ed-main {
+  position: relative; /* the page view switch floats in its lower right */
   grid-column: 1;
   grid-row: 2;
   min-width: 0;
@@ -161,6 +162,48 @@
   border-radius: 18px;
   background: var(--tw-surface-2);
 }
+/* The toolbar folds to one row; the tab hangs just below it. */
+.ed-toolbar-wrap {
+  position: relative;
+}
+.ed-toolbar-collapsed .ed-sep-format,
+.ed-toolbar-collapsed .ed-group-format,
+.ed-toolbar-collapsed .ed-group-extras,
+.ed-toolbar-collapsed .ed-hf-btn,
+.ed-toolbar-collapsed .ed-group-preview > :not(.ed-preview-btn) {
+  display: none;
+}
+.ed-toolbar-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--tw-text-muted);
+  background: var(--tw-surface);
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ed-toolbar-toggle:hover {
+  color: var(--tw-text);
+  border-color: color-mix(in srgb, var(--tw-accent) 40%, var(--tw-border));
+}
+.ed-toolbar-toggle:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 2px;
+}
+
 /* On the bar's own tint, hover and "on" use the page surface so they still stand out. */
 .ed-toolbar .ed-tool:hover:not(:disabled),
 .ed-toolbar .ed-tool[aria-pressed='true'] {
@@ -760,24 +803,33 @@
   accent-color: var(--tw-accent);
   cursor: pointer;
 }
-/* Page view switch, lower right. */
+/* Page view switch, floating in the lower right of the page area. */
 .ed-layoutctl {
+  position: absolute;
+  right: 22px; /* clear of the pages' scrollbar */
+  bottom: 16px;
+  z-index: 3;
   display: inline-flex;
-  margin-left: auto;
-  padding: 2px;
+  padding: 3px;
   gap: 2px;
   border: 1px solid var(--tw-border);
-  border-radius: 8px;
-  background: var(--tw-surface-2);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tw-surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+/* Focus Mode clears everything but the pages. */
+.ed-focus .ed-layoutctl {
+  display: none;
 }
 .ed-layoutctl-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--tw-text-muted);
   background: transparent;
   border: 0;
@@ -786,8 +838,8 @@
   white-space: nowrap;
 }
 .ed-layoutctl-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.3;
@@ -799,8 +851,8 @@
 .ed-layoutctl-btn[aria-pressed='true'] {
   color: var(--tw-text);
   font-weight: 600;
-  background: var(--tw-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  background: var(--tw-surface-2);
+  box-shadow: inset 0 0 0 1px var(--tw-border);
 }
 .ed-layoutctl-btn[aria-pressed='true'] svg {
   stroke: var(--tw-accent);

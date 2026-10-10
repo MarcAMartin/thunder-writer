@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { TiptapEditorHTMLElement } from '@tiptap/core'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
+import { useSettings } from '../../store/settings'
 import type { HeaderFooterSettings, ThunderDoc } from '../../types'
 import type { BookPreviewProps } from '../preview/BookPreview'
 import { DEFAULT_HEADER_FOOTER, normalizeHeaderFooter } from '../preview/headerFooter'
@@ -94,6 +95,26 @@ describe('Preview shortcut', () => {
     expect(isPreviewShortcut(k({ metaKey: true, altKey: true }), false)).toBe(false)
     // AltGr (Ctrl+Alt) typing a character on the P key of some layouts is left alone.
     expect(isPreviewShortcut(k({ ctrlKey: true, altKey: true, key: '§' }), false)).toBe(false)
+  })
+})
+
+describe('Toolbar › Fewer tools', () => {
+  it('folds the toolbar to one row of everyday tools, remembered, and unfolds it again', async () => {
+    useSettings.getState().set({ toolbarCollapsed: false })
+    await renderPage()
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    const toggle = screen.getByRole('button', { name: 'Fewer tools' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAttribute('aria-controls', toolbar.id)
+    fireEvent.click(toggle)
+    expect(useSettings.getState().toolbarCollapsed).toBe(true)
+    expect(toolbar).toHaveClass('ed-toolbar-collapsed')
+    // Book setup is what folds away (editor.css hides these); Preview Book stays.
+    expect(toolbar.querySelector('.ed-group-format')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Preview Book' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More tools' }))
+    expect(useSettings.getState().toolbarCollapsed).toBe(false)
+    expect(toolbar).not.toHaveClass('ed-toolbar-collapsed')
   })
 })
 
