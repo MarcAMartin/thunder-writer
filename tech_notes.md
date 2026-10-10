@@ -946,7 +946,23 @@ because there is still one ProseMirror column:
 - **Switching views** keeps the same pages in front of the writer.
 
 **Collapse tools / Show tools** (`toolbarCollapsed` in settings): a beveled
-button centered along the bottom edge of the toolbar folds it to one row. It hides the book setup controls (book size, font, size,
+button centered along the bottom edge of the toolbar folds it to one row, and
+the header turns compact (`.ed-tools-collapsed`: smaller logo, name and title,
+less padding).
+
+The change animates with a View Transition (`toolbarFold.ts`,
+`html.tw-tools-fold`):
+
+- **Header:** rolls up or down, cropping as its box changes height while the
+  old and new pictures crossfade.
+- **Pages:** glide and grow from their old size into the new one, because the
+  whole-page fit changes with the header. `MEASURE_NOW_EVENT` makes the page
+  view re-measure inside the transition, so the new picture is already at its
+  final size. CSS variables line the two pictures up on the line the writer
+  was looking at.
+- **Focus Mode's** View Transition animations are scoped to its own classes,
+  so they don't fire here.
+- **Without View Transitions,** or with reduced motion, the change is instant. It hides the book setup controls (book size, font, size,
 line spacing, Chapters start new page, Typewriter sounds), Headers &
 footers…, and the book pick and tip jar. Preview Book and the everyday tools
 stay.

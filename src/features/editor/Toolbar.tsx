@@ -7,6 +7,7 @@ import { SupportSlot } from '../support/SupportSlot'
 import { useSettings } from '../../store/settings'
 import { playStrike } from './typewriterSounds'
 import { FocusModeButton, HeaderFooterButton, PreviewButton } from './BookTools'
+import { setToolsCollapsed } from './toolbarFold'
 import { HEADING_LABELS } from './editorExtensions'
 import {
   BOOK_PRESETS,
@@ -383,7 +384,7 @@ export function Toolbar({ leading }: { leading?: ReactNode } = {}) {
           aria-expanded={!collapsed}
           title={collapsed ? 'Show book size, font, spacing and the other tools' : 'Fold the toolbar to one row of everyday tools'}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setSettings({ toolbarCollapsed: !collapsed })}
+          onClick={() => void setToolsCollapsed(!collapsed)}
         >
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
             <path d={collapsed ? 'M4 6.5 8 10.5l4-4' : 'M4 9.5 8 5.5l4 4'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

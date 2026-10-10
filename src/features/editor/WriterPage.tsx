@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { EditorContext } from '../../shell/EditorContext'
 import { ThemeToggle } from '../../shell/ThemeToggle'
 import { NARROW_QUERY, useMediaQuery } from '../../shell/useMediaQuery'
+import { useSettings } from '../../store/settings'
 import { MobileOpenMenu } from '../storage/MobileOpenMenu'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
@@ -105,6 +106,7 @@ export function WriterPage() {
   const [statusSlot, setStatusSlot] = useState<HTMLDivElement | null>(null)
   const focus = useFocusMode((s) => s.on)
   const narrow = useMediaQuery(NARROW_QUERY)
+  const toolsCollapsed = useSettings((s) => s.toolbarCollapsed)
   useTypewriterSounds()
 
   // Focus Mode: Escape leaves it (not while a dialog is open, which Escape closes instead),
@@ -134,7 +136,7 @@ export function WriterPage() {
 
   return (
     <EditorContext.Provider value={ctx}>
-      <div className={`ed-app${focus ? ' ed-focus' : ''}${narrow ? ' ed-narrow' : ''}`}>
+      <div className={`ed-app${focus ? ' ed-focus' : ''}${narrow ? ' ed-narrow' : ''}${toolsCollapsed ? ' ed-tools-collapsed' : ''}`}>
         <a
           className="ed-skip"
           href="#manuscript"

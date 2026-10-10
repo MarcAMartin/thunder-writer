@@ -162,6 +162,31 @@
   border-radius: 18px;
   background: var(--tw-surface-2);
 }
+/* Collapsed tools: a compact header too (smaller logo, name and title, less air). */
+.ed-tools-collapsed .ed-topbar {
+  padding: 3px 14px 1px;
+  gap: 8px;
+}
+.ed-tools-collapsed .ed-brand .tw-logo {
+  width: 20px;
+  height: 20px;
+}
+.ed-tools-collapsed .ed-brand-name {
+  font-size: 13.5px;
+}
+.ed-tools-collapsed .ed-title {
+  font-size: 15px;
+  padding-block: 2px;
+}
+.ed-tools-collapsed .ed-topbar .tw-btn {
+  font-size: 13px;
+  padding-block: 3px;
+}
+.ed-tools-collapsed .ed-toolbar {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
 /* The toolbar folds to one row with the handle centered along its bottom edge. */
 .ed-toolbar-collapsed .ed-sep-format,
 .ed-toolbar-collapsed .ed-group-format,
@@ -1271,12 +1296,38 @@ html.tw-leaving-focus::view-transition-new(tw-pages) { animation-name: -ua-view-
 @keyframes ed-pages-old-up { from { object-position: 50% 0; } to { object-position: 50% -28px; } }
 @keyframes ed-pages-new-up { from { object-position: 50% 28px; } to { object-position: 50% 0; } }
 
-::view-transition-old(tw-header) { animation: ed-lift-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
-::view-transition-new(tw-header) { animation: ed-lift-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-::view-transition-old(tw-side) { animation: ed-slide-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
-::view-transition-new(tw-side) { animation: ed-slide-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-::view-transition-old(tw-status) { animation: ed-drop-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
-::view-transition-new(tw-status) { animation: ed-drop-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* Focus Mode only (focusMode.ts sets these classes): the header, suggestions and status bar step away. */
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-old(tw-header) { animation: ed-lift-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-new(tw-header) { animation: ed-lift-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-old(tw-side) { animation: ed-slide-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-new(tw-side) { animation: ed-slide-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-old(tw-status) { animation: ed-drop-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-new(tw-status) { animation: ed-drop-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/*
+ * Collapse tools / Show tools (toolbarFold.ts): the header rolls up or down,
+ * its two pictures crossfading inside a box that crops as it changes height,
+ * and the pages glide and grow from their old size into the new one.
+ */
+html.tw-tools-fold::view-transition-group(*) {
+  animation-duration: 440ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.tw-tools-fold::view-transition-group(tw-header) {
+  overflow: clip;
+}
+/* The old header lifts away quickly and the new one settles in just behind it, so they barely overlap. */
+html.tw-tools-fold::view-transition-old(tw-header) { animation: ed-fold-head-out 170ms ease-in both; }
+html.tw-tools-fold::view-transition-new(tw-header) { animation: ed-fold-head-in 380ms 70ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+html.tw-tools-fold::view-transition-old(tw-pages) { animation: ed-fold-out 240ms ease both; }
+html.tw-tools-fold::view-transition-new(tw-pages) {
+  transform-origin: 50% 0;
+  animation: ed-fold-pages 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ed-fold-out { to { opacity: 0; } }
+@keyframes ed-fold-head-out { to { opacity: 0; transform: translateY(-10px); } }
+@keyframes ed-fold-head-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes ed-fold-pages { from { transform: translateY(var(--tw-pages-dy, 0px)) scale(var(--tw-pages-from, 1)); } }
 ::view-transition-new(tw-exit-focus) { animation: ed-exit-in 460ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 ::view-transition-old(tw-exit-focus) { animation: ed-exit-out 240ms ease-in both; }
 ::view-transition-new(tw-focus-theme) { animation: ed-exit-in 460ms 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }

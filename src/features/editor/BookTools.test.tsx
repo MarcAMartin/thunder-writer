@@ -107,14 +107,17 @@ describe('Toolbar › Collapse tools', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(toggle).toHaveAttribute('aria-controls', toolbar.id)
     fireEvent.click(toggle)
-    expect(useSettings.getState().toolbarCollapsed).toBe(true)
+    await waitFor(() => expect(useSettings.getState().toolbarCollapsed).toBe(true))
     expect(toolbar).toHaveClass('ed-toolbar-collapsed')
+    // The header turns compact with it.
+    expect(document.querySelector('.ed-app')).toHaveClass('ed-tools-collapsed')
     // Book setup is what folds away (editor.css hides these); Preview Book stays.
     expect(toolbar.querySelector('.ed-group-format')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Preview Book' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show tools' }))
-    expect(useSettings.getState().toolbarCollapsed).toBe(false)
+    await waitFor(() => expect(useSettings.getState().toolbarCollapsed).toBe(false))
     expect(toolbar).not.toHaveClass('ed-toolbar-collapsed')
+    expect(document.querySelector('.ed-app')).not.toHaveClass('ed-tools-collapsed')
   })
 })
 

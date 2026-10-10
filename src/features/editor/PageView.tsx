@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type RefObject, type WheelEvent } from 'react'
 import { EditorContent, type Editor } from '@tiptap/react'
+import { flushSync } from 'react-dom'
 import { NARROW_QUERY, useMediaQuery } from '../../shell/useMediaQuery'
 import { clampSetting, useSettings } from '../../store/settings'
 import type { HeaderFooterSettings } from '../../types'
@@ -21,6 +22,7 @@ import {
   visibleWidth,
 } from './pageLayouts'
 import { PageLayoutSwitch } from './PageLayoutSwitch'
+import { MEASURE_NOW_EVENT } from './toolbarFold'
 import { pageGeometry, trimLabel, FONT_OPTIONS, type ResolvedFormat } from './presets'
 import { usePagination, type SheetInfo } from './usePagination'
 
@@ -115,10 +117,17 @@ function useElementSize<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => setSize({ width: el.clientWidth, height: el.offsetHeight }))
+    const measure = () => ({ width: el.clientWidth, height: el.offsetHeight })
+    const ro = new ResizeObserver(() => setSize(measure()))
     ro.observe(el)
-    setSize({ width: el.clientWidth, height: el.offsetHeight })
-    return () => ro.disconnect()
+    setSize(measure())
+    // Collapse tools: re-measure at once, so the page size is final before the animation's new picture is taken.
+    const now = () => flushSync(() => setSize(measure()))
+    window.addEventListener(MEASURE_NOW_EVENT, now)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener(MEASURE_NOW_EVENT, now)
+    }
   }, [])
   return [ref, size] as const
 }
