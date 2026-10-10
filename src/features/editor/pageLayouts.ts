@@ -15,7 +15,7 @@ export type PageLayout = 'scroll' | 'spread' | 'flip'
 
 export const PAGE_LAYOUTS: readonly PageLayout[] = ['scroll', 'spread', 'flip']
 
-/** Gap between sheets side by side, in unscaled px (the same as between rows). */
+/** Gap between sheets side by side, in unscaled px (the same as between rows). The flip view's pages meet at the spine. */
 export const COLUMN_GAP = 28
 
 export interface SheetGeometry {
@@ -23,9 +23,19 @@ export interface SheetGeometry {
   pageHeight: number
   /** Page height plus the gap below it. */
   pitch: number
+  /**
+   * Flip view: 1 when the first page is a right-hand page (an odd page
+   * number), so it sits alone on the right like page 1 of a book; 0 when it
+   * is a left-hand page.
+   */
+  flipShift?: number
 }
 
-const colPitch = (g: SheetGeometry) => g.pageWidth + COLUMN_GAP
+/** Gap between the columns of a layout. */
+export const columnGap = (layout: PageLayout) => (layout === 'flip' ? 0 : COLUMN_GAP)
+
+const colPitch = (g: SheetGeometry, layout: PageLayout = 'spread') => g.pageWidth + columnGap(layout)
+const shiftOf = (g: SheetGeometry) => (g.flipShift ? 1 : 0)
 
 /** Rows of two need CSS multicol rows (`column-wrap`), which Chrome and Edge have; the flip view only needs plain columns. */
 export function supportsSpread(): boolean {
@@ -43,59 +53,72 @@ export function effectiveLayout(wanted: unknown, opts: { spreadSupported: boolea
 /** Top-left of sheet `i` in the page stack (unscaled px). */
 export function sheetPosition(layout: PageLayout, i: number, g: SheetGeometry): { left: number; top: number } {
   if (layout === 'spread') return { left: (i % 2) * colPitch(g), top: Math.floor(i / 2) * g.pitch }
-  if (layout === 'flip') return { left: i * colPitch(g), top: 0 }
+  if (layout === 'flip') return { left: (i + shiftOf(g)) * colPitch(g, 'flip'), top: 0 }
   return { left: 0, top: i * g.pitch }
 }
+
+/** Flip view: whether sheet `i` is the left page of its spread (its spine is on the right). */
+export const isLeftPage = (i: number, g: SheetGeometry) => (i + shiftOf(g)) % 2 === 0
 
 /** Size of the whole page stack for `sheets` sheets (unscaled px). */
 export function stackSize(layout: PageLayout, sheets: number, g: SheetGeometry): { width: number; height: number } {
   const n = Math.max(1, sheets)
   if (layout === 'spread') return { width: 2 * g.pageWidth + COLUMN_GAP, height: Math.ceil(n / 2) * g.pitch - (g.pitch - g.pageHeight) }
-  if (layout === 'flip') return { width: n * colPitch(g) - COLUMN_GAP, height: g.pageHeight }
+  if (layout === 'flip') return { width: (n + shiftOf(g)) * colPitch(g, 'flip'), height: g.pageHeight }
   return { width: g.pageWidth, height: n * g.pitch - (g.pitch - g.pageHeight) }
 }
 
 /** The part of the stack on screen at once: a two-page spread in the flip view, else the whole stack width. */
 export function visibleWidth(layout: PageLayout, g: SheetGeometry): number {
-  return layout === 'scroll' ? g.pageWidth : 2 * g.pageWidth + COLUMN_GAP
+  return layout === 'scroll' ? g.pageWidth : 2 * g.pageWidth + columnGap(layout)
 }
 
 /**
  * Scale (<= 1) at which the layout fits the window: the page (or two pages)
- * fits the width, and in the flip view a whole spread fits the height too.
+ * fits the width, and in the scroll and flip views a whole page fits the
+ * height too (`fitHeight`; phones fit the width only).
  */
 export function layoutFitScale(
   layout: PageLayout,
   available: { width: number; height: number },
   g: SheetGeometry,
   sidePadding: number,
+  opts: { fitHeight?: boolean } = {},
 ): number {
   const w = visibleWidth(layout, g)
-  const min = layout === 'scroll' ? 0.5 : 0.25
+  const fitHeight = opts.fitHeight ?? layout === 'flip'
+  const min = layout === 'scroll' && !fitHeight ? 0.5 : 0.25
   if (!(available.width > 0) || !(w > 0)) return 1
   let fit = Math.min(1, (available.width - sidePadding * 2) / w)
-  if (layout === 'flip' && available.height > 0) fit = Math.min(fit, available.height / g.pageHeight)
+  if (fitHeight && layout !== 'spread' && available.height > 0) fit = Math.min(fit, available.height / g.pageHeight)
   return Math.max(min, fit)
 }
 
 /** Which page a point in the stack (unscaled px) is on, clamped to the pages that exist. */
 export function pageAtPoint(layout: PageLayout, x: number, y: number, sheets: number, g: SheetGeometry): number {
-  const col = Math.max(0, Math.floor(x / colPitch(g)))
+  const col = Math.max(0, Math.floor(x / colPitch(g, layout)))
   const row = Math.max(0, Math.floor(y / g.pitch))
-  const i = layout === 'spread' ? row * 2 + Math.min(col, 1) : layout === 'flip' ? col : row
-  return Math.min(Math.max(0, sheets - 1), i)
+  const i = layout === 'spread' ? row * 2 + Math.min(col, 1) : layout === 'flip' ? col - shiftOf(g) : row
+  return Math.min(Math.max(0, sheets - 1), Math.max(0, i))
 }
 
 /** The flip view's spread (0-based) that shows page `i`. */
-export const spreadOfPage = (i: number) => Math.max(0, Math.floor(i / 2))
+export const spreadOfPage = (i: number, g?: SheetGeometry) => Math.max(0, Math.floor((i + (g ? shiftOf(g) : 0)) / 2))
+
+/** The pages of flip spread `spread` (left, right); -1 where that side is empty. */
+export function pagesOfSpread(spread: number, pages: number, g: SheetGeometry): [number, number] {
+  const left = spread * 2 - shiftOf(g)
+  const ok = (i: number) => (i >= 0 && i < pages ? i : -1)
+  return [ok(left), ok(left + 1)]
+}
 
 /** How far the stack shifts left to show spread `spread` (unscaled px). */
-export const spreadOffset = (spread: number, g: SheetGeometry) => spread * 2 * colPitch(g)
+export const spreadOffset = (spread: number, g: SheetGeometry) => spread * 2 * colPitch(g, 'flip')
 
-/** "Pages 3–4 of 9" for the flip view's page details. */
-export function describeSpread(spread: number, pages: number): string {
-  const first = spread * 2 + 1
-  const last = Math.min(pages, first + 1)
+/** "Pages 2–3 of 9" for the flip view's page details. */
+export function describeSpread(spread: number, pages: number, g?: SheetGeometry): string {
   if (pages <= 1) return '1 page'
-  return first === last ? `Page ${first} of ${pages}` : `Pages ${first}–${last} of ${pages}`
+  const shown = (g ? pagesOfSpread(spread, pages, g) : [spread * 2, spread * 2 + 1 < pages ? spread * 2 + 1 : -1]).filter((i) => i >= 0)
+  if (shown.length === 0) return `${pages} pages`
+  return shown.length === 1 ? `Page ${shown[0] + 1} of ${pages}` : `Pages ${shown[0] + 1}–${shown[1] + 1} of ${pages}`
 }

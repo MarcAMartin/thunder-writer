@@ -18,3 +18,20 @@ describe('pageScale', () => {
     expect(pageScale(1200, 600, Number.NaN)).toBe(1)
   })
 })
+
+describe('pageSnapshot (the turning leaf)', () => {
+  it('copies just one page of text, from its page-break spacer to the next', async () => {
+    const { pageSnapshot } = await import('./PageView')
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<h1>One</h1><p>first page</p>' +
+      '<div class="ed-pb" data-page="2"></div><p>second <span class="ed-pb ed-pb-inline" data-page="3"></span>third page</p>' +
+      '<p>still third</p>'
+    expect(pageSnapshot(root, 0)).toBe('<h1>One</h1><p>first page</p>')
+    expect(pageSnapshot(root, 1)).toBe('<p>second </p>')
+    // Page 3 starts mid-paragraph: its first line continues the paragraph, without an indent.
+    expect(pageSnapshot(root, 2)).toBe('<p class="ed-turn-cont">third page</p><p>still third</p>')
+    expect(pageSnapshot(root, 5)).toBe('')
+    expect(pageSnapshot(root, -1)).toBe('')
+  })
+})

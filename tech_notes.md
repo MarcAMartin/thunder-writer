@@ -908,8 +908,8 @@ When the scale changes, the line at the middle of the window stays there and
 a page wider than the window is centered. The zoom also applies in Focus
 Mode, where the status bar is hidden.
 
-**Page views** (`PageLayoutSwitch`, which floats in the lower right of the
-page area and is hidden in Focus Mode and on phones; `pageLayout` in settings;
+**Page views** (`PageLayoutSwitch`, at the right end of the page details bar
+and hidden in Focus Mode and on phones; `pageLayout` in settings;
 `pageLayouts.ts`): **Scroll**, **Side by side** (two pages across, rows
 scrolling down) and **Flip** (two pages at a time). All three stay editable,
 because there is still one ProseMirror column:
@@ -924,10 +924,25 @@ because there is still one ProseMirror column:
   `.ed-measuring` for the pass and removes it before paint. A browser check
   found every line on the same page, within 1 px, in all three views.
 - **Sheets** are placed by `sheetPosition`.
-- **Flip details:** the view clips the stack to one spread and slides it
-  (`translate`, 460 ms). The ‹ › buttons, a swipe or the scroll wheel turn the
-  pages, and the view turns to wherever the cursor goes as it moves or the text
-  grows. A click in a page's margin puts the cursor on that page.
+- **Fit:** Scroll and Flip fit a whole page top to bottom in the window
+  (`layoutFitScale` with `fitHeight`; phones fit the width). The zoom slider
+  enlarges from there.
+- **Flip is a book:**
+  - The pages meet at a shaded spine (no column gap) inside a navy cover.
+  - A right-hand first page (odd page number) sits alone on the right
+    (`flipShift`, via `.ed-flow { left }`), so spreads are 2–3, 4–5… as in
+    print.
+  - The view clips the stack to one spread.
+  - The ‹ › buttons, a swipe or the scroll wheel turn the pages, and the view
+    follows the cursor. A click in a page's margin puts the cursor on that
+    page.
+- **The page turn** (`.ed-turn`, 760 ms) is a leaf hinged at the spine.
+  `pageSnapshot` copies the text of the pages involved, between the
+  page-break spacers, onto the leaf's front and back and onto a cover for the
+  other side. The live, editable spread switches at once underneath. Use
+  animation longhands here, because the minifier turns a shorthand without an
+  animation name into `animation: none`. With reduced motion, the turn is
+  instant.
 - **Switching views** keeps the same pages in front of the writer.
 
 **Collapse tools / Show tools** (`toolbarCollapsed` in settings): a beveled

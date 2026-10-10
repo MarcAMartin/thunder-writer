@@ -416,17 +416,30 @@
   top: 0;
   /* Stays put when a zoomed page is scrolled sideways. */
   left: 0;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  z-index: 3;
+  /* Details centered, the page view switch at the right end. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 16px;
-  padding: 8px 12px;
+  padding: 4px 12px;
+  min-height: 34px;
   font-size: 12px;
   color: var(--tw-text-muted);
   background: var(--tw-surface-2);
   border-bottom: 1px solid var(--tw-border);
+}
+.ed-pageinfo-text {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.ed-pageinfo-end {
+  display: flex;
+  justify-content: flex-end;
 }
 .ed-pageinfo strong {
   color: var(--tw-text);
@@ -483,12 +496,139 @@
   column-height: auto;
   column-wrap: nowrap;
 }
-/* Turning pages in the flip view. */
-.ed-stack[data-layout='flip'] {
-  transition: translate 460ms cubic-bezier(0.22, 0.8, 0.24, 1);
-}
+/* ------------------------------ flip view: a book ------------------------------ */
+
 .ed-scroll-flip {
-  padding-bottom: 16px;
+  padding-bottom: 24px;
+}
+/* The cover behind the open pages (it shows inside an empty half, as at the first page). */
+.ed-book-cover {
+  position: absolute;
+  top: -10px;
+  border-radius: 9px;
+  background:
+    linear-gradient(to right, transparent calc(50% - 2px), rgba(0, 0, 0, 0.35) 50%, transparent calc(50% + 2px)),
+    linear-gradient(160deg, #2a3058, #1f2340 55%, #171a31);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 18px 40px rgba(20, 22, 40, 0.35);
+}
+/* Pages meet at the spine: no gap, a soft fold shadow, square inner corners. */
+.ed-stack[data-layout='flip'] .ed-sheet,
+.ed-turn-page.ed-sheet {
+  border: 0;
+  box-shadow: none;
+}
+.ed-sheet.ed-spine-right {
+  border-radius: 3px 0 0 3px;
+  background-image: linear-gradient(to left, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.05) 3.5%, rgba(0, 0, 0, 0) 10%),
+    linear-gradient(to right, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0) 2%);
+}
+.ed-sheet.ed-spine-left {
+  border-radius: 0 3px 3px 0;
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.05) 3.5%, rgba(0, 0, 0, 0) 10%),
+    linear-gradient(to left, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0) 2%);
+}
+:root[data-theme='dark'] .ed-sheet.ed-spine-right,
+:root[data-theme='dark'] .ed-sheet.ed-spine-left {
+  background-blend-mode: normal;
+}
+
+/*
+ * A page turn: a leaf hinged at the spine swings over in 3D. Its front is the
+ * page being turned, its back the page that lands on the other side; a cover
+ * holds the old page on that side until the leaf lands, while the live pages
+ * underneath have already moved on.
+ */
+.ed-turn {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  perspective: 2600px;
+  pointer-events: none;
+}
+.ed-turn-cover,
+.ed-turn-leaf {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+.ed-turn-leaf {
+  transform-style: preserve-3d;
+  /* Longhands: a name-less animation shorthand gets minified to "none". */
+  animation-duration: 760ms;
+  animation-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
+  animation-fill-mode: forwards;
+}
+.ed-turn-next .ed-turn-leaf {
+  transform-origin: left center;
+  animation-name: ed-turn-next;
+}
+.ed-turn-prev .ed-turn-leaf {
+  transform-origin: right center;
+  animation-name: ed-turn-prev;
+}
+@keyframes ed-turn-next {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(-180deg); }
+}
+@keyframes ed-turn-prev {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+.ed-turn-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+.ed-turn-back {
+  transform: rotateY(180deg);
+}
+/* Light falls off as the leaf lifts, and comes back as it settles. */
+.ed-turn-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation-duration: 760ms;
+  animation-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
+  animation-fill-mode: forwards;
+}
+.ed-turn-next .ed-turn-front::after { background: linear-gradient(to right, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.08)); animation-name: ed-shade-lift; }
+.ed-turn-next .ed-turn-back::after { background: linear-gradient(to left, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.08)); animation-name: ed-shade-land; }
+.ed-turn-prev .ed-turn-front::after { background: linear-gradient(to left, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.08)); animation-name: ed-shade-lift; }
+.ed-turn-prev .ed-turn-back::after { background: linear-gradient(to right, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.08)); animation-name: ed-shade-land; }
+@keyframes ed-shade-lift {
+  from { opacity: 0; }
+  50%, to { opacity: 1; }
+}
+@keyframes ed-shade-land {
+  from, 50% { opacity: 1; }
+  to { opacity: 0; }
+}
+.ed-turn-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.ed-turn-text {
+  position: absolute;
+  overflow: hidden;
+}
+.ed-turn-text .ed-turn-cont {
+  text-indent: 0;
+}
+/* An empty side: the inside of the cover. */
+.ed-turn-blank {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, #2a3058, #1f2340 55%, #171a31);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ed-turn-leaf,
+  .ed-turn-face::after {
+    animation-duration: 1ms;
+  }
 }
 .ed-flip {
   position: absolute;
@@ -525,11 +665,6 @@
 }
 .ed-flip-next {
   right: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ed-stack[data-layout='flip'] {
-    transition: none;
-  }
 }
 
 .ed-sheets {
@@ -816,20 +951,14 @@
   accent-color: var(--tw-accent);
   cursor: pointer;
 }
-/* Page view switch, floating in the lower right of the page area. */
+/* Page view switch, at the right end of the page details bar. */
 .ed-layoutctl {
-  position: absolute;
-  right: 22px; /* clear of the pages' scrollbar */
-  bottom: 16px;
-  z-index: 3;
   display: inline-flex;
-  padding: 3px;
+  padding: 2px;
   gap: 2px;
   border: 1px solid var(--tw-border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--tw-surface) 92%, transparent);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-radius: 9px;
+  background: var(--tw-surface);
 }
 /* Focus Mode clears everything but the pages. */
 .ed-focus .ed-layoutctl {
@@ -838,11 +967,11 @@
 .ed-layoutctl-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--tw-text-muted);
   background: transparent;
   border: 0;
