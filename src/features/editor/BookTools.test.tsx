@@ -111,8 +111,9 @@ describe('Toolbar › Collapse tools', () => {
     expect(toolbar).toHaveClass('ed-toolbar-collapsed')
     // The header turns compact with it.
     expect(document.querySelector('.ed-app')).toHaveClass('ed-tools-collapsed')
-    // Book setup is what folds away (editor.css hides these); Preview Book stays.
-    expect(toolbar.querySelector('.ed-group-format')).not.toBeNull()
+    // Everything but the book pick, tip jar and Preview Book folds away (editor.css hides the rest);
+    // the tools stay mounted, so the File menu's save status and shortcuts keep working.
+    expect(toolbar.querySelector('.ed-group-file')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Preview Book' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show tools' }))
     await waitFor(() => expect(useSettings.getState().toolbarCollapsed).toBe(false))

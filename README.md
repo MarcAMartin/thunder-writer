@@ -208,9 +208,9 @@ them from the File menu.
   (one whole page at a time, top to bottom), **Side by side** (two pages
   across, in Chrome and Edge) and **Flip** (an open book, page 1 on the right,
   with pages that turn). You can type in all three.
-- **Collapse tools**, the button centered at the bottom of the toolbar, folds
-  it to one row of everyday tools (book size, font and spacing tuck away until
-  you choose **Show tools**).
+- **Collapse tools**, the button centered at the bottom of the toolbar, tucks
+  every tool away except Preview Book (and the tip jar and book pick), and
+  makes the header compact. **Show tools** brings them back.
 - **On a phone**, Thunder Writer keeps it simple: **Write** (your pages),
   **Read** (the book, a page at a time) and **Open** (your manuscripts in Google
   Drive, a Google Doc to import, or a new one). An iPad gets the full app.

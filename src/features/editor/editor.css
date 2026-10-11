@@ -188,12 +188,29 @@
 }
 
 /* The toolbar folds to one row with the handle centered along its bottom edge. */
-.ed-toolbar-collapsed .ed-sep-format,
-.ed-toolbar-collapsed .ed-group-format,
-.ed-toolbar-collapsed .ed-group-extras,
-.ed-toolbar-collapsed .ed-hf-btn,
-.ed-toolbar-collapsed .ed-group-preview > :not(.ed-preview-btn) {
+/*
+ * Collapsed: only the book pick, tip jar and Preview Book stay, in one row
+ * with Show tools centered. (The File menu stays mounted but hidden, so the
+ * save status in the header and its shortcuts keep working.)
+ */
+.ed-toolbar-collapsed {
+  display: grid;
+  /* Show tools stays centered while there is room; the right side never gets squeezed off the edge. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+}
+.ed-toolbar-collapsed > :not(.ed-group-preview, .ed-toolbar-foldrow) {
   display: none;
+}
+.ed-toolbar-collapsed > .ed-group-preview {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+.ed-toolbar-collapsed > .ed-toolbar-foldrow {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
 }
 .ed-toolbar-foldrow {
   flex: 1 0 100%;

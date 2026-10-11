@@ -946,8 +946,9 @@ because there is still one ProseMirror column:
 - **Switching views** keeps the same pages in front of the writer.
 
 **Collapse tools / Show tools** (`toolbarCollapsed` in settings): a beveled
-button centered along the bottom edge of the toolbar folds it to one row, and
-the header turns compact (`.ed-tools-collapsed`: smaller logo, name and title,
+button centered along the bottom edge of the toolbar tucks every tool away
+except the book pick, the tip jar and Preview Book, and the header turns
+compact (`.ed-tools-collapsed`: smaller logo, name and title,
 less padding).
 
 The change animates with a View Transition (`toolbarFold.ts`,
@@ -962,10 +963,12 @@ The change animates with a View Transition (`toolbarFold.ts`,
   was looking at.
 - **Focus Mode's** View Transition animations are scoped to its own classes,
   so they don't fire here.
-- **Without View Transitions,** or with reduced motion, the change is instant. It hides the book setup controls (book size, font, size,
-line spacing, Chapters start new page, Typewriter sounds), Headers &
-footers…, and the book pick and tip jar. Preview Book and the everyday tools
-stay.
+- **Without View Transitions,** or with reduced motion, the change is instant.
+
+**Collapsed toolbar:** only the book pick, the tip jar and Preview Book stay,
+in one row with Show tools centered (a three-column grid that lets Show tools
+slide left when there isn't room to center it). The rest stays mounted but
+hidden, so the File menu's save status and shortcuts keep working.
 
 **Notifications:** saves, Google Drive (connected, disconnected, saved,
 errors) and backups (with Undo) all use one pop-up, `useExportUi().showToast`,
