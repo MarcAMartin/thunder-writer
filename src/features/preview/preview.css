@@ -1098,6 +1098,11 @@ html.bp-open body {
     flex-wrap: wrap;
     gap: 8px;
   }
+  /* On its own row when the bar wraps: no divider. */
+  .bp-support {
+    border-left: 0;
+    padding-left: 0;
+  }
   .bp-scrub-label {
     min-width: 0;
   }
@@ -1238,4 +1243,18 @@ html.bp-open body {
 .bp-btn.bp-compact-close:hover {
   background: var(--tw-accent);
   filter: brightness(1.08);
+}
+
+/* The book pick and tip jar, at the right end of the bottom bar. */
+.bp-support {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding-left: 14px;
+  border-left: 1px solid var(--tw-border);
+}
+/* App dialogs opened from inside the preview (e.g. "Please reconsider") sit above it. */
+html.bp-open .fm-overlay {
+  z-index: 1010;
 }

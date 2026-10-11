@@ -32,6 +32,7 @@ import { OverviewGrid } from './OverviewGrid'
 import { PrintBook } from './PrintBook'
 import { describePrint, INK_CHOICES, normalizePrint, PAPER_CHOICES, paperAllowed, type PrintChoice, type PrintSettings } from './printSettings'
 import { Scrubber } from './Scrubber'
+import { SupportSlot } from '../support/SupportSlot'
 import { buildViews, chapterAtPage, pagesOfView, viewLabel, viewOfPage, viewPages, type ViewMode } from './spreads'
 import { useBookLayout } from './useBookLayout'
 import './preview.css'
@@ -390,13 +391,16 @@ export function BookPreview(props: BookPreviewProps) {
     // Backstops, in case focus ever leaves the dialog (a control that disables itself, a click on
     // the page behind): keys still reach the preview, and focus comes straight back.
     const inside = (t: EventTarget | null) => !!root && t instanceof Node && root.contains(t)
+    // A dialog opened on top of the preview (e.g. the book pick's "Please reconsider") keeps its own keys and focus.
+    const inOtherDialog = (t: EventTarget | null) =>
+      t instanceof Element && !inside(t) && t.closest('[role="dialog"][aria-modal="true"]') !== null
     const onDocKey = (e: KeyboardEvent) => {
-      if (!root || inside(e.target) || e.defaultPrevented) return
+      if (!root || inside(e.target) || inOtherDialog(e.target) || e.defaultPrevented) return
       root.focus()
       keyRef.current(e)
     }
     const onFocusIn = (e: FocusEvent) => {
-      if (root && !inside(e.target)) root.focus()
+      if (root && !inside(e.target) && !inOtherDialog(e.target)) root.focus()
     }
     document.addEventListener('keydown', onDocKey)
     document.addEventListener('focusin', onFocusIn)
@@ -545,7 +549,10 @@ export function BookPreview(props: BookPreviewProps) {
       aria-label={`Book preview: ${title}`}
       ref={dialogRef}
       tabIndex={-1}
-      onKeyDown={handleKey}
+      // React passes keys up from portals too (e.g. the book pick's dialog): only handle keys from inside the preview.
+      onKeyDown={(e) => {
+        if (dialogRef.current?.contains(e.target as Node)) handleKey(e)
+      }}
     >
       <header className="bp-bar">
         <div className="bp-bar-title">
@@ -794,6 +801,10 @@ export function BookPreview(props: BookPreviewProps) {
             Go
           </button>
         </form>
+        {/* The book pick (or Support Developer) and the tip jar, as beside Preview Book in the toolbar. */}
+        <div className="bp-support">
+          <SupportSlot />
+        </div>
       </footer>
 
       <div className="bp-sr" aria-live="polite" aria-atomic="true">

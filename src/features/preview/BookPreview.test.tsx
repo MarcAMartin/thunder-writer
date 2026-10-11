@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useSettings } from '../../store/settings'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocuments } from '../../store/documents'
@@ -70,6 +71,21 @@ async function openPreview(props: HostProps = {}) {
 const live = (dialog: HTMLElement) => dialog.querySelector('[aria-live="polite"]')!
 
 describe('BookPreview', () => {
+  it('shows the book pick and tip jar; its reconsider dialog sits on top and Escape closes only that', async () => {
+    useSettings.getState().set({ supportDeveloper: true })
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<BookPreview docId="d1" onClose={onClose} layoutEnv={env} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Book preview: The Frozen River' })
+    expect(within(dialog).getByRole('group', { name: /Book pick \(ad\)/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: /Tip jar/ })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Turn off book picks' }))
+    const ask = await screen.findByRole('dialog', { name: 'Please reconsider' })
+    await user.keyboard('{Escape}')
+    expect(ask).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('compact (phones): a reading view whose only tool is the button back to writing', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -161,7 +177,8 @@ describe('BookPreview', () => {
     await user.tab()
     expect(dialog.contains(document.activeElement)).toBe(true)
     // Shift+Tab from the first control wraps to the last one, and Tab from the last wraps to the first.
-    const focusables = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select')]
+    // Links count too (the tip jar and book pick in the bottom bar).
+    const focusables = [...dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select')]
     focusables[focusables.length - 1].focus()
     await user.tab()
     expect(focusables[0]).toHaveFocus()

@@ -544,7 +544,11 @@ a plain link to Bookshop.org (an affiliate link with
 There are no ad scripts, cookies or tracking, so the privacy promises hold:
 nothing happens unless the writer clicks. Its ✕ asks **Please reconsider**
 (**Keep supporting** is the default) before turning it off. The picks are a
-short list in `bookPicks.ts`; edit them freely.
+short list in `bookPicks.ts`; edit them freely. The same pick and the tip jar
+also sit at the right end of the Book Preview's bottom bar (`SupportSlot`).
+There, the reconsider dialog opens above the preview (`html.bp-open
+.fm-overlay`), and the preview's key and focus guards leave a dialog on top of
+it alone, so Escape closes only that dialog.
 
 **Tip jar.** `src/features/support/tipJar.tsx`. A plain link to the
 developer's Venmo profile (`https://venmo.com/u/ThunderWriter`;
