@@ -448,9 +448,14 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  /* The page's fitted size (PageView) mustn't depend on whether a classic scroll bar is showing. */
+  scrollbar-gutter: stable;
   background: var(--tw-surface-2);
   padding: 0 0 64px;
   scroll-padding: 96px 0;
+}
+@supports not (scrollbar-gutter: stable) {
+  .ed-scroll { overflow-y: scroll; }
 }
 
 .ed-pageinfo {
@@ -1209,8 +1214,8 @@
 }
 /*
  * Its space stays, with --ed-focus-drop more below it: room for Exit Focus Mode
- * above the first page. The transition moves the pages down by the same
- * amount, so they never jump or show twice.
+ * above the first page. The transition follows the pages there (and to their
+ * new scale), so they never jump or show twice.
  */
 .ed-app {
   --ed-focus-drop: 28px;
@@ -1274,9 +1279,9 @@
  * The transition (View Transitions; focusMode.ts). Each part has a name, so
  * the browser animates it on its own: the header lifts away, the suggestions
  * slide off to the right and the status bar drops, all fading, while the pages
- * glide to their new place at their natural size. Coming back plays it in
- * reverse. Only one of old/new exists for a part that appears or leaves, so
- * each rule below runs in just one direction.
+ * glide to their new place, growing or shrinking to their new fitted size.
+ * Coming back plays it in reverse. Only one of old/new exists for a part that
+ * appears or leaves, so each rule below runs in just one direction.
  */
 .ed-header { view-transition-name: tw-header; }
 .ed-side { view-transition-name: tw-side; }
@@ -1293,7 +1298,13 @@
 ::view-transition-new(root) {
   animation-duration: 380ms;
 }
-/* The pages keep their size and stay centred in the moving frame: a glide, not a zoom. */
+/*
+ * The pages stay centred in the moving frame. In Focus Mode both pictures
+ * follow one spot of the manuscript (the top of the first page, or the line at
+ * the middle) from where it was to where it lands, and zoom together by the
+ * change in scale, so they stay lined up while they cross-fade. focusMode.ts
+ * measures the spot and sets the variables; without them it is a plain fade.
+ */
 ::view-transition-old(tw-pages),
 ::view-transition-new(tw-pages) {
   width: 100%;
@@ -1303,15 +1314,20 @@
   animation-duration: 520ms;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Both pictures of the pages slide by the extra room together, so they stay lined up (focusMode.ts sets the direction). */
-html.tw-entering-focus::view-transition-old(tw-pages) { animation-name: -ua-view-transition-fade-out, ed-pages-old-down; }
-html.tw-entering-focus::view-transition-new(tw-pages) { animation-name: -ua-view-transition-fade-in, ed-pages-new-down; }
-html.tw-leaving-focus::view-transition-old(tw-pages) { animation-name: -ua-view-transition-fade-out, ed-pages-old-up; }
-html.tw-leaving-focus::view-transition-new(tw-pages) { animation-name: -ua-view-transition-fade-in, ed-pages-new-up; }
-@keyframes ed-pages-old-down { from { object-position: 50% 0; } to { object-position: 50% 28px; } }
-@keyframes ed-pages-new-down { from { object-position: 50% -28px; } to { object-position: 50% 0; } }
-@keyframes ed-pages-old-up { from { object-position: 50% 0; } to { object-position: 50% -28px; } }
-@keyframes ed-pages-new-up { from { object-position: 50% 28px; } to { object-position: 50% 0; } }
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-old(tw-pages) {
+  transform-origin: 50% var(--tw-pages-old-y, 0px);
+  animation-name: -ua-view-transition-fade-out, ed-pages-old;
+}
+html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-new(tw-pages) {
+  transform-origin: 50% var(--tw-pages-new-y, 0px);
+  animation-name: -ua-view-transition-fade-in, ed-pages-new;
+}
+@keyframes ed-pages-old {
+  to { transform: translateY(calc(var(--tw-pages-new-y, 0px) - var(--tw-pages-old-y, 0px))) scale(var(--tw-pages-r, 1)); }
+}
+@keyframes ed-pages-new {
+  from { transform: translateY(calc(var(--tw-pages-old-y, 0px) - var(--tw-pages-new-y, 0px))) scale(calc(1 / var(--tw-pages-r, 1))); }
+}
 
 /* Focus Mode only (focusMode.ts sets these classes): the header, suggestions and status bar step away. */
 html:is(.tw-entering-focus, .tw-leaving-focus)::view-transition-old(tw-header) { animation: ed-lift-out 380ms cubic-bezier(0.55, 0, 0.7, 0.2) both; }

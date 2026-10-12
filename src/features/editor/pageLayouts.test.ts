@@ -38,6 +38,17 @@ describe('page layouts', () => {
     expect(layoutFitScale('scroll', { width: 300, height: 800 }, g, 32)).toBe(0.5)
   })
 
+  it('fills a tall window with the page in the scroll and flip views, but never wider than the window', () => {
+    // A large monitor: the page grows past its natural size to reach the bottom.
+    expect(layoutFitScale('scroll', { width: 2000, height: 1260 }, g, 32, { fitHeight: true })).toBeCloseTo(1260 / 900)
+    expect(layoutFitScale('flip', { width: 3000, height: 1260 }, g, 58)).toBeCloseTo(1260 / 900)
+    // Tall but narrow: the width stops it first.
+    expect(layoutFitScale('scroll', { width: 900, height: 1800 }, g, 32, { fitHeight: true })).toBeCloseTo((900 - 64) / 600)
+    // Without the height fit (phones, side by side), the natural size is still the limit.
+    expect(layoutFitScale('scroll', { width: 2000, height: 1260 }, g, 32)).toBe(1)
+    expect(layoutFitScale('spread', { width: 4000, height: 1260 }, g, 32, { fitHeight: true })).toBe(1)
+  })
+
   it('finds the page under a point and the spread that shows it', () => {
     expect(pageAtPoint('spread', 700, 1000, 9, g)).toBe(3)
     expect(pageAtPoint('flip', 1300, 50, 9, g)).toBe(2)

@@ -22,6 +22,7 @@ import {
   visibleWidth,
 } from './pageLayouts'
 import { PageLayoutSwitch } from './PageLayoutSwitch'
+import { keptScrollTop, pageTopIn, type PagesView } from './pagesView'
 import { MEASURE_NOW_EVENT } from './toolbarFold'
 import { pageGeometry, trimLabel, FONT_OPTIONS, type ResolvedFormat } from './presets'
 import { usePagination, type SheetInfo } from './usePagination'
@@ -34,8 +35,8 @@ const NARROW_SIDE_PADDING = 10
 const MIN_SCALE = 0.5
 /** How far a swipe or the wheel travels before the flip view turns the page. */
 const WHEEL_TURN_PX = 40
-/** Room around the pages for the page details bar above and some air below (whole-page fit). */
-const FIT_CHROME_PX = 76
+/** Air below a page fitted to the window's height (whole-page fit), where the next page would start. */
+const FIT_AIR_PX = SHEET_GAP
 /** Flip view: room beside the book for its cover and the page-turn buttons. */
 const FLIP_SIDE_PADDING = 58
 /** Flip view: how far the cover shows around the open pages. */
@@ -93,22 +94,42 @@ export function pageScale(available: number, pageWidth: number, zoomPercent: num
 }
 
 /**
- * Keeps the writer's place when the page scale changes: the line at the middle
- * of the window stays there, and a page wider than the window is centered.
+ * Keeps the writer's place when the page scale changes (zoom, a resized
+ * window, Focus Mode, Collapse tools): still at the top of the first page if
+ * they were there, otherwise with the same line at the middle of the window; a
+ * page wider than the window is centered. The layout before the change is
+ * remembered, since those changes also move the window's middle and the
+ * page's top.
  */
-function useKeepPlaceOnZoom(scrollRef: RefObject<HTMLDivElement | null>, zoomRef: RefObject<HTMLDivElement | null>, scale: number) {
-  const prev = useRef(scale)
+function useKeepPlaceOnZoom(scrollRef: RefObject<HTMLDivElement | null>, zoomRef: RefObject<HTMLDivElement | null>, scale: number, layoutKey: string) {
+  const last = useRef<Omit<PagesView, 'scrollTop'> | null>(null)
   useLayoutEffect(() => {
-    const from = prev.current
-    prev.current = scale
     const el = scrollRef.current
     const zoom = zoomRef.current
-    if (!el || !zoom || from === scale || !(from > 0)) return
-    const top = zoom.offsetTop
-    const middle = el.scrollTop + el.clientHeight / 2 - top
-    el.scrollTop = Math.max(0, middle * (scale / from) - el.clientHeight / 2 + top)
+    if (!el || !zoom) return
+    const now = { scale, pageTop: pageTopIn(el, zoom), clientHeight: el.clientHeight }
+    const before = last.current
+    last.current = now
+    if (!before || before.scale === scale || !(before.scale > 0)) return
+    el.scrollTop = keptScrollTop({ ...before, scrollTop: el.scrollTop }, now)
     el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
-  }, [scale, scrollRef, zoomRef])
+  }, [scale, layoutKey, scrollRef, zoomRef])
+}
+
+/**
+ * Where the first page starts in the scroll area: below the page details, and
+ * in Focus Mode the room left for Exit Focus Mode. Measured, since both depend
+ * on the mode and on how the details wrap; remeasured whenever the area resizes
+ * (synchronously too, when it is measured at once for a transition).
+ */
+function usePageTop(scrollRef: RefObject<HTMLDivElement | null>, zoomRef: RefObject<HTMLDivElement | null>, areaKey: string) {
+  const [top, setTop] = useState(0)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    const zoom = zoomRef.current
+    if (el && zoom) setTop(pageTopIn(el, zoom))
+  }, [scrollRef, zoomRef, areaKey])
+  return top
 }
 
 function useElementSize<T extends HTMLElement>() {
@@ -203,13 +224,15 @@ export function PageView({
   // Phones have no zoom slider (no status bar), so a zoom set on a computer doesn't carry over.
   const savedZoom = clampSetting('pageZoom', useSettings((s) => s.pageZoom)) / 100
   const zoom = narrow ? 1 : savedZoom
-  // The flip view fits a whole spread in the window, below the page details bar.
-  // Scroll and flip fit a whole page top to bottom in the window (phones fit the width).
-  const fit = layoutFitScale(layout, { width: scrollSize.width, height: scrollSize.height - FIT_CHROME_PX }, sheetGeo, sidePadding, {
+  // Scroll and flip fill the window's height with a page (a spread, in flip): from where it starts below
+  // the page details down to a sheet gap above the bottom edge, never wider than the window. Phones fit the width.
+  const pageTop = usePageTop(scrollRef, zoomRef, `${scrollSize.width}x${scrollSize.height}`)
+  const roomHeight = scrollSize.height > 0 ? scrollSize.height - pageTop - FIT_AIR_PX : 0
+  const fit = layoutFitScale(layout, { width: scrollSize.width, height: roomHeight }, sheetGeo, sidePadding, {
     fitHeight: !narrow && layout !== 'spread',
   })
   const scale = fit * zoom
-  useKeepPlaceOnZoom(scrollRef, zoomRef, layout === 'flip' ? 1 : scale)
+  useKeepPlaceOnZoom(scrollRef, zoomRef, layout === 'flip' ? 1 : scale, `${scrollSize.width}x${scrollSize.height}`)
 
   const [sheetInfo, setSheetInfo] = useState<SheetInfo[]>([])
   const pageCount = usePagination(editor, {

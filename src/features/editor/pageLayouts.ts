@@ -74,9 +74,12 @@ export function visibleWidth(layout: PageLayout, g: SheetGeometry): number {
 }
 
 /**
- * Scale (<= 1) at which the layout fits the window: the page (or two pages)
- * fits the width, and in the scroll and flip views a whole page fits the
- * height too (`fitHeight`; phones fit the width only).
+ * Scale at which the layout fits the window. The page (or two pages) fits the
+ * width, at most at its natural size. In the scroll and flip views
+ * (`fitHeight`; phones fit the width only) a page fills the height instead:
+ * smaller in a short window so the whole page shows, and larger on a tall
+ * monitor so it reaches the bottom rather than leaving empty space, but never
+ * wider than the window.
  */
 export function layoutFitScale(
   layout: PageLayout,
@@ -89,8 +92,9 @@ export function layoutFitScale(
   const fitHeight = opts.fitHeight ?? layout === 'flip'
   const min = layout === 'scroll' && !fitHeight ? 0.5 : 0.25
   if (!(available.width > 0) || !(w > 0)) return 1
-  let fit = Math.min(1, (available.width - sidePadding * 2) / w)
-  if (fitHeight && layout !== 'spread' && available.height > 0) fit = Math.min(fit, available.height / g.pageHeight)
+  const widthFit = (available.width - sidePadding * 2) / w
+  const fit =
+    fitHeight && layout !== 'spread' && available.height > 0 ? Math.min(widthFit, available.height / g.pageHeight) : Math.min(1, widthFit)
   return Math.max(min, fit)
 }
 

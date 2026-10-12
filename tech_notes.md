@@ -893,24 +893,32 @@ exits, except while a dialog is open; it is caught in the capture phase
 because the editor handles Esc itself. The switch is a View Transition
 (`document.startViewTransition` + `flushSync`) where the browser has one:
 named parts animate on their own (the header lifts, suggestions slide right,
-the status bar drops, the exit button drops in), and the pages glide at their
-natural size. Both snapshots of the pages slide by the extra room above them
-(`--ed-focus-drop`, directed by `html.tw-entering-focus` /
-`tw-leaving-focus`), so they never show twice. Without View Transitions it is
-a short fade; with reduced motion, instant. Leaving the writer page turns it
-off.
+the status bar drops, the exit button drops in), and the pages glide to their
+new place. The switch usually changes the pages' fitted scale too (Focus
+Mode's window is taller; see Fit, below), so `setFocusMode` asks the page view
+to measure at once (`MEASURE_NOW_EVENT`, as Collapse tools does) and the new
+picture already has the final scale. It then follows one spot of the
+manuscript (the top of the first page, or the line at the middle;
+`pagesView.ts`) from where it was to where it lands and sets
+`--tw-pages-old-y`, `--tw-pages-new-y` and `--tw-pages-r`; both pictures move
+and zoom about that spot together, so they stay lined up while they
+cross-fade and never show twice. Without View Transitions it is a short fade;
+with reduced motion, instant. Leaving the writer page turns it off.
 
 **Page zoom** (the slider at the left of the status bar; `pageZoom` in
 settings, 100–250% in steps of 10, default 100, clamped by `SETTING_BOUNDS`).
-100% is the page fitted to the window as before (`fitScale`, at most 1);
-`pageScale` multiplies that by the zoom, and the result is the one transform
+100% is the page fitted to the window (see Fit under Page views);
+the zoom multiplies that, and the result is the one transform
 scale on the page stack, so pagination (which divides measurements by the
 scale) needs nothing else. The 32 px side padding is part of `.ed-zoom`'s
 width, so a zoomed page wider than the window keeps a margin when scrolled
 sideways, and the page details bar is sticky on the left as well as the top.
-When the scale changes, the line at the middle of the window stays there and
-a page wider than the window is centered. The zoom also applies in Focus
-Mode, where the status bar is hidden.
+When the scale changes (zoom, a resized window, Focus Mode, Collapse tools),
+the view stays at the top if it was there; otherwise the line at the middle of
+the window stays there (`keptScrollTop`, using the layout from before the
+change). A page wider than the window is centered. A change of scale alone
+doesn't repaginate, so resizing the window stays cheap. The zoom also applies
+in Focus Mode, where the status bar is hidden.
 
 **Page views** (`PageLayoutSwitch`, at the right end of the page details bar
 and hidden in Focus Mode and on phones; `pageLayout` in settings;
@@ -928,9 +936,16 @@ because there is still one ProseMirror column:
   `.ed-measuring` for the pass and removes it before paint. A browser check
   found every line on the same page, within 1 px, in all three views.
 - **Sheets** are placed by `sheetPosition`.
-- **Fit:** Scroll and Flip fit a whole page top to bottom in the window
-  (`layoutFitScale` with `fitHeight`; phones fit the width). The zoom slider
-  enlarges from there.
+- **Fit:** Scroll and Flip fill the window's height with a page
+  (`layoutFitScale` with `fitHeight`; phones fit the width): from where it
+  starts below the page details (measured, `usePageTop`, so Focus Mode's extra
+  room counts) down to a sheet gap above the bottom edge. A short window
+  shrinks the page so all of it shows; a tall monitor grows it past its
+  natural size rather than leaving empty space below. It is never wider than
+  the window. Side by side fits the width, at most at natural size. The zoom
+  slider enlarges from there. `.ed-scroll` has `scrollbar-gutter: stable` and
+  the fit uses its outer height, so a classic scroll bar can't change the fit
+  and then take itself away again (a flicker loop).
 - **Flip is a book:**
   - The pages meet at a shaded spine (no column gap) inside a navy cover.
   - A right-hand first page (odd page number) sits alone on the right

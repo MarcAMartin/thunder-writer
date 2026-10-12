@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
@@ -11,7 +11,7 @@ export interface PaginationInput {
   chapterStartsNewPage: boolean
   /** Fallback line pitch when computed style can't be read. */
   lineHeightPx: number
-  /** CSS transform scale applied to the page stack (fit-to-width). Default 1. */
+  /** CSS transform scale applied to the page stack (fitted to the window, times the zoom). Default 1. */
   scale?: number
   /**
    * The text is shown in columns (side-by-side page views). Each pass then
@@ -80,10 +80,15 @@ export function usePagination(editor: Editor | null, input: PaginationInput): nu
   const inputRef = useRef(input)
   const scheduleRef = useRef<(delay: number) => void>(() => {})
 
-  useEffect(() => {
+  // Every pass reads the latest input, scale included. The scale alone never moves a break (measurements
+  // are divided by it), so only the layout inputs schedule one: resizing the window, which changes the
+  // fitted scale, doesn't repaginate on every frame.
+  useLayoutEffect(() => {
     inputRef.current = input
+  })
+  useEffect(() => {
     scheduleRef.current(0)
-  }, [input.contentHeight, input.pagePitch, input.chapterStartsNewPage, input.lineHeightPx, input.scale, input.linearize])
+  }, [input.contentHeight, input.pagePitch, input.chapterStartsNewPage, input.lineHeightPx, input.linearize])
 
   useEffect(() => {
     if (!editor) return
@@ -235,7 +240,7 @@ function measureAndPaginate(view: EditorView, input: PaginationInput): number {
   const root = view.dom as HTMLElement
 
   // Fractional client rects (offsetTop rounds to whole px, which makes the
-  // measure/render loop flap). Divide by the fit-to-width scale to get layout px.
+  // measure/render loop flap). Divide by the page scale to get layout px.
   const rootRect = root.getBoundingClientRect()
   const scale = input.scale && input.scale > 0 ? input.scale : 1
   const rel = (el: Element) => {
