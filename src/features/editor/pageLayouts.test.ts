@@ -29,24 +29,25 @@ describe('page layouts', () => {
     expect(visibleWidth('spread', g)).toBe(1228)
   })
 
-  it('fits the window: the width, and in the scroll and flip views a whole page top to bottom', () => {
+  it('fits the window: the width, and with the height fit a whole page top to bottom', () => {
     expect(layoutFitScale('scroll', { width: 1000, height: 800 }, g, 32)).toBe(1)
     expect(layoutFitScale('scroll', { width: 1000, height: 600 }, g, 32, { fitHeight: true })).toBeCloseTo(600 / 900)
-    expect(layoutFitScale('spread', { width: 2000, height: 300 }, g, 32, { fitHeight: true })).toBe(1)
+    expect(layoutFitScale('spread', { width: 2000, height: 300 }, g, 32, { fitHeight: true })).toBeCloseTo(300 / 900)
     expect(layoutFitScale('spread', { width: 1000, height: 800 }, g, 32)).toBeCloseTo((1000 - 64) / 1228)
     expect(layoutFitScale('flip', { width: 2000, height: 450 }, g, 32)).toBe(0.5)
     expect(layoutFitScale('scroll', { width: 300, height: 800 }, g, 32)).toBe(0.5)
   })
 
-  it('fills a tall window with the page in the scroll and flip views, but never wider than the window', () => {
+  it('fills a tall window with the page in every view, but never wider than the window', () => {
     // A large monitor: the page grows past its natural size to reach the bottom.
     expect(layoutFitScale('scroll', { width: 2000, height: 1260 }, g, 32, { fitHeight: true })).toBeCloseTo(1260 / 900)
     expect(layoutFitScale('flip', { width: 3000, height: 1260 }, g, 58)).toBeCloseTo(1260 / 900)
-    // Tall but narrow: the width stops it first.
+    expect(layoutFitScale('spread', { width: 3000, height: 1260 }, g, 32, { fitHeight: true })).toBeCloseTo(1260 / 900)
+    // Tall but narrow: the width stops it first (two pages and their gap, side by side).
     expect(layoutFitScale('scroll', { width: 900, height: 1800 }, g, 32, { fitHeight: true })).toBeCloseTo((900 - 64) / 600)
-    // Without the height fit (phones, side by side), the natural size is still the limit.
+    expect(layoutFitScale('spread', { width: 1600, height: 1260 }, g, 32, { fitHeight: true })).toBeCloseTo((1600 - 64) / 1228)
+    // Without the height fit (phones), the natural size is still the limit.
     expect(layoutFitScale('scroll', { width: 2000, height: 1260 }, g, 32)).toBe(1)
-    expect(layoutFitScale('spread', { width: 4000, height: 1260 }, g, 32, { fitHeight: true })).toBe(1)
   })
 
   it('finds the page under a point and the spread that shows it', () => {

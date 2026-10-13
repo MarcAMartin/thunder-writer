@@ -224,12 +224,13 @@ export function PageView({
   // Phones have no zoom slider (no status bar), so a zoom set on a computer doesn't carry over.
   const savedZoom = clampSetting('pageZoom', useSettings((s) => s.pageZoom)) / 100
   const zoom = narrow ? 1 : savedZoom
-  // Scroll and flip fill the window's height with a page (a spread, in flip): from where it starts below
-  // the page details down to a sheet gap above the bottom edge, never wider than the window. Phones fit the width.
+  // Every view fills the window's height with a page (a row of two in side by side, a spread in flip): from
+  // where it starts below the page details down to a sheet gap above the bottom edge, never wider than the
+  // window. Phones fit the width.
   const pageTop = usePageTop(scrollRef, zoomRef, `${scrollSize.width}x${scrollSize.height}`)
   const roomHeight = scrollSize.height > 0 ? scrollSize.height - pageTop - FIT_AIR_PX : 0
   const fit = layoutFitScale(layout, { width: scrollSize.width, height: roomHeight }, sheetGeo, sidePadding, {
-    fitHeight: !narrow && layout !== 'spread',
+    fitHeight: !narrow,
   })
   const scale = fit * zoom
   useKeepPlaceOnZoom(scrollRef, zoomRef, layout === 'flip' ? 1 : scale, `${scrollSize.width}x${scrollSize.height}`)

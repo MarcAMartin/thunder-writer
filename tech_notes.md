@@ -936,14 +936,14 @@ because there is still one ProseMirror column:
   `.ed-measuring` for the pass and removes it before paint. A browser check
   found every line on the same page, within 1 px, in all three views.
 - **Sheets** are placed by `sheetPosition`.
-- **Fit:** Scroll and Flip fill the window's height with a page
-  (`layoutFitScale` with `fitHeight`; phones fit the width): from where it
-  starts below the page details (measured, `usePageTop`, so Focus Mode's extra
-  room counts) down to a sheet gap above the bottom edge. A short window
-  shrinks the page so all of it shows; a tall monitor grows it past its
-  natural size rather than leaving empty space below. It is never wider than
-  the window. Side by side fits the width, at most at natural size. The zoom
-  slider enlarges from there. `.ed-scroll` has `scrollbar-gutter: stable` and
+- **Fit:** every view fills the window's height with a page (a row of two
+  in Side by side, a spread in Flip; `layoutFitScale` with `fitHeight`;
+  phones fit the width): from where it starts below the page details
+  (measured, `usePageTop`, so Focus Mode's extra room counts) down to a sheet
+  gap above the bottom edge. A short window shrinks the page so all of it
+  shows; a tall monitor grows it past its natural size rather than leaving
+  empty space below. It is never wider than the window (two pages and their
+  gap, in Side by side and Flip). The zoom slider enlarges from there. `.ed-scroll` has `scrollbar-gutter: stable` and
   the fit uses its outer height, so a classic scroll bar can't change the fit
   and then take itself away again (a flicker loop).
 - **Flip is a book:**
