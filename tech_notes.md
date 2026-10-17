@@ -1015,6 +1015,45 @@ header's **Open** menu (`MobileOpenMenu`) uses those same links:
 Between 600 and 760 px wide (for example an upright iPad mini), the regular
 app puts the suggestions under the pages at full width.
 
+**The phone's File menu** is `MobileOpenMenu`:
+
+- **Open from Files…** calls `openFromComputer`. Without File System Access
+  (Safari, every iPhone browser), it falls back to a file input, which on
+  iPhone is the Files picker. It opens Word, text, Markdown, HTML and Thunder
+  Writer files.
+- **Save to Files…** (`SaveToFilesDialog`) builds a Word, Thunder Writer or
+  plain-text copy while the dialog is open. The Save tap then calls
+  `navigator.share({ files })` synchronously, since a share sheet only opens
+  from a tap. The iPhone share sheet offers Save to Files, AirDrop and Mail.
+  Where sharing files isn't available, it falls back to a download. Phones
+  can't write back into a file, so each save is a copy.
+- **Save to Google Drive** calls `saveDocToDrive` straight from the tap
+  (connects if needed); autosave keeps the Drive copy current after that.
+- **Your manuscripts / Import** go through the hidden File menu's
+  `?open=drive` / `?open=picker` links, and **New manuscript** through
+  `?new=1`.
+
+**Keeping the writer's work when they leave**:
+
+- **Browser copy:** the editor and storage already flush edits and write
+  IndexedDB on `visibilitychange` (hidden), `pagehide` and unmount.
+- **Drive copy:** when Drive is connected, `useDriveAutosave` also saves to
+  Drive right away on leaving (`scheduler.saveNow()`), instead of after its
+  5 s pause, and catches up when the page is shown again.
+- **Storage eviction:** after the manuscripts load, `requestPersistentStorage`
+  asks the browser to keep the site's storage. Safari can clear the storage of
+  a site that goes unused for about a week. Firefox is skipped, because it
+  would prompt.
+- **Remembered place:** `placeMemory.ts` remembers the cursor per manuscript
+  in `localStorage` (`thunder-writer:places`, newest 50). When a manuscript
+  opens, it restores the cursor and scrolls the pages to it, without focusing
+  the editor, so a phone's keyboard stays down. It survives a reload or Safari
+  reloading the tab.
+
+**Connecting Google Drive** saves the open manuscript (if it has words), and
+any other edited one, about 5 seconds later, and autosaves after that
+(`pendingDriveDocs` with `includeUnlinked`).
+
 **Typewriter sounds** (`typewriterSounds.ts`, `useTypewriterSounds.ts`; a box
 after "Chapters start new page"; `typewriterSounds` in settings, off by
 default). The sounds are synthesised with the Web Audio API, so there are no

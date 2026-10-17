@@ -48,6 +48,17 @@
 .fm-item[aria-disabled='true'] { color: var(--tw-text-muted); cursor: not-allowed; opacity: 0.6; }
 
 .fm-sep { height: 1px; margin: 6px 4px; background: var(--tw-border); }
+/* Phones' File menu: small group headings ("This phone", "Google Drive"). */
+.fm-menu-heading {
+  margin: 6px 10px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tw-text-muted);
+}
+.fm-menu-heading:first-child { margin-top: 2px; }
+.fm-item[aria-disabled='true'] { opacity: 0.45; cursor: default; }
 
 .fm-group-label {
   display: flex;

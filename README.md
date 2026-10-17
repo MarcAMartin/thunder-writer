@@ -212,8 +212,19 @@ them from the File menu.
   every tool away except Preview Book (and the tip jar and book pick), and
   makes the header compact. **Show tools** brings them back.
 - **On a phone**, Thunder Writer keeps it simple: **Write** (your pages),
-  **Read** (the book, a page at a time) and **Open** (your manuscripts in Google
-  Drive, a Google Doc to import, or a new one). An iPad gets the full app.
+  **Read** (the book, a page at a time) and **File**:
+  - **Open from Files** and **Save to Files** use your phone's own files (on
+    iPhone, the Files app, through the share sheet). Phones can't keep saving
+    into the same file, so each save is a copy.
+  - **Save to Google Drive** keeps a copy up to date automatically.
+  - From **File** you can also open your manuscripts in Drive, import a Google
+    Doc, or start a new manuscript.
+
+  An iPad gets the full app.
+- **Picks up where you left off.** Your work is saved in the browser as you
+  type and the moment you switch away. Connected to Google Drive, it goes up
+  to Drive as you leave too. Each manuscript reopens at the spot you were
+  writing.
 
 ## Try it
 

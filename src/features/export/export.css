@@ -226,3 +226,45 @@
 @keyframes ex-drop { from { opacity: 0; transform: translateY(-14px) scale(0.96); } }
 @keyframes ex-lift { to { opacity: 0; transform: translateY(-10px); } }
 @media (prefers-reduced-motion: reduce) { .ex-toast, .ex-toast-leaving { animation: none; } }
+
+/* Phones: File › Save to Files…. */
+.ex-files-lead,
+.ex-files-note {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.ex-files-note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--tw-text-muted);
+}
+.ex-files-formats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ex-files-formats .ex-files-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--tw-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.ex-files-formats .ex-files-choice:has(input:checked) {
+  border-color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 7%, transparent);
+}
+.ex-files-formats .ex-files-choice input {
+  margin-top: 3px;
+}
+.ex-files-choice strong {
+  display: block;
+  font-weight: 600;
+}
+.ex-files-hint {
+  display: block;
+  font-size: 13px;
+  color: var(--tw-text-muted);
+}

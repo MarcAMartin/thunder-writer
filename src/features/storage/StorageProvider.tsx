@@ -76,6 +76,7 @@ function useLocalPersistence() {
       const { docs, memoryOnly } = mergeHydration(loaded, before.docs)
       const current = before.currentId ?? (lastId && docs.some((d) => d.id === lastId) ? lastId : docs[0]?.id ?? null)
       useDocuments.getState().hydrate(docs, current)
+      requestPersistentStorage()
       if (memoryOnly.length) sync.queue({ saved: memoryOnly, deleted: [], currentChanged: true }, current)
 
       unsubscribe = useDocuments.subscribe((next, prev) => {
@@ -114,6 +115,20 @@ function useLocalPersistence() {
   }, [])
 }
 
+/**
+ * Asks the browser to keep this site's storage (the manuscripts in IndexedDB)
+ * rather than clear it when space runs low or the site goes unused for a while
+ * (Safari can clear a site's storage after about a week). Not in Firefox,
+ * which would show a permission prompt for it.
+ */
+export function requestPersistentStorage(nav: Navigator = navigator): void {
+  const storage = nav.storage as (StorageManager & { persist?: () => Promise<boolean>; persisted?: () => Promise<boolean> }) | undefined
+  if (!storage?.persist || /firefox/i.test(nav.userAgent)) return
+  void (storage.persisted?.() ?? Promise.resolve(false))
+    .then((already) => (already ? true : storage.persist!()))
+    .catch(() => undefined)
+}
+
 function useDriveAutosave() {
   useEffect(() => {
     const pending = (s: DocumentsState) =>
@@ -147,10 +162,27 @@ function useDriveAutosave() {
       if (next.driveAutosaveSec !== prev.driveAutosaveSec) scheduler.setIntervalMs(next.driveAutosaveSec * 1000)
     })
 
+    // Leaving (switching apps on a phone, closing the tab, locking the screen): send the latest
+    // words to Drive now rather than after the usual pause. Best effort: the browser copy is saved
+    // either way, and whatever doesn't make it goes up on the next visit.
+    const saveOnLeave = () => {
+      if (!useStorageStatus.getState().driveConnected) return
+      flushPendingEdits()
+      if (pendingIds().length > 0) scheduler.saveNow().catch(() => undefined)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') saveOnLeave()
+      else if (useStorageStatus.getState().driveConnected && pendingIds().length > 0) scheduler.notifyChange()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', saveOnLeave)
+
     return () => {
       unsubDocs()
       unsubStatus()
       unsubSettings()
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', saveOnLeave)
       scheduler.dispose()
     }
   }, [])

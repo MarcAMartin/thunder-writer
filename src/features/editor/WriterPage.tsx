@@ -6,6 +6,7 @@ import { ThemeToggle } from '../../shell/ThemeToggle'
 import { NARROW_QUERY, useMediaQuery } from '../../shell/useMediaQuery'
 import { useSettings } from '../../store/settings'
 import { MobileOpenMenu } from '../storage/MobileOpenMenu'
+import { useRememberPlace } from './placeMemory'
 import { useDocuments } from '../../store/documents'
 import { useSession } from '../../store/session'
 import type { EditorContextValue } from '../../contracts'
@@ -108,6 +109,8 @@ export function WriterPage() {
   const narrow = useMediaQuery(NARROW_QUERY)
   const toolsCollapsed = useSettings((s) => s.toolbarCollapsed)
   useTypewriterSounds()
+  // Each manuscript opens where the writer left it (after an app switch, a reload or a visit to Settings).
+  useRememberPlace(contentError ? null : editor, hydrated ? currentId : null)
 
   // Focus Mode: Escape leaves it (not while a dialog is open, which Escape closes instead),
   // and the cursor stays in the manuscript either way.
