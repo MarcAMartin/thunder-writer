@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { vi } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
 import JSZip from 'jszip'
@@ -23,6 +24,11 @@ async function importError(p: Promise<unknown>): Promise<ImportError> {
     return e as ImportError
   }
   throw new Error('expected an ImportError')
+}
+
+const fixture = (name: string) => {
+  const b = readFileSync(`${process.cwd()}/src/features/import/__fixtures__/${name}`)
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer
 }
 
 describe('importManuscript — Word', () => {
@@ -108,12 +114,45 @@ describe('importManuscript — Word', () => {
     expect((await importError(importManuscript({ name: 'cut.docx', data: truncated }))).code).toBe('corrupt')
   })
 
-  it('explains password-protected or old .doc files', async () => {
-    const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0]).buffer
-    const e = await importError(importManuscript({ name: 'locked.docx', data: ole }))
+  it('reads an older Word .doc (Word 97–2003) for its words, finding the chapters', async () => {
+    const r = await importManuscript({ name: 'word97.doc', data: fixture('word97.doc') })
+    expect(blocks(r.content)).toEqual([
+      'H1:Chapter One',
+      'Elias Crane had kept the light for thirty-one years.',
+      'He climbed the steps, “counting” every one — and the café was closed. 日本',
+      'H1:Chapter Two',
+      'By morning the light was gone.',
+    ])
+    expect(r.chapterCount).toBe(2)
+    expect(r.warnings.join(' ')).toMatch(/italics, bold and headings aren’t kept/)
+  })
+
+  it('explains a password-protected Word file, and a damaged .doc', async () => {
+    const CFB = await import('cfb')
+    const locked = CFB.utils.cfb_new()
+    CFB.utils.cfb_add(locked, '/EncryptionInfo', new Uint8Array([4, 0, 4, 0]))
+    CFB.utils.cfb_add(locked, '/EncryptedPackage', new Uint8Array(64))
+    const bytes = CFB.write(locked, { type: 'array' }) as number[]
+    const e = await importError(importManuscript({ name: 'locked.docx', data: new Uint8Array(bytes).buffer }))
     expect(e.code).toBe('unsupported')
     expect(e.message).toMatch(/password/)
-    expect((await importError(importManuscript({ name: 'old.doc', data: ole }))).message).toMatch(/\.docx/)
+    const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0]).buffer
+    expect((await importError(importManuscript({ name: 'old.doc', data: ole }))).message).toMatch(/isn’t a Word document Thunder Writer can read/)
+  })
+
+  it('reads RTF (and a ".doc" that is really RTF) with its italics', async () => {
+    const r = await importManuscript({ name: 'textedit.rtf', data: fixture('textedit.rtf') })
+    expect(blocks(r.content)).toEqual([
+      'H1:Chapter One',
+      'Elias Crane had kept the light for thirty-one years.',
+      'He climbed the steps, “counting” every one — and the café was closed. 日本',
+      'H1:Chapter Two',
+      'By morning the light was gone.',
+    ])
+    const texts = ((r.content as JSONContent).content ?? []).flatMap((b) => b.content ?? [])
+    expect(texts.find((t) => t.text === 'thirty-one')?.marks).toEqual([{ type: 'italic' }])
+    const renamed = await importManuscript({ name: 'old.doc', data: fixture('textedit.rtf') })
+    expect(blocks(renamed.content)).toEqual(blocks(r.content))
   })
 })
 
@@ -173,8 +212,9 @@ describe('importManuscript — limits and errors', () => {
   })
 
   it('names unsupported formats', async () => {
-    const e = await importError(importManuscript({ name: 'book.pdf', data: new TextEncoder().encode('%PDF-1.7').buffer }))
+    const e = await importError(importManuscript({ name: 'book.pages', data: new Uint8Array([1, 2, 3]).buffer }))
     expect(e.code).toBe('unsupported')
+    expect(e.message).toMatch(/Pages files can’t be read/)
     expect((await importError(importManuscript({ name: 'noext', data: new Uint8Array([0, 1, 2, 0]).buffer }))).code).toBe('unsupported')
   })
 

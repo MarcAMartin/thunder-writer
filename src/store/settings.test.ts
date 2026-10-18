@@ -79,8 +79,8 @@ describe('Google Cloud values are no longer settings (v4)', () => {
     useSettings.setState(useSettings.getInitialState(), true)
   })
 
-  it('is settings version 4, with nothing Google-related in the state', () => {
-    expect(SETTINGS_VERSION).toBe(4)
+  it('is settings version 5, with nothing Google-related in the state', () => {
+    expect(SETTINGS_VERSION).toBe(5)
     const init = useSettings.getInitialState() as unknown as Record<string, unknown>
     for (const k of RETIRED_GOOGLE_KEYS) expect(init).not.toHaveProperty(k)
   })
@@ -96,6 +96,17 @@ describe('Google Cloud values are no longer settings (v4)', () => {
     })
   })
 
+  it('moves Drive autosave from the old one-minute default to every 10 seconds, keeping a chosen interval', async () => {
+    expect(useSettings.getInitialState().driveAutosaveSec).toBe(10)
+    expect(migrateSettings({ driveAutosaveSec: 60 }, 4)).toEqual({ driveAutosaveSec: 10 })
+    expect(migrateSettings({ driveAutosaveSec: 120 }, 4)).toEqual({ driveAutosaveSec: 120 })
+    expect(migrateSettings({ driveAutosaveSec: 60 }, 5)).toEqual({ driveAutosaveSec: 60 })
+    localStorage.setItem(KEY, JSON.stringify({ state: { claudeApiKey: 'sk-ant-v4', driveAutosaveSec: 60 }, version: 4 }))
+    await useSettings.persist.rehydrate()
+    expect(useSettings.getState().driveAutosaveSec).toBe(10)
+    expect(useSettings.getState().claudeApiKey).toBe('sk-ant-v4')
+  })
+
   it('rehydrates a v3 localStorage entry without the Google values and without losing AI keys', async () => {
     localStorage.setItem(
       KEY,
@@ -108,7 +119,7 @@ describe('Google Cloud values are no longer settings (v4)', () => {
     expect(s.triviaCooldownSec).toBe(900)
     for (const k of RETIRED_GOOGLE_KEYS) expect(s).not.toHaveProperty(k)
     const stored = JSON.parse(localStorage.getItem(KEY) ?? '{}')
-    expect(stored.version).toBe(4)
+    expect(stored.version).toBe(SETTINGS_VERSION)
     expect(JSON.stringify(stored)).not.toMatch(/googleusercontent|AIza-old/)
   })
 })

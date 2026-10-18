@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ThemeToggle } from '../../shell/ThemeToggle'
+import { ClearDataButton } from '../storage/ClearDataButton'
 import { isDriveConfigured, isPickerConfigured } from '../storage/driveSession'
 import { AppLogo } from '../../shell/AppLogo'
 import { TipJarLink } from '../support/tipJar'
@@ -9,13 +10,17 @@ import { HeroActions } from './HeroActions'
 import {
   CloudIcon,
   CoinIcon,
+  FileOutIcon,
   GlobeIcon,
+  KeyIcon,
   LockIcon,
   MoonIcon,
   PaceIcon,
   PagesIcon,
+  ServerOffIcon,
   SpellIcon,
   StoryIcon,
+  TrashIcon,
 } from './icons'
 import { IMPORT_LOCAL_PATH, NEW_MANUSCRIPT_PATH, OPEN_PICKER_PATH, PRIVACY_PATH, SETTINGS_PATH, TERMS_PATH } from './routes'
 import './home.css'
@@ -46,6 +51,25 @@ const IDEA_ITEMS: Item[] = [
   },
 ]
 
+const PRIVACY_ITEMS: Item[] = [
+  {
+    icon: <ServerOffIcon />,
+    title: 'Never on our servers',
+    body: 'There are none. Your manuscript is saved in this browser on your device, and in your own Google Drive if you connect it. It is never uploaded to us.',
+    bodyWithoutDrive: 'There are none. Your manuscript is saved in this browser on your device and is never uploaded to us.',
+  },
+  {
+    icon: <KeyIcon />,
+    title: 'No account, no one reading along',
+    body: 'Nothing to create or remember, no analytics and no ad trackers. AI suggestions go straight from your browser to the provider you choose, with your own key.',
+  },
+  {
+    icon: <FileOutIcon />,
+    title: 'Your files, in your formats',
+    body: 'Open Word, PDF and text files, and save to .docx, .doc, PDF or plain text whenever you like. Nothing is locked in.',
+  },
+]
+
 const FEATURES: Item[] = [
   {
     icon: <PagesIcon />,
@@ -59,14 +83,14 @@ const FEATURES: Item[] = [
   },
   {
     icon: <LockIcon />,
-    title: 'Private by design',
-    body: 'Your API keys and files never touch our servers — there are none. Requests go straight from your browser to Claude, OpenAI or OpenRouter.',
+    title: 'Bring your own AI',
+    body: 'Use Claude, OpenAI or any model on OpenRouter with your own key, kept only in this browser. Requests go straight to the provider.',
   },
   {
     icon: <CloudIcon />,
     title: 'Autosave, twice over',
-    body: 'Every change is kept in this browser and, once you connect Google Drive, synced to your own Drive on change or on a timer.',
-    bodyWithoutDrive: 'Every change is kept in this browser as you write, and you can save a copy to your computer any time.',
+    body: 'Every change is kept in this browser and, once you connect Google Drive, saved to your own Drive every 10 seconds. The header always says where your work is saved.',
+    bodyWithoutDrive: 'Every change is kept in this browser as you write, and you can save a copy to your computer any time. The header always says where your work is saved.',
   },
   {
     icon: <CoinIcon />,
@@ -151,15 +175,63 @@ export function HomePage() {
                 ; your file is left alone unless you choose to keep saving into it.
               </p>
 
-              <p className="hm-fineprint">
-                No account and no server. Your manuscript lives in this browser
-                {drive ? ' and, once you connect it, your own Google Drive.' : '.'}
+              <p className="hm-fineprint hm-fineprint-private">
+                <LockIcon />
+                <span>
+                  <strong>Completely private.</strong> No account and no server: your manuscript lives in this browser
+                  {drive ? ' and, if you connect it, your own Google Drive' : ''}, never on ours.
+                </span>
               </p>
             </div>
 
             <div className="hm-hero-demo">
               <DemoPanel />
             </div>
+          </div>
+        </section>
+
+        <section className="hm-section hm-private" aria-labelledby="hm-private-title">
+          <div className="hm-container hm-private-grid">
+            <div className="hm-private-copy">
+              <span className="hm-private-badge">
+                <LockIcon /> Completely private
+              </span>
+              <h2 id="hm-private-title" className="hm-h2">
+                You own your words. All of them.
+              </h2>
+              <p className="hm-section-sub">
+                Thunder Writer has no server to keep your writing on, so your manuscript never lives anywhere you didn’t
+                put it. We never see it, store it or sell it.{' '}
+                <Link to={PRIVACY_PATH} className="hm-inline-link">
+                  Read the privacy policy
+                </Link>
+                .
+              </p>
+              <div className="hm-private-delete">
+                <span className="hm-icon-wrap hm-icon-danger">
+                  <TrashIcon />
+                </span>
+                <div>
+                  <h3 className="hm-h3">Delete it all, any time</h3>
+                  <p className="hm-body">
+                    Remove every manuscript, backup, setting and API key from this browser in one click.
+                    {drive ? ' Files in your Google Drive stay where they are.' : ' Save a copy first if you want to keep it.'}
+                  </p>
+                  <ClearDataButton className="hm-private-clear" />
+                </div>
+              </div>
+            </div>
+            <ul className="hm-private-list">
+              {PRIVACY_ITEMS.map((item) => (
+                <li key={item.title} className="hm-feature">
+                  <span className="hm-icon-wrap">{item.icon}</span>
+                  <div>
+                    <h3 className="hm-h3">{item.title}</h3>
+                    <p className="hm-body">{drive ? item.body : (item.bodyWithoutDrive ?? item.body)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 

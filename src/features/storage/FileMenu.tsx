@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKe
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { currentDoc, useDocuments } from '../../store/documents'
-import { describeSaveStatus } from './autosave'
+import { describeSaveStatus, hasWords } from './autosave'
 import { driveErrorMessage } from './drive'
 import {
   connectDrive,
@@ -21,6 +21,8 @@ import { OpenLocalModal } from './OpenLocalModal'
 import { loadPickerApi, type PickedFile } from './picker'
 import { makeEnvelope } from './schema'
 import { ResolveConflictModal } from './ResolveConflictModal'
+import { SaveSomewherePopover } from './SaveSomewhere'
+import { useDesktopCopy } from '../export/desktopCopy'
 import { useExportUi } from '../export/exportUi'
 import './storage.css'
 
@@ -295,13 +297,20 @@ function MenuItem({ onClick, disabled, children }: { onClick: () => void; disabl
   )
 }
 
-/** "Saved locally" / "Saving to Drive…" / "Saved to Drive 12:04" / "Drive error — retry". */
+/**
+ * "Not saved to a file" / "Saved locally" / "Saving to Drive…" / "Saved to Drive 12:04" / "Drive error — retry".
+ * A manuscript only this browser has offers a file to save it to (Drive, or one on this computer).
+ */
 function SaveStatus({ onError, onResolve }: { onError: (msg: string) => void; onResolve: () => void }) {
   const doc = useDocuments(currentDoc)
   const dirty = useDocuments((s) => (s.currentId ? s.dirtyForDrive[s.currentId] === true : false))
   const st = useStorageStatus()
   const drive = isDriveConfigured()
   const docConflict = drive && !!doc && st.driveConflicts[doc.id] === true
+  const inFile = useDesktopCopy((s) => (doc ? !!s.byDoc[doc.id] : false))
+  const hasWriting = !!doc && hasWords(doc.content)
+  const [offer, setOffer] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const view = drive
     ? describeSaveStatus({
         local: st.local,
@@ -312,18 +321,31 @@ function SaveStatus({ onError, onResolve }: { onError: (msg: string) => void; on
         doc,
         docDirtyForDrive: dirty || (!!doc?.driveFileId && (doc.driveSyncedAt ?? 0) < doc.updatedAt),
         docConflict,
+        inFile,
+        hasWriting,
       })
     : // A build without Drive only reports this browser, even for a manuscript once saved to Drive.
-      describeSaveStatus({ local: st.local, drive: 'idle', driveConnected: false, doc: null, docDirtyForDrive: false })
+      describeSaveStatus({ local: st.local, drive: 'idle', driveConnected: false, doc: null, docDirtyForDrive: false, inFile, hasWriting })
   const detail = docConflict
     ? 'This manuscript changed in Google Drive since this browser last synced it. Autosave to Drive is paused for it until you choose which version to keep.'
     : drive && st.drive === 'error'
       ? st.driveError
       : st.local === 'error'
         ? st.localError
-        : null
+        : view.action === 'save'
+          ? 'Saved in this browser as you type, but not in a file yet. Click to save it to Google Drive or a file.'
+          : null
+
+  const closeOffer = useCallback((opts?: { restoreFocus?: boolean }) => {
+    setOffer(false)
+    if (opts?.restoreFocus) btnRef.current?.focus()
+  }, [])
 
   const run = () => {
+    if (view.action === 'save') {
+      setOffer((o) => !o)
+      return
+    }
     if (view.action === 'resolve') {
       onResolve()
       return
@@ -336,11 +358,22 @@ function SaveStatus({ onError, onResolve }: { onError: (msg: string) => void; on
     <span className={`fm-status fm-tone-${view.tone}`} role="status" title={detail ?? undefined}>
       <span className="fm-status-dot" aria-hidden="true" />
       {view.action ? (
-        <button type="button" className="fm-status-btn" onClick={run} aria-label={`${view.label}${detail ? `: ${detail}` : ''}`}>
+        <button
+          ref={btnRef}
+          type="button"
+          className="fm-status-btn"
+          onClick={run}
+          aria-label={`${view.label}${detail ? `: ${detail}` : ''}`}
+          aria-expanded={view.action === 'save' ? offer : undefined}
+          aria-haspopup={view.action === 'save' ? 'dialog' : undefined}
+        >
           {view.label}
         </button>
       ) : (
         <span>{view.label}</span>
+      )}
+      {offer && view.action === 'save' && doc && (
+        <SaveSomewherePopover docId={doc.id} title={doc.title || 'Untitled Manuscript'} anchor={btnRef} onClose={closeOffer} />
       )}
     </span>
   )

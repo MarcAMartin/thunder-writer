@@ -123,7 +123,11 @@ export function usePagination(editor: Editor | null, input: PaginationInput): nu
     }
     scheduleRef.current = schedule
 
-    const onUpdate = () => schedule(150)
+    const onUpdate = () => {
+      // Keep the pages after the edit where they are until the full pass below runs (no jumping chapters).
+      if (!editor.isDestroyed) realignSpacers(editor.view, inputRef.current)
+      schedule(150)
+    }
     const onMount = () => schedule(0)
     editor.on('update', onUpdate)
     editor.on('mount', onMount)
@@ -217,6 +221,52 @@ let lineStartCache: { font: string; byNode: WeakMap<PMNode, Map<string, number>>
 
 export function resetLineStartCache() {
   lineStartCache = { font: '', byNode: new WeakMap() }
+}
+
+/**
+ * Typing above a page break changes how much text the page holds, and the
+ * full pagination pass waits for a pause, so until then the next page (a
+ * chapter heading, say) would ride up or down a line with every line typed.
+ * This resizes each page-break spacer at once, right after the edit and
+ * before it is painted, so every page still starts exactly where it should:
+ * a spacer always ends on its page's top edge. A page that now overflows is
+ * left for the full pass, which moves the break. Returns how many it resized.
+ * The columned views measure the text as one column for this, as the full
+ * pass does (`linearize`).
+ */
+export function realignSpacers(view: EditorView, input: Pick<PaginationInput, 'pagePitch' | 'scale' | 'linearize'>): number {
+  const root = view.dom as HTMLElement
+  if (!root.isConnected) return 0
+  if (!input.linearize) return realignInColumn(root, input)
+  root.classList.add(MEASURING_CLASS)
+  try {
+    return realignInColumn(root, input)
+  } finally {
+    root.classList.remove(MEASURING_CLASS)
+  }
+}
+
+function realignInColumn(root: HTMLElement, input: Pick<PaginationInput, 'pagePitch' | 'scale'>): number {
+  const spacers = root.querySelectorAll<HTMLElement>(`.${PAGE_SPACER_CLASS}`)
+  if (spacers.length === 0) return 0
+  const scale = input.scale && input.scale > 0 ? input.scale : 1
+  const rootTop = root.getBoundingClientRect().top
+  const first = root.firstElementChild
+  const firstTop = first ? (first.getBoundingClientRect().top - rootTop) / scale : 0
+  let changed = 0
+  for (const el of spacers) {
+    const page = Number(el.dataset.page)
+    if (!Number.isFinite(page) || page < 2) continue
+    const r = el.getBoundingClientRect()
+    const top = (r.top - rootTop) / scale
+    const height = r.height / scale
+    // Page n starts (n - 1) page pitches below page 1's first line.
+    const want = firstTop + (page - 1) * input.pagePitch - top
+    if (want < 0 || Math.abs(want - height) < 0.5) continue
+    el.style.height = `${Math.round(want * 10) / 10}px`
+    changed++
+  }
+  return changed
 }
 
 /** Class that lays the columned text out as one column while it is measured (see editor.css). */

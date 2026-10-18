@@ -1,10 +1,10 @@
 import type { ThunderDoc } from '../../types'
 
 /** Every file format the writer can export to their computer (PDF is printed from Book Preview instead: preview/pdfRequest). */
-export type ExportKind = 'docx' | 'md' | 'txt' | 'html' | 'thunder'
+export type ExportKind = 'docx' | 'doc' | 'md' | 'txt' | 'html' | 'thunder'
 
-/** Formats that can be kept continuously updated on disk (HTML is a one-off print file). */
-export type CopyKind = Exclude<ExportKind, 'html'>
+/** Formats that can be kept continuously updated on disk (HTML is a one-off print file; .doc is for older Word, a one-off too). */
+export type CopyKind = Exclude<ExportKind, 'html' | 'doc'>
 
 export interface ExportFormatInfo {
   kind: ExportKind
@@ -22,6 +22,7 @@ export interface ExportFormatInfo {
 }
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+export const DOC_MIME = 'application/msword'
 
 export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
   docx: {
@@ -32,6 +33,15 @@ export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
     ext: '.docx',
     mime: DOCX_MIME,
     pickerExt: ['.docx'],
+  },
+  doc: {
+    kind: 'doc',
+    label: 'Word 97–2003 (.doc)',
+    short: 'Word 97–2003',
+    hint: 'For older versions of Word. Saved as rich text, which every Word opens, with your page size and chapters.',
+    ext: '.doc',
+    mime: DOC_MIME,
+    pickerExt: ['.doc'],
   },
   md: {
     kind: 'md',
@@ -72,7 +82,7 @@ export const EXPORT_FORMATS: Record<ExportKind, ExportFormatInfo> = {
   },
 }
 
-export const MENU_ORDER: ExportKind[] = ['docx', 'md', 'txt', 'html', 'thunder']
+export const MENU_ORDER: ExportKind[] = ['docx', 'doc', 'md', 'txt', 'html', 'thunder']
 export const COPY_KINDS: CopyKind[] = ['docx', 'md', 'txt', 'thunder']
 
 export const isExportKind = (v: unknown): v is ExportKind =>
@@ -85,6 +95,10 @@ export async function buildExport(doc: ThunderDoc, kind: ExportKind): Promise<Bl
     case 'docx': {
       const { toDocx } = await import('./toDocx')
       return toDocx(doc)
+    }
+    case 'doc': {
+      const { toRtf } = await import('./toRtf')
+      return new Blob([toRtf(doc)], { type: mime })
     }
     case 'md': {
       const { toMarkdown } = await import('./toMarkdown')

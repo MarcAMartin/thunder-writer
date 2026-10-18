@@ -83,9 +83,28 @@ describe('FileMenu', () => {
     vi.unstubAllEnvs()
   })
 
-  it('shows the local save status', () => {
+  it('says when a manuscript is only in this browser, and offers a file to save it to', async () => {
+    withDrive()
+    const user = userEvent.setup()
     renderAt()
-    expect(screen.getByRole('status')).toHaveTextContent('Saved locally')
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/^Not saved to a file$/)
+    const btn = within(status).getByRole('button', { name: /^Not saved to a file: Saved in this browser as you type, but not in a file yet/ })
+    await user.click(btn)
+    const pop = screen.getByRole('dialog', { name: 'Only in this browser' })
+    expect(pop).toHaveTextContent('“Alpha” is saved here as you type, but it isn’t in a file yet.')
+    expect(within(pop).getByRole('button', { name: /^Save to Google Drive/ })).toHaveFocus()
+    // Without the browser's Save dialog (jsdom, Safari, Firefox): a one-off copy instead of a file that updates itself.
+    expect(within(pop).getByRole('button', { name: /^Export a copy…/ })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(btn).toHaveFocus()
+  })
+
+  it('doesn’t nag about a blank new manuscript', () => {
+    useDocuments.setState((s) => ({ docs: { ...s.docs, a: { ...s.docs.a, content: { type: 'doc', content: [{ type: 'paragraph' }] } } } }))
+    renderAt()
+    expect(screen.getByRole('status')).toHaveTextContent(/^Saved locally$/)
   })
 
   it('puts the save status (and what follows it) in the slot beside the title, like Google Docs', () => {
@@ -98,7 +117,7 @@ describe('FileMenu', () => {
         </div>
       </MemoryRouter>,
     )
-    expect(within(slot).getByRole('status')).toHaveTextContent('Saved locally')
+    expect(within(slot).getByRole('status')).toHaveTextContent('Not saved to a file')
     expect(within(slot).getByText('copy badge')).toBeInTheDocument()
     expect(within(screen.getByTestId('menus')).queryByRole('status')).not.toBeInTheDocument()
     expect(within(screen.getByTestId('menus')).getByRole('button', { name: /^file/i })).toBeInTheDocument()
@@ -134,14 +153,14 @@ describe('FileMenu', () => {
   it('has no Export item unless the page provides it', async () => {
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     expect(screen.queryByRole('menuitem', { name: 'Export…' })).not.toBeInTheDocument()
   })
 
   it('creates a new manuscript from the menu', async () => {
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     const menu = screen.getByRole('menu', { name: 'File' })
     expect(within(menu).getByRole('menuitem', { name: 'New manuscript' })).toHaveFocus()
     await user.click(within(menu).getByRole('menuitem', { name: 'New manuscript' }))
@@ -166,7 +185,7 @@ describe('FileMenu', () => {
   it('supports keyboard navigation and Escape', async () => {
     const user = userEvent.setup()
     renderAt()
-    const trigger = screen.getByRole('button', { name: /file/i })
+    const trigger = screen.getByRole('button', { name: /^file/i })
     await user.click(trigger)
     await user.keyboard('{ArrowDown}')
     expect(screen.getByRole('menuitem', { name: 'Open manuscript…' })).toHaveFocus()
@@ -175,18 +194,23 @@ describe('FileMenu', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('reports only this browser’s save status in a build without Drive, even for a manuscript once saved to Drive', () => {
+  it('reports only this browser’s save status in a build without Drive, even for a manuscript once saved to Drive', async () => {
+    const user = userEvent.setup()
     useDocuments.setState((s) => ({ docs: { ...s.docs, a: { ...s.docs.a, driveFileId: 'F', driveSyncedAt: 1 } } }))
     renderAt()
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent(/^Saved locally$/)
-    expect(within(status).queryByRole('button')).not.toBeInTheDocument()
+    expect(status).toHaveTextContent(/^Not saved to a file$/)
+    await user.click(within(status).getByRole('button'))
+    const pop = screen.getByRole('dialog', { name: 'Only in this browser' })
+    expect(within(pop).queryByRole('button', { name: /google drive/i })).not.toBeInTheDocument()
+    await user.click(within(pop).getByRole('button', { name: /^Export a copy…/ }))
+    expect(screen.queryByRole('dialog', { name: 'Only in this browser' })).not.toBeInTheDocument()
   })
 
   it('leaves Google Drive out entirely in a build without it, with no setup instructions', async () => {
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     const menu = screen.getByRole('menu', { name: 'File' })
     expect(within(menu).queryByText(/google drive/i)).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /drive/i })).not.toBeInTheDocument()
@@ -197,7 +221,7 @@ describe('FileMenu', () => {
     withDrive()
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     const menu = screen.getByRole('menu', { name: 'File' })
     for (const name of ['Connect Google Drive', 'Save to Drive', 'Open from Drive…'])
       expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument()
@@ -231,7 +255,7 @@ describe('FileMenu', () => {
     const user = userEvent.setup()
     const confirm = vi.spyOn(window, 'confirm')
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     await user.click(screen.getByRole('menuitem', { name: 'Open manuscript…' }))
     const dialog = await screen.findByRole('dialog', { name: 'Open manuscript' })
     const rows = within(dialog).getAllByRole('listitem')
@@ -260,7 +284,7 @@ describe('FileMenu', () => {
     withDrive({ picker: true })
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     const menu = screen.getByRole('menu', { name: 'File' })
     expect(within(menu).getByRole('menuitem', { name: 'Open from Drive…' })).toBeInTheDocument()
     const item = within(menu).getByRole('menuitem', { name: 'Import from Google Drive…' })
@@ -272,7 +296,7 @@ describe('FileMenu', () => {
     withDrive()
     const user = userEvent.setup()
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     const menu = screen.getByRole('menu', { name: 'File' })
     expect(within(menu).getByRole('menuitem', { name: 'Open from Drive…' })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: 'Import from Google Drive…' })).not.toBeInTheDocument()
@@ -336,7 +360,7 @@ describe('FileMenu', () => {
     const user = userEvent.setup()
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(true).mockReturnValueOnce(false)
     renderAt()
-    await user.click(screen.getByRole('button', { name: /file/i }))
+    await user.click(screen.getByRole('button', { name: /^file/i }))
     await user.click(screen.getByRole('menuitem', { name: 'Open manuscript…' }))
     const dialog = await screen.findByRole('dialog', { name: 'Open manuscript' })
     await user.click(within(dialog).getByRole('button', { name: /delete alpha/i }))

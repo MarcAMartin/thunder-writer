@@ -5,11 +5,19 @@ export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordproc
 /** Drive's type for native Google Docs; they reach the importer already exported as HTML. */
 export const GDOC_MIME = 'application/vnd.google-apps.document'
 
+export const DOC_MIME = 'application/msword'
+export const PDF_MIME = 'application/pdf'
+export const RTF_MIME = 'application/rtf'
+
 /** MIME types matching IMPORT_ACCEPT, for <input accept> and Picker filters. */
-export const IMPORT_MIME_TYPES = [DOCX_MIME, 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html']
+export const IMPORT_MIME_TYPES = [DOCX_MIME, DOC_MIME, PDF_MIME, RTF_MIME, 'text/rtf', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html']
 
 const EXT_FORMAT: Record<string, ImportFormat> = {
   docx: 'docx',
+  doc: 'doc',
+  dot: 'doc',
+  rtf: 'rtf',
+  pdf: 'pdf',
   txt: 'text',
   text: 'text',
   md: 'markdown',
@@ -23,6 +31,10 @@ const EXT_FORMAT: Record<string, ImportFormat> = {
 
 const MIME_FORMAT: Record<string, ImportFormat> = {
   [DOCX_MIME]: 'docx',
+  [DOC_MIME]: 'doc',
+  [PDF_MIME]: 'pdf',
+  [RTF_MIME]: 'rtf',
+  'text/rtf': 'rtf',
   [GDOC_MIME]: 'gdoc-html',
   'text/html': 'html',
   'application/xhtml+xml': 'html',
@@ -31,7 +43,8 @@ const MIME_FORMAT: Record<string, ImportFormat> = {
   'text/plain': 'text',
 }
 
-const SUPPORTED = 'Thunder Writer can import Word (.docx), Google Docs, plain text (.txt), Markdown (.md) and HTML files.'
+const SUPPORTED =
+  'Thunder Writer can import Word (.docx and .doc), PDF, Google Docs, rich text (.rtf), plain text (.txt), Markdown (.md) and HTML files.'
 
 /** Google Drive for desktop shows each Google Doc on disk as a tiny ".gdoc" link file. */
 const GOOGLE_SHORTCUT_EXT = new Set(['gdoc', 'gsheet', 'gslides', 'gdraw', 'gform'])
@@ -49,12 +62,8 @@ function isGoogleShortcut(head: string): boolean {
 }
 
 const UNSUPPORTED_EXT: Record<string, string> = {
-  doc: 'Older Word “.doc” files can’t be read. In Word, choose File › Save As › Word Document (.docx), then import the .docx.',
-  dot: 'Older Word “.doc” files can’t be read. In Word, choose File › Save As › Word Document (.docx), then import the .docx.',
-  rtf: 'RTF files can’t be read. Open the file in Word or TextEdit and save it as Word Document (.docx) or plain text, then import that.',
   odt: 'OpenDocument (.odt) files can’t be read yet. In LibreOffice or Word, save a copy as Word Document (.docx), then import that.',
   pages: 'Pages files can’t be read. In Pages, choose File › Export To › Word, then import the .docx.',
-  pdf: 'PDFs can’t be imported because they don’t keep paragraphs. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   epub: 'EPUB files can’t be imported. Export your manuscript from the app you wrote it in as .docx or plain text instead.',
   scriv: 'Scrivener projects can’t be read directly. In Scrivener, choose File › Compile and compile to Word (.docx), then import that.',
   json: 'This looks like a JSON file. To open a Thunder Writer backup (.thunder.json), use File › Open from computer… instead.',
@@ -84,8 +93,11 @@ export const isZip = (b: Uint8Array | null) => startsWith(b, [0x50, 0x4b, 0x03, 
 /** OLE compound file: an old .doc, or a password-protected .docx. */
 export const isOle = (b: Uint8Array | null) => startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
 
+const isRtf = (b: Uint8Array | null, data: ArrayBuffer | string) =>
+  startsWith(b, [0x7b, 0x5c, 0x72, 0x74, 0x66]) || (typeof data === 'string' && data.trimStart().startsWith('{\\rtf'))
+
 export const OLE_MESSAGE =
-  'This Word file is either password-protected or in the older .doc format, so it can’t be read. In Word, remove the password (File › Info › Protect Document) and save it as Word Document (.docx), then import that.'
+  'This Word file is password-protected, so it can’t be read. In Word, remove the password (File › Info › Protect Document), save it, then import it again.'
 
 function sniffTextStart(head: string): ImportFormat | null {
   const s = head.replace(/^\uFEFF/, '').trimStart().slice(0, 512).toLowerCase()
@@ -102,10 +114,18 @@ export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): Imp
   const ext = fileExtension(source.name)
   if (GOOGLE_SHORTCUT_EXT.has(ext)) throw new ImportError('unsupported', googleShortcutMessage())
   if (ext in UNSUPPORTED_EXT) throw new ImportError('unsupported', UNSUPPORTED_EXT[ext])
+  // A ".doc" is often really RTF, HTML or a renamed .docx: go by what's inside.
+  if (ext === 'doc' || ext === 'dot') {
+    if (isZip(bytes)) return 'docx'
+    if (isRtf(bytes, source.data)) return 'rtf'
+    const start = typeof source.data === 'string' ? source.data.slice(0, 2048) : bytes ? new TextDecoder('latin1').decode(bytes.subarray(0, 2048)) : ''
+    if (sniffTextStart(start) === 'html') return 'html'
+    return 'doc'
+  }
+  // An old .doc renamed .docx (or a password-protected .docx, which the .doc reader explains).
+  if (ext === 'docx' && isOle(bytes)) return 'doc'
   if (ext in EXT_FORMAT) return EXT_FORMAT[ext]
   const mime = (source.mimeType ?? '').split(';')[0].trim().toLowerCase()
-  if (mime === 'application/msword') throw new ImportError('unsupported', UNSUPPORTED_EXT.doc)
-  if (mime === 'application/pdf') throw new ImportError('unsupported', UNSUPPORTED_EXT.pdf)
   const head = typeof source.data === 'string' ? source.data.slice(0, 2048) : bytes ? new TextDecoder('latin1').decode(bytes.subarray(0, 2048)) : ''
   // A local file with Drive's Google Docs type is a Drive for desktop shortcut, never the document.
   if (isGoogleShortcut(head)) throw new ImportError('unsupported', googleShortcutMessage())
@@ -116,9 +136,9 @@ export function sniffFormat(source: ImportSource, bytes: Uint8Array | null): Imp
     return f
   }
   if (isZip(bytes)) return 'docx'
-  if (isOle(bytes)) throw new ImportError('unsupported', OLE_MESSAGE)
-  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) throw new ImportError('unsupported', UNSUPPORTED_EXT.pdf)
-  if (startsWith(bytes, [0x7b, 0x5c, 0x72, 0x74, 0x66])) throw new ImportError('unsupported', UNSUPPORTED_EXT.rtf)
+  if (isOle(bytes)) return 'doc'
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) return 'pdf'
+  if (isRtf(bytes, source.data)) return 'rtf'
   if (sniffTextStart(head) === 'html') return 'html'
   if (mime === '' || mime.startsWith('text/') || mime === 'application/octet-stream') {
     if (bytes && looksBinary(bytes)) throw new ImportError('unsupported', SUPPORTED)

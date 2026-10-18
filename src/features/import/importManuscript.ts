@@ -12,7 +12,7 @@ import { readPlainText } from './text'
 import { ImportError, type ImportResult, type ImportSource } from './types'
 
 /** File extensions the importer accepts, for <input accept> and Picker filters (MIME types: IMPORT_MIME_TYPES). */
-export const IMPORT_ACCEPT = ['.docx', '.txt', '.md', '.markdown', '.html', '.htm']
+export const IMPORT_ACCEPT = ['.docx', '.doc', '.pdf', '.rtf', '.txt', '.md', '.markdown', '.html', '.htm']
 
 export { IMPORT_MIME_TYPES } from './sniff'
 
@@ -107,6 +107,38 @@ export async function importManuscript(source: ImportSource): Promise<ImportResu
           `${plural(d.numberedHeadings, 'heading')} used Word’s automatic numbering (like “Chapter 1”); the ${d.numberedHeadings === 1 ? 'number is' : 'numbers are'} now part of the heading text and won’t renumber themselves.`,
         )
       }
+      break
+    }
+    case 'doc': {
+      if (!bytes) throw new ImportError('corrupt', 'A Word document must be read as a file, not as text.')
+      const { docToText } = await import('./doc')
+      const t = readPlainText(docToText(bytes))
+      doc = t.doc
+      titleText = leadingTitle(doc, 'text')
+      formatNotes.push(
+        'Older Word (.doc) files are read for their words: italics, bold and headings aren’t kept, so check chapter titles and emphasis. Chapter lines (like “Chapter 1”) still start new pages.',
+      )
+      break
+    }
+    case 'rtf': {
+      const decoded = decodeText(source.data)
+      const { rtfToHtml } = await import('./rtf')
+      const h = htmlToDoc(rtfToHtml(decoded.text))
+      doc = h.doc
+      titleText = h.titleText
+      stats = h.stats
+      break
+    }
+    case 'pdf': {
+      if (!bytes) throw new ImportError('corrupt', 'A PDF must be read as a file, not as text.')
+      const { pdfToHtml } = await import('./pdf')
+      const h = htmlToDoc(await pdfToHtml(bytes))
+      doc = h.doc
+      titleText = h.titleText
+      stats = h.stats
+      formatNotes.push(
+        'A PDF doesn’t record paragraphs, so they were rebuilt from the page layout, and running heads and page numbers were left out. Italics aren’t kept. Skim it for paragraphs that ran together or split.',
+      )
       break
     }
     case 'html':

@@ -96,7 +96,7 @@ describe('HomePage', () => {
   })
 
   it('"Start Writing" opens a fresh manuscript, from the hero and the closing section', () => {
-    hydrateWith([makeDoc()])
+    hydrateWith([])
     renderHome()
     const ctas = screen.getAllByRole('link', { name: /start writing/i })
     expect(ctas).toHaveLength(2)
@@ -105,13 +105,35 @@ describe('HomePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/write?new=1')
   })
 
+  it('leads with the last manuscript: its title, when it was edited, its words and latest lines', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Chapter One' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'It began with rain.' }] },
+        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Chapter Two' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'The lamp went out at midnight.' }] },
+        { type: 'paragraph' },
+      ],
+    }
+    hydrateWith([makeDoc({ id: 'a', title: 'The Long Storm', content, updatedAt: Date.now() - 5 * 60_000 })], 'a')
+    renderHome()
+    const card = screen.getByRole('region', { name: 'The Long Storm' })
+    expect(within(card).getByText('Continue writing')).toBeInTheDocument()
+    expect(card).toHaveTextContent('Edited 5 minutes ago · 14 words · 2 chapters')
+    expect(within(card).getByLabelText('Latest lines')).toHaveTextContent('The lamp went out at midnight.')
+    // Continuing leads; a new manuscript is the quieter choice beside it.
+    expect(within(card).getByRole('link', { name: 'Continue Writing' })).toHaveClass('tw-btn-primary')
+    expect(within(card).getByRole('link', { name: 'Start a new manuscript' })).toHaveAttribute('href', '/write?new=1')
+  })
+
   it('"Continue Writing" reopens the last manuscript in this browser and names it', () => {
     withDrive()
     hydrateWith([makeDoc({ id: 'a', title: 'The Long Storm' }), makeDoc({ id: 'b', title: 'Older', updatedAt: 1 })], 'a')
     renderHome()
     const cont = screen.getByRole('link', { name: 'Continue Writing' })
     expect(cont).toHaveAttribute('href', '/write')
-    expect(cont).toHaveAccessibleDescription(/Last open in this browser: “The Long Storm”, edited/)
+    expect(cont).toHaveAccessibleDescription(/Last open in this browser: “The Long Storm”\.\s?Edited/)
     fireEvent.click(cont)
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/write$/)
     expect(useDocuments.getState().currentId).toBe('a')

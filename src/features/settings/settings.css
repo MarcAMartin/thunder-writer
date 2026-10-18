@@ -158,8 +158,7 @@
 .st-switch:checked::after { transform: translateX(18px); background: var(--tw-accent-contrast); }
 .st-switch:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; }
 
-.st-danger-btn { align-self: flex-start; color: var(--tw-danger); border-color: var(--tw-danger); }
-.st-danger-btn:hover { background: color-mix(in srgb, var(--tw-danger) 10%, var(--tw-surface)); }
+.st-danger-btn { align-self: flex-start; }
 
 .st-sr {
   position: absolute;

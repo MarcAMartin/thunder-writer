@@ -49,6 +49,7 @@ describe('SaveToComputerMenu', () => {
     expect(items.map((i) => i.textContent)).toEqual([
       expect.stringContaining('Word document (.docx)Recommended'),
       expect.stringContaining('PDF (.pdf)'),
+      expect.stringContaining('Word 97–2003 (.doc)'),
       expect.stringContaining('Markdown (.md)'),
       expect.stringContaining('Plain text (.txt)'),
       expect.stringContaining('Print-ready web page (.html)'),
@@ -60,7 +61,7 @@ describe('SaveToComputerMenu', () => {
     await user.keyboard('{ArrowDown}')
     expect(items[1]).toHaveFocus()
     await user.keyboard('{End}')
-    expect(items[6]).toHaveFocus()
+    expect(items[7]).toHaveFocus()
     await user.keyboard('{ArrowDown}')
     expect(items[0]).toHaveFocus()
     await user.keyboard('{Escape}')

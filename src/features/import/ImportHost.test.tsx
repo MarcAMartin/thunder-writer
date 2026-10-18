@@ -56,10 +56,10 @@ describe('local import flow', () => {
   it('shows errors plainly and creates nothing', async () => {
     renderHost()
     await act(async () => {
-      await importLocalFile(new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' }))
+      await importLocalFile(new File(['<pages>'], 'book.pages'))
     })
     expect(await screen.findByRole('dialog', { name: 'Couldn’t import that file' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(/PDFs can’t be imported/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/Pages files can’t be read/)
     expect(Object.keys(useDocuments.getState().docs)).toHaveLength(0)
   })
 

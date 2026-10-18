@@ -6,6 +6,7 @@ import { discardUntouchedCurrentDoc, isUntouchedDoc } from '../import/importFlow
 import { driveErrorMessage } from '../storage/drive'
 import { connectDrive, isDriveConfigured } from '../storage/driveSession'
 import { loadGis } from '../storage/googleAuth'
+import { countWords } from '../backups/store'
 import { formatWhen } from '../storage/OpenLocalModal'
 import { NEW_MANUSCRIPT_PATH, OPEN_FROM_DRIVE_PATH, WRITE_PATH } from './routes'
 
@@ -25,12 +26,51 @@ export function lastManuscript(s: Pick<DocumentsState, 'docs' | 'currentId'>): T
 
 const CTA = 'tw-btn hm-cta'
 
+/** "5 minutes ago", "yesterday", or a date for anything older than a week. */
+export function editedWhen(t: number, now = Date.now()): string {
+  const s = Math.round((now - t) / 1000)
+  if (s < 45) return 'just now'
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  if (s < 3600) return rtf.format(-Math.max(1, Math.round(s / 60)), 'minute')
+  if (s < 86_400) return rtf.format(-Math.round(s / 3600), 'hour')
+  if (s < 7 * 86_400) return rtf.format(-Math.round(s / 86_400), 'day')
+  return `on ${formatWhen(t)}`
+}
+
+type Node = { type?: string; text?: string; attrs?: { level?: number }; content?: Node[] }
+
+/** Chapters (Heading 1) and the manuscript's latest lines (the end of its last paragraph with words, up to ~150 characters). */
+export function manuscriptGlance(content: unknown): { chapters: number; latest: string } {
+  let chapters = 0
+  let latest = ''
+  const text = (n: Node): string => (n.type === 'text' ? (n.text ?? '') : n.type === 'hardBreak' ? ' ' : (n.content ?? []).map(text).join(''))
+  const walk = (n: Node | null | undefined) => {
+    if (!n || typeof n !== 'object') return
+    if (n.type === 'heading' && n.attrs?.level === 1) chapters++
+    if (n.type === 'paragraph') {
+      const t = text(n).replace(/\s+/g, ' ').trim()
+      if (t) latest = t
+      return
+    }
+    n.content?.forEach(walk)
+  }
+  walk(content as Node)
+  if (latest.length > 150) {
+    const cut = latest.slice(-150)
+    latest = `…${cut.slice(cut.indexOf(' ') + 1)}`
+  }
+  return { chapters, latest }
+}
+
+const plural = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? '' : 's'}`
+
 /**
- * Home page calls to action. "Start Writing" opens a fresh manuscript.
- * "Continue Writing" reopens the last manuscript kept in this browser; when
- * there is none (a new computer, cleared data) it connects Google Drive, right
- * from the click so the consent popup isn't blocked, and lists the
- * manuscripts saved there.
+ * Home page calls to action. When this browser has a manuscript, it leads:
+ * a "Continue writing" card names it (title, when it was edited, words,
+ * chapters, its latest lines) and reopens it, with "Start a new manuscript"
+ * beside it. Otherwise "Start Writing" opens a fresh manuscript and
+ * "Continue Writing" connects Google Drive, right from the click so the
+ * consent popup isn't blocked, and lists the manuscripts saved there.
  */
 export function HeroActions() {
   const navigate = useNavigate()
@@ -69,30 +109,11 @@ export function HeroActions() {
     )
   }
 
+  if (last) return <ContinueCard doc={last} />
+
   let cont = null
   let note = null
-  if (last) {
-    cont = (
-      <Link
-        to={WRITE_PATH}
-        className={CTA}
-        aria-describedby="hm-continue-note"
-        onClick={() => {
-          if (useDocuments.getState().currentId === last.id) return
-          discardUntouchedCurrentDoc()
-          useDocuments.getState().openDoc(last.id)
-        }}
-      >
-        Continue Writing
-      </Link>
-    )
-    note = (
-      <>
-        Last open in this browser: <span className="hm-continue-title">“{last.title || 'Untitled Manuscript'}”</span>, edited{' '}
-        {formatWhen(last.updatedAt)}.
-      </>
-    )
-  } else if (fromDrive) {
+  if (fromDrive) {
     cont = (
       <button type="button" className={CTA} onClick={continueFromDrive} aria-busy={busy || undefined} aria-describedby="hm-continue-note">
         {busy ? 'Opening Google Drive…' : 'Continue Writing'}
@@ -130,5 +151,51 @@ export function HeroActions() {
         </p>
       )}
     </>
+  )
+}
+
+/** The manuscript last open in this browser, leading the hero: open it again, or start another. */
+function ContinueCard({ doc }: { doc: ThunderDoc }) {
+  const title = doc.title?.trim() || 'Untitled Manuscript'
+  const words = countWords(doc.content)
+  const { chapters, latest } = manuscriptGlance(doc.content)
+  const meta = [`Edited ${editedWhen(doc.updatedAt)}`, plural(words, 'word'), ...(chapters ? [plural(chapters, 'chapter')] : [])]
+  const open = () => {
+    if (useDocuments.getState().currentId === doc.id) return
+    discardUntouchedCurrentDoc()
+    useDocuments.getState().openDoc(doc.id)
+  }
+  return (
+    <section className="hm-resume" aria-labelledby="hm-resume-title">
+      <p className="hm-resume-kicker">
+        <span className="hm-resume-dot" aria-hidden="true" />
+        Continue writing
+      </p>
+      <h2 id="hm-resume-title" className="hm-resume-title">
+        <Link to={WRITE_PATH} onClick={open} tabIndex={-1}>
+          {title}
+        </Link>
+      </h2>
+      <p id="hm-continue-note" className="hm-resume-meta">
+        <span className="hm-sr">Last open in this browser: “{title}”. </span>
+        {meta.join(' · ')}
+      </p>
+      {latest && (
+        <blockquote className="hm-resume-latest" aria-label="Latest lines">
+          <p>{latest}</p>
+        </blockquote>
+      )}
+      <div className="hm-ctas hm-resume-ctas">
+        <Link to={WRITE_PATH} className={`${CTA} tw-btn-primary hm-cta-primary`} aria-describedby="hm-continue-note" onClick={open}>
+          Continue Writing
+          <span aria-hidden="true" className="hm-cta-arrow">
+            →
+          </span>
+        </Link>
+        <Link to={NEW_MANUSCRIPT_PATH} className={`${CTA} hm-cta-quiet`}>
+          Start a new manuscript
+        </Link>
+      </div>
+    </section>
   )
 }

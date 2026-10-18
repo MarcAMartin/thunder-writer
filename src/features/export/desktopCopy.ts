@@ -341,6 +341,7 @@ function isRecord(v: unknown): v is CopyRecord {
     typeof r.docId === 'string' &&
     isExportKind(r.kind) &&
     r.kind !== 'html' &&
+    r.kind !== 'doc' &&
     typeof r.fileName === 'string' &&
     typeof r.handle === 'object' &&
     r.handle !== null

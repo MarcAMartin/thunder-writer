@@ -83,3 +83,31 @@ export const GlobeIcon = () => (
     <path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5S9.6 5.9 12 3.5Z" />
   </Icon>
 )
+
+export const ServerOffIcon = () => (
+  <Icon>
+    <rect x="4" y="4" width="16" height="6.5" rx="1.5" />
+    <rect x="4" y="13.5" width="16" height="6.5" rx="1.5" />
+    <path d="M7.5 7.25h.01M7.5 16.75h.01M3 3l18 18" />
+  </Icon>
+)
+
+export const KeyIcon = () => (
+  <Icon>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M10.8 12.2 19 4M16 7l2.5 2.5M14 9l2 2" />
+  </Icon>
+)
+
+export const FileOutIcon = () => (
+  <Icon>
+    <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v15A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7z" />
+    <path d="M14 3v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5" />
+  </Icon>
+)
+
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.8 12.1A1.5 1.5 0 0 0 8.8 20.5h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v6M14 11v6" />
+  </Icon>
+)

@@ -118,9 +118,12 @@ book:
 
 ### Bring the manuscript you already have
 
-- **Open Word, Google Docs, Markdown, HTML or plain text.** Use **File › Open
-  from computer…**, drop a file onto the page, or pick a Google Doc straight
-  from your Drive.
+- **Open Word (.docx and older .doc), PDF, RTF, Google Docs, Markdown, HTML
+  or plain text.** Use **File › Open from computer…**, drop a file onto the
+  page, or pick a Google Doc straight from your Drive. A PDF doesn't record
+  paragraphs, so they're rebuilt from the page layout (running heads and page
+  numbers are left out); an older `.doc` comes across as its words, without
+  italics or bold.
 - **Chapters are found for you.** Lines like "Chapter 1", "Chapter Twelve: The
   Storm", "Part One", "Prologue" or "Epilogue" become chapter headings, and
   `* * *` style lines become scene breaks. Bold, italics, lists and quotes come
@@ -136,11 +139,12 @@ book:
 
 - **Export** gives you a Word document laid out at your trim size,
   with chapters on new pages, page numbers and your running heads. You can
-  also export a **PDF** of your book's pages (as Preview Book shows them),
-  Markdown, plain text, a print-ready web page or a Thunder Writer backup of
-  this manuscript.
+  also export a **PDF** of your book's pages (as Preview Book shows them), a
+  **Word 97–2003 (.doc)** file for older versions of Word, Markdown, plain
+  text, a print-ready web page or a Thunder Writer backup of this manuscript.
 - **Keep a copy on my computer** (Chrome and Edge): choose a file once, for
-  example on your Desktop, and Thunder Writer keeps it up to date as you write.
+  example on your Desktop, and Thunder Writer keeps it up to date as you write,
+  about 10 seconds after you pause.
 - **Cmd+S / Ctrl+S** does what you expect. It saves right away, updates your
   desktop copy, and never opens the browser's "Save page" dialog.
 
@@ -149,13 +153,17 @@ book:
 - **Every change is saved in your browser** about a second after you stop
   typing.
 - **Connect your own Google Drive** and your manuscripts are also saved there,
-  in a "Thunder Writer" folder, within about a minute while you write (a few
-  seconds after you pause, at most once a minute by default), so you can pick
-  up on another computer. Before you switch computers, check that the status
+  in a "Thunder Writer" folder, every 10 seconds or so while you write (a few
+  seconds after you pause, at most every 10 seconds by default), so you can
+  pick up on another computer. Before you switch computers, check that the status
   says it's saved to Drive. (After reloading the page you reconnect with one
   click.)
   Thunder Writer can only see the files it created and the files you choose to
   import. It can't see the rest of your Drive.
+- **The header says where your work is saved.** A manuscript that isn't in a
+  file yet (not in Google Drive, not kept on your computer) shows **Not saved
+  to a file**; click it to save it to Google Drive or to a file on your
+  computer that updates itself.
 - **Backups you can always get back to.** As you write, Thunder Writer keeps
   backups of each manuscript in your browser, plus a copy just before anything
   replaces or deletes one. Open **Backups ▾** in the writer to see them;
@@ -179,8 +187,9 @@ book:
   off under **Settings → Suggestions** if you'd rather it didn't.
 - **Your keys stay in this browser.** They are never uploaded, not even to
   your Google Drive.
-- **Clear all local data** in Settings wipes everything Thunder Writer stored
-  in the browser. Your Drive files are left alone.
+- **Clear all local data** (in Settings, and on the home page) wipes
+  everything Thunder Writer stored in the browser. Your Drive files are left
+  alone.
 
 ### A tiny AI bill, shown live
 
@@ -240,8 +249,9 @@ them from the File menu.
    [OpenRouter key](https://openrouter.ai/settings/keys) for any model.
    **Test key** checks it
    without spending anything.
-3. **Start Writing** for a fresh manuscript, or **Continue Writing** to pick
-   up where you left off. On a computer you haven't written on before,
+3. **Start Writing** for a fresh manuscript. When you come back, the home page
+   leads with **Continue writing**: your latest manuscript, when you last
+   edited it, its word count and its latest lines. On a computer you haven't written on before,
    Continue Writing connects your Google Drive and lists the manuscripts you
    saved there. You can also **Import a manuscript** you already have.
 4. *(Optional)* Connect **Google Drive** from the File menu for a cloud copy.

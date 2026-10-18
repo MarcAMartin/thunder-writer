@@ -204,10 +204,15 @@ export interface StatusInput {
   driveNeedsReconnect?: boolean
   /** This doc's Drive file changed elsewhere; autosave is paused for it. */
   docConflict?: boolean
+  /** A file on this computer is kept up to date with this doc (a desktop copy, or the file it was opened from). */
+  inFile?: boolean
+  /** The doc has words in it (a blank new manuscript isn't nagged about saving). Default true. */
+  hasWriting?: boolean
 }
 
 export type StatusTone = 'neutral' | 'busy' | 'ok' | 'warn' | 'error'
-export type StatusAction = 'retry' | 'connect' | 'resolve' | null
+/** `save`: the doc is in no file yet; offer ways to save it (Drive, a file on this computer). */
+export type StatusAction = 'retry' | 'connect' | 'resolve' | 'save' | null
 
 export interface StatusView {
   label: string
@@ -235,5 +240,7 @@ export function describeSaveStatus(i: StatusInput): StatusView {
   if (i.local === 'saving') return { label: 'Saving…', tone: 'busy', action: null }
   if (linked) return { label: 'Saved locally · Drive pending', tone: 'neutral', action: null }
   if (i.driveConnected && i.docDirtyForDrive) return { label: 'Saved locally · Drive pending', tone: 'neutral', action: null }
+  // Only this browser has it: say so, and offer a file (Drive or this computer).
+  if (!i.inFile && i.hasWriting !== false) return { label: 'Not saved to a file', tone: 'warn', action: 'save' }
   return { label: 'Saved locally', tone: 'neutral', action: null }
 }

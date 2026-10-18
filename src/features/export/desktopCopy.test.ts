@@ -174,7 +174,7 @@ describe('desktop copy', () => {
     expect(mem.get(STORE)?.get('d1')).toBeUndefined()
   })
 
-  it('rewrites the file ~15 s after the manuscript changes', async () => {
+  it('rewrites the file ~10 s after the manuscript changes', async () => {
     openDoc()
     const f = fakeFile()
     ;(window as Win).showSaveFilePicker = vi.fn(async () => f.handle)
@@ -183,7 +183,7 @@ describe('desktop copy', () => {
 
     useDocuments.getState().updateContent('d1', { type: 'doc', content: [p(t('A new line.'))] })
     expect(getDesktopCopyStatus('d1')?.pending).toBe(true)
-    await vi.advanceTimersByTimeAsync(14_000)
+    await vi.advanceTimersByTimeAsync(9_000)
     expect(f.written).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(1_000)
     expect(f.written).toEqual(['It began.\n', 'A new line.\n'])

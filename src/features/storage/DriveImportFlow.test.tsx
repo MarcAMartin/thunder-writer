@@ -58,7 +58,7 @@ const renderAt = (url = '/write') =>
   )
 
 const openImport = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { name: /file/i }))
+  await user.click(screen.getByRole('button', { name: /^file/i }))
   await user.click(screen.getByRole('menuitem', { name: 'Import from Google Drive…' }))
 }
 

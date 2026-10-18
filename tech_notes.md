@@ -63,8 +63,9 @@ own Drive with nothing to enter. Without them the build simply leaves Drive out.
 
 Stack: React 19, TypeScript, Vite 8, TipTap 3 (ProseMirror) for the editor,
 zustand for state, zod for validating anything loaded from storage or the
-network, idb-keyval for IndexedDB, mammoth (lazy) for `.docx` import, docx
-(lazy) for `.docx` export, and the official `@anthropic-ai/sdk` and `openai`
+network, idb-keyval for IndexedDB, mammoth (lazy) for `.docx` import, cfb
+(lazy) for Word 97–2003 `.doc` import, pdfjs-dist (lazy, with its worker as a
+separate asset) for `.pdf` import, docx (lazy) for `.docx` export, and the official `@anthropic-ai/sdk` and `openai`
 SDKs. `vite.config.ts` pre-bundles `docx` and `mammoth` so the dev server
 doesn't discover them mid-session and reload the page (losing that save or
 import).
@@ -89,24 +90,29 @@ Google's own consent popup.
 Restart `npm run dev` after editing `.env.local`, and redeploy after changing
 them on the host. Settings saved by versions before settings v4 could hold a
 client id, API key or project number entered in the browser; the v4 migration
-removes them (`RETIRED_GOOGLE_KEYS` in `src/store/settings.ts`). There are no
+removes them (`RETIRED_GOOGLE_KEYS` in `src/store/settings.ts`). The v5
+migration moves Drive autosave from the old 60 s default to 10 s, keeping any
+other interval the writer chose. There are no
 AI key variables on purpose: AI keys belong to the writer, not the deployment,
 and are entered in Settings.
 
 ## Routes
 
 - `/`: home page with an animated demo (`demoScript.ts` is a pure timeline)
-  and two calls to action (`HeroActions.tsx`):
-  - **Start Writing** goes to `/write?new=1`, a fresh manuscript.
-  - **Continue Writing** reopens the manuscript last open in this browser
-    (from IndexedDB; a blank "Untitled Manuscript" nobody wrote in doesn't
-    count), and names it underneath. When this browser has none (a new
-    computer, cleared data), the button connects Google Drive straight from
-    the click, so the consent popup isn't blocked, then goes to
-    `/write?open=drive` to list the manuscripts saved there. In a build without
-    Drive it is left out.
+  and calls to action (`HeroActions.tsx`):
+  - When this browser has a manuscript (the one last open, else the most
+    recently edited; a blank "Untitled Manuscript" nobody wrote in doesn't
+    count), a **Continue writing** card leads: its title, when it was edited,
+    words and chapters, and the end of its last paragraph, with **Continue
+    Writing** (primary, reopens it) and **Start a new manuscript**.
+  - Otherwise **Start Writing** goes to `/write?new=1`, a fresh manuscript, and
+    **Continue Writing** connects Google Drive straight from the click, so the
+    consent popup isn't blocked, then goes to `/write?open=drive` to list the
+    manuscripts saved there. In a build without Drive it is left out.
   Below them, text links to **Import a manuscript** and, when the Picker key is
-  set, **import it from Google Drive**.
+  set, **import it from Google Drive**. A privacy section follows the hero
+  ("You own your words"), with **Clear all local data** (the same
+  `storage/ClearDataButton` as Settings).
 - `/write`: the writing app: toolbar, page sheets, suggestions pane, status bar.
   - `/write?new=1` opens a fresh manuscript (once per navigation, replacing a
     blank one left from an earlier visit), then drops the parameter.
@@ -435,9 +441,18 @@ never stored in the browser or synced to Drive.
   renewal popup during autosave, the status shows "Drive error — retry", and
   clicking it renews the token.
 - Autosave to Drive runs about 5 s after a pause, and at most once per
-  interval (default 60 s, `driveAutosaveSec`; 0 means only on the pause) while
+  interval (default 10 s, `driveAutosaveSec`; 0 means only on the pause) while
   there are unsaved changes. It is single-flight and backs off after a failure
   (`src/features/storage/autosave.ts`).
+- The header's save status (`describeSaveStatus`) says where the manuscript
+  is: "Saved to Drive 12:04", "Saving to Drive…", "Saved locally · Drive
+  pending", or, when it is in no file at all (not linked to Drive, no desktop
+  copy, Drive not connected) and has words, **Not saved to a file** as an
+  amber pill. Clicking that opens `SaveSomewhere.tsx`: **Save to Google Drive**
+  (Drive builds), **Save to a file on this computer…** (a `.docx` desktop copy,
+  Chrome/Edge), or a one-off **Export a copy…** / **Save to Files…** where
+  the browser can't keep a file updated. A blank new manuscript shows
+  "Saved locally".
 - If autosave finds the Drive file changed elsewhere, it fetches Drive's
   version and asks the writer which to keep (`ResolveConflictModal.tsx`).
   Both versions are always kept somewhere: see [Backups](#backups).
@@ -723,10 +738,12 @@ src/
                            autosave scheduler, conflict resolution, FileMenu and
                            dialogs, Google Picker loader and Drive import
                            (picker.ts, driveImport.ts), Clear all local data
-    import/                importManuscript(): .docx (mammoth, lazy-loaded), HTML/Google
+    import/                importManuscript(): .docx (mammoth, lazy-loaded), .doc (cfb),
+                           .pdf (pdfjs-dist, lazy), RTF, HTML/Google
                            Docs, Markdown and text → TipTap JSON; chapter/scene-break
                            detection; ImportHost (progress/result dialogs), drag-and-drop
-    export/                Export (docx, Markdown, text, print HTML, backup; PDF via preview),
+    export/                Export (docx, .doc as RTF, Markdown, text, print HTML, backup;
+                           PDF via preview),
                            desktop copy (File System Access API), Cmd/Ctrl+S
     preview/               Book Preview: book paginator, layout engine, flip-book
                            viewer, navigation, header/footer settings and panel, print
@@ -812,6 +829,9 @@ Entry points:
 | Google Docs | Exported as HTML through the Picker, keeping the same formatting as `.docx`. A Doc too large for Google to export (about 10 MB) must first be downloaded as `.docx` and imported from the computer. |
 | `.html` | Headings, paragraphs, marks, lists, quotes and centre/right alignment. Scripts, frames, forms, styles and links are stripped; link text is kept. |
 | `.md` | Headings, emphasis, strikethrough, `<u>…</u>` underline, `==…==` highlight, quotes, nested lists, scene breaks, and a `title:` in front matter. A leading `---` counts as front matter only if every line up to the next `---` is YAML; otherwise it is a scene break and nothing is dropped. A `---` under a sentence is a scene break, not a heading. A first `# Title` above the chapters names the manuscript and isn't counted as a chapter. |
+| Word 97–2003 `.doc` | Read from the OLE container (`cfb`): the WordDocument stream's text through the piece table (CLX), in Windows-1252 or UTF-16 pieces (`doc.ts`). Words only: paragraphs, with fields reduced to their results; chapter lines are then found as in a text file. Bold, italics and headings aren't kept (the result dialog says so; Word or Pages can resave it as `.docx`). Password-protected and Word 95 files are refused with what to do. A `.doc` that is really RTF, HTML or a `.docx` is read as that. |
+| `.rtf` | Paragraphs, Heading 1–3 (from the style sheet or outline level), bold, italic, underline, strikethrough, alignment, line breaks, Unicode (`\uN`) and Windows-1252 escapes (`rtf.ts`). Headers, footers, footnotes, pictures and tables are left out. |
+| `.pdf` | Text read with PDF.js (lazy, worker served from this site) and rebuilt into paragraphs from the layout: an indent, a wider gap or a short last line ends a paragraph, a paragraph carries over a page break, hyphenated line ends rejoin, clearly larger type becomes a heading (two-line headings are joined), and running heads, footers and page numbers are dropped (`pdf.ts`). Italics aren't kept. Scanned PDFs (no text) and password-protected ones are refused with what to do. |
 | `.txt` | Paragraphs split by blank lines, or one paragraph per line. Lines are joined only when the whole file is hard-wrapped at one width (the dialog says so). A longer gap than usual between paragraphs is kept as an empty line. A short first line above the chapters names the manuscript. |
 
 **Encoding.** Text, Markdown and HTML files are read as UTF-8, UTF-16 (with a
@@ -1089,6 +1109,16 @@ which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
     when chapters open on a right-hand page), so its "different first page"
     header can drop the running head on the opener. The `docx` library is
     loaded lazily, only when a Word file is built.
+  - Word 97–2003 `.doc` (`toRtf.ts`): Rich Text Format saved with a `.doc`
+    name and the `application/msword` type, which every version of Word (and
+    Pages, LibreOffice, TextEdit) opens as a Word document. It keeps the trim
+    size and mirrored margins, font (with a serif/sans family and a fallback
+    name for readers without it), size, line spacing, Heading 1–3 styles,
+    chapters starting a new page (`\pagebb`), marks, alignment, first-line
+    indents, scene breaks, quotes and lists (as hanging-indent paragraphs),
+    and page numbers in the footer. No running heads: `.docx` has those. It
+    reads back through the RTF importer, so a `.doc` exported here re-imports
+    with its formatting. It is a one-off export, not a desktop-copy format.
   - Markdown or plain text. These leave out the manuscript title (the file
     name carries it) so a re-import doesn't gain an extra paragraph. Markdown
     also drops alignment and leading indentation, and writes underline as
@@ -1108,7 +1138,7 @@ which also runs the desktop-copy service and the Cmd/Ctrl+S handler).
   through a temporary link and lands in Downloads (the browser's "Ask where to
   save each file" setting lets the writer pick the Desktop).
 - **Keep a copy on my computer** (Chrome/Edge, File System Access API): choose
-  a file once; it is rewritten about 15 s after a pause (at least every 30 s
+  a file once; it is rewritten about 10 s after a pause (at least every 20 s
   while typing), when the tab is hidden, when the writer switches manuscript,
   and on Cmd/Ctrl+S (`copyScheduler.ts`: single-flight, retries, and pauses
   when permission is lost or the file is gone). The file handle is kept per
@@ -1324,8 +1354,11 @@ At commit 4b264d6 all three are clean, with 816 tests in 67 files.
 
 **Editor**
 
-- Page breaks are computed about 150 ms after typing stops, so text can
-  briefly overlap a page gap while typing.
+- Page breaks are computed about 150 ms after typing stops. Until then every
+  keystroke realigns the page-break spacers after the edit (`realignSpacers`
+  in `usePagination.ts`), so a chapter that starts a new page stays at the top
+  of its page while the writer types above it; only the text on the page
+  being typed can briefly run into the page gap.
 - Page splitting assumes every line in a paragraph has the same height. A
   block that can't be split and is taller than a page runs past the page.
 - Spacing in lists and block quotes is estimated, so breaks inside them are
@@ -1345,7 +1378,6 @@ At commit 4b264d6 all three are clean, with 816 tests in 67 files.
   paused" until then.
 - Opening from Drive lists only files in the "Thunder Writer" folder created
   with `drive.file`. Files moved elsewhere in Drive won't appear.
-- Nothing is uploaded to Drive when the page closes.
 - Markdown files that Drive stores with a generic MIME type (such as
   `application/octet-stream`) are hidden by the Picker's type filter.
 - The Picker's `setOrigin` is set to `window.location.origin`; it's documented

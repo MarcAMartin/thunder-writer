@@ -46,8 +46,8 @@ export interface CopyScheduler {
   getState(): CopySchedulerState
 }
 
-export const COPY_DEBOUNCE_MS = 15_000
-export const COPY_MAX_INTERVAL_MS = 30_000
+export const COPY_DEBOUNCE_MS = 10_000
+export const COPY_MAX_INTERVAL_MS = 20_000
 export const COPY_RETRY_MS = 60_000
 
 export function createCopyScheduler(opts: CopySchedulerOptions): CopyScheduler {

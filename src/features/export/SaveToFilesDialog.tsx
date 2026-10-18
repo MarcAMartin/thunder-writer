@@ -1,17 +1,24 @@
 import { useEffect, useId, useState } from 'react'
 import { useDocuments } from '../../store/documents'
 import { flushPendingEdits } from '../../store/pendingEdits'
+import { requestPdfExport } from '../preview/pdfRequest'
 import { Modal } from '../storage/Modal'
 import { useExportUi } from './exportUi'
 import { buildExport, EXPORT_FORMATS, type ExportKind } from './formats'
 import { downloadBlob, withExtension } from './saveToComputer'
 import './export.css'
 
-/** The formats offered on phones, Word first. */
-export const PHONE_SAVE_KINDS: ExportKind[] = ['docx', 'thunder', 'txt']
+type PhoneKind = ExportKind | 'pdf'
 
-const PHONE_HINTS: Partial<Record<ExportKind, string>> = {
+/** The formats offered on phones, Word first. PDF is printed from Book Preview. */
+export const PHONE_SAVE_KINDS: PhoneKind[] = ['docx', 'pdf', 'doc', 'thunder', 'txt']
+
+const PHONE_LABELS: Partial<Record<PhoneKind, string>> = { pdf: 'PDF (.pdf)' }
+
+const PHONE_HINTS: Partial<Record<PhoneKind, string>> = {
   docx: 'Opens in Word, Pages and Google Docs, and back here with Open from Files.',
+  pdf: 'Your book’s pages. In the print screen, tap Share, then Save to Files.',
+  doc: 'For older versions of Word.',
   thunder: 'Everything exactly as it is here. Open it again with Open from Files.',
   txt: 'Just the words.',
 }
@@ -51,7 +58,7 @@ export function shareOrDownload(file: File): Promise<'shared' | 'downloaded' | '
  */
 export function SaveToFilesDialog({ onClose }: { onClose: () => void }) {
   const docId = useDocuments((s) => s.currentId)
-  const [kind, setKind] = useState<ExportKind>('docx')
+  const [kind, setKind] = useState<PhoneKind>('docx')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const name = useId()
@@ -66,6 +73,7 @@ export function SaveToFilesDialog({ onClose }: { onClose: () => void }) {
       setError('Open a manuscript first.')
       return
     }
+    if (kind === 'pdf') return
     buildExport(doc, kind)
       .then((blob) => {
         if (!live) return
@@ -79,6 +87,11 @@ export function SaveToFilesDialog({ onClose }: { onClose: () => void }) {
   }, [docId, kind])
 
   const save = () => {
+    if (kind === 'pdf') {
+      onClose()
+      requestPdfExport()
+      return
+    }
     if (!file) return
     void shareOrDownload(file).then((outcome) => {
       const toast = useExportUi.getState().showToast
@@ -97,8 +110,8 @@ export function SaveToFilesDialog({ onClose }: { onClose: () => void }) {
           <button type="button" className="tw-btn tw-btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="tw-btn tw-btn-primary" onClick={save} disabled={!file} data-autofocus>
-            {file ? 'Save…' : error ? 'Save…' : 'Preparing…'}
+          <button type="button" className="tw-btn tw-btn-primary" onClick={save} disabled={kind === 'pdf' ? !!error : !file} data-autofocus>
+            {kind === 'pdf' ? 'Print…' : file ? 'Save…' : error ? 'Save…' : 'Preparing…'}
           </button>
         </>
       }
@@ -113,7 +126,7 @@ export function SaveToFilesDialog({ onClose }: { onClose: () => void }) {
           <label key={k} className="ex-files-choice">
             <input type="radio" name={name} value={k} checked={kind === k} onChange={() => setKind(k)} />
             <span>
-              <strong>{EXPORT_FORMATS[k].label}</strong>
+              <strong>{k === 'pdf' ? PHONE_LABELS.pdf : EXPORT_FORMATS[k].label}</strong>
               <span className="ex-files-hint">{PHONE_HINTS[k]}</span>
             </span>
           </label>

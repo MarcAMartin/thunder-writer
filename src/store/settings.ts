@@ -81,7 +81,11 @@ export const DEFAULT_TRIVIA_WEB_SEARCH = true
 /** At most one web-searched trivia request every 10 minutes by default. */
 export const DEFAULT_TRIVIA_COOLDOWN_SEC = 600
 
-export const SETTINGS_VERSION = 4
+/** Drive autosave's default interval: the old one-minute default became 10 seconds in v5. */
+export const DEFAULT_DRIVE_AUTOSAVE_SEC = 10
+const OLD_DRIVE_AUTOSAVE_SEC = 60
+
+export const SETTINGS_VERSION = 5
 
 /**
  * Google Cloud values older versions let the writer enter. Drive now uses the
@@ -95,8 +99,9 @@ export const RETIRED_GOOGLE_KEYS = ['googleClientId', 'googleApiKey', 'googlePro
  * version bump without a migrate function would discard the stored state
  * (including API keys), so this must exist. v1 -> v2 adds the web-searched
  * trivia settings; v2 -> v3 added Google Picker fields that v3 -> v4 removes
- * with the rest of the Google Cloud values. Every other stored key (AI keys,
- * models, cadence, …) is kept as it is.
+ * with the rest of the Google Cloud values. v4 -> v5 moves Drive autosave from
+ * the old default of 60 seconds to the new 10 (a value the writer chose is
+ * kept). Every other stored key (AI keys, models, cadence, …) is kept as it is.
  */
 export function migrateSettings(persisted: unknown, fromVersion: number): Partial<SettingsState> {
   const s = (typeof persisted === 'object' && persisted !== null ? { ...persisted } : {}) as Partial<SettingsState>
@@ -107,6 +112,7 @@ export function migrateSettings(persisted: unknown, fromVersion: number): Partia
   if (fromVersion < 4) {
     for (const k of RETIRED_GOOGLE_KEYS) delete (s as Record<string, unknown>)[k]
   }
+  if (fromVersion < 5 && s.driveAutosaveSec === OLD_DRIVE_AUTOSAVE_SEC) s.driveAutosaveSec = DEFAULT_DRIVE_AUTOSAVE_SEC
   if (typeof s.triviaCooldownSec === 'number') s.triviaCooldownSec = clampSetting('triviaCooldownSec', s.triviaCooldownSec)
   return s
 }
@@ -134,7 +140,7 @@ export const useSettings = create<SettingsState>()(
       pageZoom: 100,
       pageLayout: 'scroll',
       toolbarCollapsed: false,
-      driveAutosaveSec: 60,
+      driveAutosaveSec: DEFAULT_DRIVE_AUTOSAVE_SEC,
       set: (patch) => set(patch),
     }),
     {

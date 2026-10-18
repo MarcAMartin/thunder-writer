@@ -2,7 +2,7 @@
 // into Thunder Writer. Owned by features/import; the Drive Picker in features/storage
 // hands downloaded bytes to importManuscript() and never parses formats itself.
 
-export type ImportFormat = 'docx' | 'gdoc-html' | 'html' | 'markdown' | 'text'
+export type ImportFormat = 'docx' | 'doc' | 'rtf' | 'pdf' | 'gdoc-html' | 'html' | 'markdown' | 'text'
 
 export interface ImportSource {
   /** Original file name, e.g. "My Novel draft 3.docx". Used for the title and format sniffing. */

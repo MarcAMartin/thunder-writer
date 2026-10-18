@@ -222,3 +222,56 @@
 .fm-foot-hint { font-size: 12px; color: var(--tw-text-muted); }
 .fm-import-warnings { margin: 0; padding-left: 20px; font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
 .fm-import-hint { font-size: 13px; color: var(--tw-text-muted); }
+
+/* "Not saved to a file": the status reads as a soft pill, and opens ways to save. */
+.fm-tone-warn .fm-status-btn {
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--tw-text);
+  text-decoration: none;
+  background: color-mix(in srgb, var(--tw-bolt) 18%, transparent);
+}
+.fm-tone-warn .fm-status-btn:hover { background: color-mix(in srgb, var(--tw-bolt) 28%, transparent); }
+.fm-pop {
+  position: fixed;
+  z-index: 60;
+  padding: 16px;
+  background: var(--tw-surface);
+  color: var(--tw-text);
+  border: 1px solid var(--tw-border);
+  border-radius: calc(var(--tw-radius) + 2px);
+  box-shadow: var(--tw-shadow), 0 18px 40px -20px color-mix(in srgb, var(--tw-text) 35%, transparent);
+  white-space: normal;
+  animation: fm-pop-in 160ms ease-out both;
+}
+.fm-pop-title { margin: 0; font-size: 15px; font-weight: 600; }
+.fm-pop-text { margin: 6px 0 12px; font-size: 13px; line-height: 1.5; color: var(--tw-text-muted); }
+.fm-pop-choices { display: flex; flex-direction: column; gap: 8px; }
+.fm-pop-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--tw-text);
+  background: var(--tw-surface);
+  border: 1px solid var(--tw-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.fm-pop-choice:hover { background: var(--tw-surface-2); }
+.fm-pop-choice:focus-visible { outline: 2px solid var(--tw-accent); outline-offset: 2px; }
+.fm-pop-primary { border-color: var(--tw-accent); box-shadow: inset 0 0 0 1px var(--tw-accent); }
+.fm-pop-label { font-size: 14px; font-weight: 600; }
+.fm-pop-hint { font-size: 12.5px; line-height: 1.4; color: var(--tw-text-muted); }
+.fm-pop-later { margin-top: 10px; font-size: 13px; }
+@keyframes fm-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fm-pop { animation: none; }
+}

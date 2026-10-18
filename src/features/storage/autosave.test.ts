@@ -185,7 +185,12 @@ describe('describeSaveStatus', () => {
     doc: makeDoc(),
     docDirtyForDrive: false,
   }
-  it('local only', () => expect(describeSaveStatus(base).label).toBe('Saved locally'))
+  it('local only: says the manuscript isn’t in a file and offers to save one', () => {
+    expect(describeSaveStatus(base)).toEqual({ label: 'Not saved to a file', tone: 'warn', action: 'save' })
+    // A blank new manuscript isn't nagged; one kept in a file on this computer is saved.
+    expect(describeSaveStatus({ ...base, hasWriting: false })).toEqual({ label: 'Saved locally', tone: 'neutral', action: null })
+    expect(describeSaveStatus({ ...base, inFile: true })).toEqual({ label: 'Saved locally', tone: 'neutral', action: null })
+  })
   it('saving to Drive', () => expect(describeSaveStatus({ ...base, drive: 'saving' }).label).toBe('Saving to Drive…'))
   it('error offers retry', () => {
     const v = describeSaveStatus({ ...base, drive: 'error' })

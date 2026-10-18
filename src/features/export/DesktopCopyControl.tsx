@@ -82,7 +82,7 @@ export function DesktopCopyControl({ docId: explicitId }: { docId?: string }) {
       setChanging(false)
       const s = useDesktopCopy.getState().byDoc[docId]
       if (outcome === 'failed') throw new Error(s?.error ?? 'The copy could not be written.')
-      return `Saved ${s?.fileName ?? 'your copy'}. It updates about 15 seconds after you pause, and whenever you press ${modKey()}S.`
+      return `Saved ${s?.fileName ?? 'your copy'}. It updates about 10 seconds after you pause, and whenever you press ${modKey()}S.`
     })
 
   const resume = () =>
@@ -138,7 +138,7 @@ export function DesktopCopyControl({ docId: explicitId }: { docId?: string }) {
       <section className="ex-copy" aria-labelledby={headingId}>
         <h3 id={headingId}>Keep a copy on my computer</h3>
         <p>
-          Choose a file once, on your Desktop or anywhere you like. Thunder Writer rewrites it as you write: about 15
+          Choose a file once, on your Desktop or anywhere you like. Thunder Writer rewrites it as you write: about 10
           seconds after you pause, and whenever you press {modKey()}S.
         </p>
         {formatPicker}

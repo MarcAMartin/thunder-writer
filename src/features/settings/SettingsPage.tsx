@@ -10,7 +10,7 @@ import {
   type SettingsState,
 } from '../../store/settings'
 import type { AIProvider, ThemeMode } from '../../types'
-import { clearAllLocalData } from '../storage/clearAll'
+import { ClearDataButton } from '../storage/ClearDataButton'
 import { providerLabel } from '../suggestions/providers/types'
 import { describeOpenRouterPrice, loadOpenRouterModels, type OpenRouterModel } from '../suggestions/providers/openrouterModels'
 import { isDriveConfigured } from '../storage/driveSession'
@@ -237,7 +237,7 @@ export function SettingsPage() {
             Removes every manuscript, backup, context file, setting and API key stored in this browser.
             {driveAvailable && ' Files in Google Drive are not touched.'}
           </p>
-          <ClearDataButton />
+          <ClearDataButton className="st-danger-btn" />
         </Section>
       </main>
 
@@ -668,28 +668,6 @@ function OpenRouterFields(props: {
       onModel={props.onModel}
       onModelFocus={() => setFocused(true)}
     />
-  )
-}
-
-function ClearDataButton() {
-  const [busy, setBusy] = useState(false)
-  const onClick = async () => {
-    if (
-      !window.confirm(
-        isDriveConfigured()
-          ? 'Delete all Thunder Writer data in this browser, including its backups? Manuscripts not saved to Google Drive will be lost, and your API keys will be removed.'
-          : 'Delete all Thunder Writer data in this browser, including its backups? Your manuscripts will be lost unless you saved them to your computer, and your API keys will be removed.',
-      )
-    )
-      return
-    setBusy(true)
-    await clearAllLocalData()
-    window.location.assign('/')
-  }
-  return (
-    <button type="button" className="tw-btn st-danger-btn" onClick={onClick} disabled={busy}>
-      {busy ? 'Clearing…' : 'Clear all local data'}
-    </button>
   )
 }
 

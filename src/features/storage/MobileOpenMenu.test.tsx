@@ -83,7 +83,7 @@ describe('File menu (phones)', () => {
     await waitFor(() => expect(useExportUi.getState().toast?.text).toMatch(/“The Long Storm” saved to Google Drive\. Changes now save there automatically\./))
   })
 
-  it('Save to Files offers Word, a Thunder Writer file or plain text, and hands the file to the share sheet', async () => {
+  it('Save to Files offers Word, PDF, older Word, a Thunder Writer file or plain text, and hands the file to the share sheet', async () => {
     const share = vi.fn(async () => undefined)
     const canShare = vi.fn(() => true)
     Object.assign(navigator, { share, canShare })
@@ -93,7 +93,7 @@ describe('File menu (phones)', () => {
       await user.click(screen.getByRole('button', { name: 'File' }))
       await user.click(screen.getByRole('menuitem', { name: 'Save to Files…' }))
       const dialog = await screen.findByRole('dialog', { name: 'Save to Files' })
-      expect(screen.getAllByRole('radio').map((r) => (r as HTMLInputElement).value)).toEqual(['docx', 'thunder', 'txt'])
+      expect(screen.getAllByRole('radio').map((r) => (r as HTMLInputElement).value)).toEqual(['docx', 'pdf', 'doc', 'thunder', 'txt'])
       const save = await screen.findByRole('button', { name: 'Save…' })
       await waitFor(() => expect(save).toBeEnabled())
       await user.click(save)
