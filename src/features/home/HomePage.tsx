@@ -61,7 +61,7 @@ const PRIVACY_ITEMS: Item[] = [
   {
     icon: <KeyIcon />,
     title: 'No account, no one reading along',
-    body: 'Nothing to create or remember, no analytics and no ad trackers. AI suggestions go straight from your browser to the provider you choose, with your own key.',
+    body: 'Nothing to create or remember, no analytics and no ad trackers. AI suggestions go straight from your browser to the AI, with Thunder Writer AI credit or your own key.',
   },
   {
     icon: <FileOutIcon />,
@@ -83,8 +83,8 @@ const FEATURES: Item[] = [
   },
   {
     icon: <LockIcon />,
-    title: 'Bring your own AI',
-    body: 'Use Claude, OpenAI or any model on OpenRouter with your own key, kept only in this browser. Requests go straight to the provider.',
+    title: 'Thunder Writer AI, or your own',
+    body: 'Buy Thunder Writer AI credit with a card ($5 lasts for thousands of suggestions), or use Claude, OpenAI or any model on OpenRouter with your own key. Requests go straight to the AI.',
   },
   {
     icon: <CloudIcon />,
@@ -296,14 +296,18 @@ export function HomePage() {
               The blank page is waiting.
             </h2>
             <p className="hm-section-sub">
-              Start now — add your Claude, OpenAI or OpenRouter key in Settings whenever you want suggestions.
+              Start now — turn on suggestions whenever you like, with Thunder Writer AI or your own Claude, OpenAI or
+              OpenRouter key.
             </p>
             <div className="hm-ctas hm-ctas-center">
               <Link to={NEW_MANUSCRIPT_PATH} className="tw-btn tw-btn-primary hm-cta hm-cta-primary">
                 Start Writing
               </Link>
-              <Link to={SETTINGS_PATH} className="tw-btn tw-btn-ghost hm-cta">
-                Add an AI key
+              <Link to={`${SETTINGS_PATH}#thunder-ai`} className="tw-btn tw-btn-ghost hm-cta">
+                Use Thunder Writer AI
+              </Link>
+              <Link to={`${SETTINGS_PATH}#ai`} className="tw-btn tw-btn-ghost hm-cta">
+                Add your own AI key
               </Link>
             </div>
           </div>

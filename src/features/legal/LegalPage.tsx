@@ -10,7 +10,7 @@ import './legal.css'
 export const CONTACT_EMAIL = SUGGESTION_EMAIL
 
 /** The date both documents took effect; change it whenever either one changes. */
-export const LEGAL_EFFECTIVE_DATE = 'October 8, 2026'
+export const LEGAL_EFFECTIVE_DATE = 'October 19, 2026'
 
 /** The layout shared by the Privacy Policy and the Terms of Service. */
 export function LegalPage({ title, children }: { title: string; children: ReactNode }) {

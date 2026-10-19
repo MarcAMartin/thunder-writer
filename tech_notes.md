@@ -3,10 +3,12 @@
 For developers and maintainers. The product overview is in
 [README.md](README.md).
 
-Thunder Writer is a static, browser-only React app. There is **no backend**.
-Manuscripts live in IndexedDB and, optionally, the writer's own Google Drive.
+Thunder Writer is a static, browser-only React app. There is **no backend for
+writing**. Manuscripts live in IndexedDB and, optionally, the writer's own Google Drive.
 AI calls go straight from the browser to Anthropic, OpenAI or OpenRouter with the writer's
-own key. The owner's original design (UI boxes and behaviour notes) is in
+own key, or with a Thunder Writer AI key. The only server code is two small Vercel functions
+that sell Thunder Writer AI credit ([Thunder Writer AI](#thunder-writer-ai-prepaid-credit)); they
+never see any writing. The owner's original design (UI boxes and behaviour notes) is in
 [ThunderWriter.drawio](ThunderWriter.drawio).
 
 ## Contents
@@ -15,6 +17,7 @@ own key. The owner's original design (UI boxes and behaviour notes) is in
 - [Environment variables](#environment-variables)
 - [Routes](#routes)
 - [AI providers, models and cost](#ai-providers-models-and-cost)
+- [Thunder Writer AI (prepaid credit)](#thunder-writer-ai-prepaid-credit)
 - [Google Cloud setup](#google-cloud-setup)
 - [Backups](#backups)
 - [Support the developer](#support-the-developer)
@@ -49,6 +52,7 @@ npm run dev          # http://localhost:5173
 | `npm run preview`   | Serve the production build locally             |
 | `npm test`          | Run the Vitest suite once                      |
 | `npm run typecheck` | Type-check only (`tsc -b --noEmit`)            |
+| `vercel dev`        | Vite plus the `api/` functions (Thunder Writer AI checkout) |
 
 `dist/` is a static site. Host it anywhere that serves files, with SPA
 fallback to `index.html` so `/write` and `/settings` resolve (see
@@ -87,14 +91,22 @@ Google's own consent popup.
 | `VITE_SUGGESTION_ENDPOINT` | Where the Suggestion form posts. | No. Defaults to FormSubmit, forwarding to marc@mickerstudios.com. |
 | `VITE_BOOKSHOP_AFFILIATE_ID` | Your Bookshop.org affiliate id (digits): makes the **Support the developer** book picks affiliate links (`src/features/support/bookPicks.ts`). | No. Without it the picks are plain Bookshop.org links. |
 
+**Server-only variables** (read by the `api/` functions, never by the app;
+never prefix them with `VITE_`, which would bake them into the public bundle):
+
+| Variable | Used for | Required? |
+| --- | --- | --- |
+| `STRIPE_SECRET_KEY` | Creating and checking Thunder Writer AI checkouts. A restricted key (`rk_live_…`) needs **Checkout Sessions: Write** and **PaymentIntents: Write**. | For Thunder Writer AI. Blank = its checkout answers "not available"; bring-your-own keys still work. |
+| `OPENROUTER_MANAGEMENT_KEY` | Creating and topping up each buyer's OpenRouter key. A **management** key (OpenRouter → Settings → Management keys); an ordinary `sk-or-…` key can't manage keys. | For Thunder Writer AI. |
+
 Restart `npm run dev` after editing `.env.local`, and redeploy after changing
 them on the host. Settings saved by versions before settings v4 could hold a
 client id, API key or project number entered in the browser; the v4 migration
 removes them (`RETIRED_GOOGLE_KEYS` in `src/store/settings.ts`). The v5
 migration moves Drive autosave from the old 60 s default to 10 s, keeping any
 other interval the writer chose. There are no
-AI key variables on purpose: AI keys belong to the writer, not the deployment,
-and are entered in Settings.
+writer AI key variables on purpose: AI keys belong to the writer, not the deployment,
+and are entered in Settings (or arrive there when they buy Thunder Writer AI credit).
 
 ## Routes
 
@@ -136,8 +148,9 @@ and are entered in Settings.
 
 ### Keys
 
-Suggestions need a key from one provider. Without one, the suggestions pane
-links to Settings.
+Suggestions need a key from one provider, or Thunder Writer AI credit. Without
+either, the suggestions pane offers **Use Thunder Writer AI** and **Add your own
+AI key**, both linking to Settings.
 
 1. Get a key:
    - **Claude:** create one in the [Anthropic Console](https://console.anthropic.com/) (API keys).
@@ -331,6 +344,86 @@ search is the same $0.01 per call.
 
 To spend less: raise the cooldown, lower the maximum open suggestions, turn
 off web-searched trivia, or turn off **Suggest while I write**.
+
+## Thunder Writer AI (prepaid credit)
+
+Writers who don't want an AI account buy credit with a card and get
+suggestions with nothing to set up. It is the **Thunder Writer AI** provider
+(`'thunder'`).
+
+**How it works.** Each buyer gets their own OpenRouter key, made through
+OpenRouter's key management API, whose spending limit is what they paid divided
+by `THUNDER_AI_MARKUP`. The browser then calls OpenRouter with that key exactly
+as with the OpenRouter provider (`providers/thunder.ts` wraps
+`providers/openrouter.ts`), so writing still never reaches a Thunder Writer
+server, OpenRouter meters every request to the fraction of a cent, and no buyer
+can spend more than they bought. There is no database: the bookkeeping is on
+the purchase's Stripe PaymentIntent metadata.
+
+```
+Settings → POST /api/ai/checkout {pack, keyHash?}  → Stripe Checkout Session → redirect to Stripe
+Stripe   → /settings?ai_checkout=cs_…              (the app also remembers cs_… in localStorage first)
+Settings → POST /api/ai/claim {sessionId, keyHash?} → session paid? → top up the key, or create one
+         ← { credited, hash, key? }                 → saved as "twai.<hash>.<OpenRouter key>"
+Settings → GET openrouter.ai/api/v1/key (with the writer's key) → balance = limit_remaining × markup
+```
+
+- **Files:** `api/ai/checkout.ts`, `api/ai/claim.ts` (Vercel functions, web
+  `Request`/`Response` handlers), `api/_lib/` (Stripe and OpenRouter calls over
+  `fetch`, no SDKs; `plans.ts` holds the model, markup and packs and is shared
+  with the app through `src/features/thunderAi/plans.ts`). Underscore folders
+  are not deployed as functions, which is why the tests live in `api/_tests/`.
+  Imports inside `api/` end in `.js` because the functions run as ES modules.
+- **Model:** `THUNDER_AI_MODEL` = `openai/gpt-oss-20b`, the cheapest model in
+  OpenRouter's catalog that takes the strict suggestion schema (checked
+  2026-10: $0.018/M input, $0.09/M output). A typical request (about 6,000
+  tokens in, 800 out with reasoning) costs OpenRouter about $0.0002.
+  `deepseek/deepseek-v4.1-flash` costs about the same per request and may
+  write better notes; changing the constant needs no migration.
+- **Pricing:** packs of $5, $10 and $25 (`THUNDER_AI_PACKS`); $5 is the floor
+  because Stripe's fixed 30¢ would eat smaller ones. The writer pays
+  `THUNDER_AI_MARKUP` = 2 dollars per dollar of OpenRouter usage, so a $5 pack
+  is a $2.50 key limit, about 10,000 typical requests. What a fully used $5
+  pack nets: $5 − Stripe $0.45 − OpenRouter credit $2.64 (its 5.5% fee
+  included) ≈ **$1.92 (38%)**; $25 nets ≈ $10.79 (43%). Unused credit is all
+  margin. Don't change the markup for existing keys (their balance is
+  `limit_remaining × markup`); sell new packs instead.
+- **Claiming exactly once:** the claim marks the PaymentIntent with
+  `tw_credited_key` (and `tw_created` when it made the key). A second claim
+  answers `alreadyCredited`. If the purchase made the key and the caller doesn't
+  hold it (the first answer was lost), the key is re-issued: a new key with
+  the remaining limit, and the old one deleted. `tw_claiming` holds a purchase
+  for 60 s against a parallel claim, and the app runs claims under a Web Lock
+  so two tabs can't race. A failure after topping up or creating a key undoes
+  it before answering.
+- **Top-ups** go to the key the checkout was started for, else the key the
+  writer holds, and only to keys named `Thunder Writer AI …`, so a forged hash
+  can't raise the account's own key.
+- **Pending purchases:** the checkout id is saved in localStorage before
+  leaving for Stripe and claimed whenever Settings opens, so the credit arrives
+  even if the writer closes the tab on Stripe's success page. Unconfirmed
+  payments stay pending for 7 days.
+- **The writer's key** is one string, `twai.<hash>.<OpenRouter key>`
+  (`features/thunderAi/key.ts`), because OpenRouter never tells a key its own
+  hash and top-ups need it. Pasting it into another browser brings the credit
+  along.
+
+**Setting it up (once, by the owner):**
+
+1. **OpenRouter:** create a **management key** (Settings → Management keys)
+   and set it as `OPENROUTER_MANAGEMENT_KEY`. Buy credit for the account and
+   turn on auto top-up: every buyer's key draws on the account's balance, so an
+   empty account stops every buyer's suggestions. In
+   [privacy settings](https://openrouter.ai/settings/privacy), keep prompt
+   logging **off** and exclude providers that may train on inputs; the Privacy
+   Policy says both.
+2. **Stripe:** set `STRIPE_SECRET_KEY` (a restricted key with Checkout
+   Sessions: Write and PaymentIntents: Write is enough). The publishable key
+   isn't needed: Checkout is a redirect. Turn on email receipts for successful
+   payments in the Stripe Dashboard if you want buyers to get one.
+3. Set both in Vercel (Production, plus Preview if you test there) and
+   redeploy. Test end to end in a preview with Stripe **test-mode** keys and
+   card `4242 4242 4242 4242` before taking live payments.
 
 ## Google Cloud setup
 
@@ -1504,3 +1597,10 @@ Chromium only. Watch them the first time they run for real:
   LibreOffice, and printing the HTML file, have not been checked by hand. Book
   Preview print was checked only through Chromium's headless PDF export.
 - **Other browsers:** Safari and Firefox were not exercised.
+- **Thunder Writer AI:** the functions were tested against an in-memory fake
+  Stripe and OpenRouter, and a local `vercel build` confirmed they bundle and
+  load. No real checkout, OpenRouter management call or key-limit refusal has
+  run yet. Unconfirmed: the exact status and message OpenRouter sends when a
+  key reaches its limit (the app treats 402, or a message naming the limit or
+  credit, as "credit may have run out"), and that `PATCH /keys/{hash}` raises
+  `limit` as documented.

@@ -84,7 +84,12 @@ export class SuggestionError extends Error {
   }
 }
 
-const PROVIDER_LABELS: Record<AIProvider, string> = { claude: 'Claude', openai: 'OpenAI', openrouter: 'OpenRouter' }
+const PROVIDER_LABELS: Record<AIProvider, string> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+  thunder: 'Thunder Writer AI',
+}
 
 export const providerLabel = (p: AIProvider) => PROVIDER_LABELS[p] ?? 'OpenAI'
 

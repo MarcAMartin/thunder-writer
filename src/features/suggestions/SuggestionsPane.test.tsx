@@ -37,11 +37,11 @@ beforeEach(() => {
 })
 
 describe('SuggestionsPane', () => {
-  it('without an API key links the writer to Settings', () => {
+  it('without an API key offers Thunder Writer AI or the writer’s own key', () => {
     useSettings.setState({ claudeApiKey: '' })
     renderPane()
-    const link = screen.getByRole('link', { name: 'Add your AI key' })
-    expect(link).toHaveAttribute('href', '/settings#ai')
+    expect(screen.getByRole('link', { name: 'Use Thunder Writer AI' })).toHaveAttribute('href', '/settings#thunder-ai')
+    expect(screen.getByRole('link', { name: 'Add your own AI key' })).toHaveAttribute('href', '/settings#ai')
     expect(screen.getByRole('button', { name: /Generate Suggestions/ })).toBeDisabled()
   })
 

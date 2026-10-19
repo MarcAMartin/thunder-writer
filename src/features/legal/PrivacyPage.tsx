@@ -12,17 +12,24 @@ export function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy">
       <p className="lg-lead">
-        Thunder Writer is a writing app that runs entirely in your web browser. It has no accounts and no server of its
-        own, so the developer never receives your manuscripts, your API keys or anything else about your writing. This
-        policy explains what stays on your device, what goes to the services you choose to use, and the little that
-        reaches the developer.
+        Thunder Writer is a writing app that runs entirely in your web browser. It has no accounts, and your writing never
+        goes to a server of its own, so the developer never receives your manuscripts, your API keys or anything else
+        about your writing. This policy explains what stays on your device, what goes to the services you choose to use,
+        and the little that reaches the developer.
       </p>
 
       <LegalSection id="summary" title="The short version">
         <ul>
-          <li>No account, no Thunder Writer server, no analytics, no advertising trackers, and no cookies set by Thunder Writer.</li>
+          <li>No account, no analytics, no advertising trackers, and no cookies set by Thunder Writer.</li>
           <li>Your writing is stored in your browser and, if you connect it, in your own Google Drive.</li>
-          <li>AI suggestions go straight from your browser to Anthropic, OpenAI or OpenRouter, using your own API key.</li>
+          <li>
+            AI suggestions go straight from your browser to Anthropic, OpenAI or OpenRouter, using your own API key or
+            Thunder Writer AI credit.
+          </li>
+          <li>
+            If you buy Thunder Writer AI credit, Stripe handles the payment. The developer receives the purchase record, never
+            your card details or your writing.
+          </li>
           <li>Nothing is sold or shared for advertising. There is nothing to sell: the developer doesn’t have your data.</li>
         </ul>
       </LegalSection>
@@ -30,7 +37,7 @@ export function PrivacyPage() {
       <LegalSection id="browser" title="What stays in your browser">
         <p>
           Your manuscripts, their backups, reference files you add, and your settings (including any Claude, OpenAI or OpenRouter
-          API key) are saved in this browser’s storage (IndexedDB and localStorage) on your device. They stay there until you
+          API key, and your Thunder Writer AI key) are saved in this browser’s storage (IndexedDB and localStorage) on your device. They stay there until you
           remove them with <Link to={`${SETTINGS_PATH}#data`}>Settings → Clear all local data</Link> or by clearing this
           site’s data in your browser.
         </p>
@@ -80,9 +87,10 @@ export function PrivacyPage() {
 
       <LegalSection id="ai" title="AI suggestions (Anthropic, OpenAI and OpenRouter)">
         <p>
-          Suggestions only run after you add your own API key. Your browser then sends requests directly to Anthropic (
+          Suggestions only run after you add your own API key or buy Thunder Writer AI credit (see below). Your browser then
+          sends requests directly to Anthropic (
           <code>api.anthropic.com</code>), OpenAI (<code>api.openai.com</code>) or OpenRouter (<code>openrouter.ai</code>),
-          under your own account with them. A request contains your manuscript’s text (for long books, the opening and the
+          under your own account with them (or Thunder Writer AI’s, for credit you bought). A request contains your manuscript’s text (for long books, the opening and the
           part around your cursor), reference files you added, and the titles of recent suggestions. Requests never pass
           through the developer.
         </p>
@@ -101,6 +109,37 @@ export function PrivacyPage() {
           If web-searched trivia is on, the provider may also run web searches using short queries its model writes about
           topics and places in your manuscript. You can turn this off in <Link to={`${SETTINGS_PATH}#suggestions`}>Settings</Link>.
         </p>
+      </LegalSection>
+
+      <LegalSection id="thunder-ai" title="Thunder Writer AI">
+        <p>
+          Thunder Writer AI lets you buy credit for suggestions instead of bringing your own key. When you buy credit:
+        </p>
+        <ul>
+          <li>
+            <strong>Payment:</strong> you pay on Stripe’s checkout page. Your card details go to Stripe, never to Thunder
+            Writer. The developer can see the purchase in Stripe: the amount, the date, the email address you enter at
+            checkout and limited card details such as the brand and last four digits, as Stripe shows them. Stripe’s{' '}
+            <Ext href="https://stripe.com/privacy">privacy policy</Ext> covers how it handles your payment.
+          </li>
+          <li>
+            <strong>Your key:</strong> once Stripe confirms the payment, a small Thunder Writer server function (hosted on
+            Vercel) creates an OpenRouter key for you, or adds the credit to the one you have, with a spending limit equal
+            to your credit. The key comes back to your browser and is saved there like any other setting. The server
+            function sees only the purchase and the key’s id, never your writing.
+          </li>
+          <li>
+            <strong>Your suggestions:</strong> requests then go straight from your browser to OpenRouter (
+            <code>openrouter.ai</code>) and on to the company that runs the model, exactly as with your own OpenRouter key.
+            They never pass through the developer. The developer can see your key’s usage (when it was used, the model, the
+            number of tokens and the cost) but not what was sent. Thunder Writer AI’s OpenRouter account has prompt logging
+            turned off and excludes model providers that may train on your data.
+          </li>
+          <li>
+            <strong>Balance:</strong> Settings asks OpenRouter how much of your key’s limit is left. Until a purchase is
+            credited, its Stripe checkout id is kept in this browser so the credit still arrives if you close the tab.
+          </li>
+        </ul>
       </LegalSection>
 
       <LegalSection id="computer" title="Files on your computer">
@@ -131,7 +170,7 @@ export function PrivacyPage() {
 
       <LegalSection id="hosting" title="Hosting">
         <p>
-          Thunder Writer’s files are served by Vercel. Like any web host, Vercel may record standard request information,
+          Thunder Writer’s files, and the server functions behind Thunder Writer AI purchases, are served by Vercel. Like any web host, Vercel may record standard request information,
           such as your IP address, browser type and the page requested, to deliver and protect the site, under{' '}
           <Ext href="https://vercel.com/legal/privacy-policy">Vercel’s privacy policy</Ext>. Thunder Writer adds no
           analytics or tracking of its own.

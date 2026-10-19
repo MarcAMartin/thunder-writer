@@ -14,15 +14,17 @@ export function TermsPage() {
 
       <LegalSection id="service" title="The service">
         <p>
-          Thunder Writer is provided free of charge. Features may change, pause or end at any time, and there’s no
-          guarantee it will always be available or work without interruption.
+          Thunder Writer is free to use. Thunder Writer AI credit, described below, is the only thing you can buy.
+          Features may change, pause or end at any time, and there’s no guarantee it will always be available or work
+          without interruption.
         </p>
       </LegalSection>
 
       <LegalSection id="your-writing" title="Your writing is yours">
         <p>
           You own everything you write in Thunder Writer and everything you import into it. Thunder Writer claims no rights
-          to your work, and because it has no server, the developer doesn’t have a copy of it.
+          to your work, and because your writing never goes to a Thunder Writer server, the developer doesn’t have a copy
+          of it.
         </p>
       </LegalSection>
 
@@ -37,8 +39,8 @@ export function TermsPage() {
       <LegalSection id="ai" title="AI suggestions">
         <ul>
           <li>
-            Suggestions use your own Anthropic, OpenAI or OpenRouter API key. You’re responsible for that key, for what your
-            provider charges you, and for following its terms (
+            Suggestions use Thunder Writer AI credit or your own Anthropic, OpenAI or OpenRouter API key. With your own key,
+            you’re responsible for that key, for what your provider charges you, and for following its terms (
             <Ext href="https://www.anthropic.com/legal/commercial-terms">Anthropic</Ext>,{' '}
             <Ext href="https://openai.com/policies">OpenAI</Ext>, <Ext href="https://openrouter.ai/terms">OpenRouter</Ext>).
           </li>
@@ -46,13 +48,42 @@ export function TermsPage() {
             Suggestions are written by AI. They can be wrong, incomplete or unoriginal, and trivia can be inaccurate. Check
             facts, and decide for yourself what goes in your book.
           </li>
-          <li>The cost shown in the app is an estimate. Your provider’s bill is the real one.</li>
+          <li>
+            With your own key, the cost shown in the app is an estimate and your provider’s bill is the real one. With
+            Thunder Writer AI, the cost shown is what came out of your credit.
+          </li>
+        </ul>
+      </LegalSection>
+
+      <LegalSection id="thunder-ai" title="Thunder Writer AI credit">
+        <ul>
+          <li>
+            Thunder Writer AI credit is a one-time, prepaid purchase, paid through Stripe. There’s no subscription and
+            nothing renews.
+          </li>
+          <li>
+            Each suggestion request takes what its AI usage costs out of your credit. Settings shows what’s left. “About
+            N suggestion requests” is an estimate: requests with long manuscripts or reference files cost more.
+          </li>
+          <li>
+            Your credit is held by your Thunder Writer AI key, which is stored only in your browser. Keep a copy. If you lose
+            it, contact the developer with your Stripe receipt; recovery isn’t guaranteed.
+          </li>
+          <li>
+            Credit can only be used for suggestions in Thunder Writer, has no cash value and can’t be transferred for
+            money. Thunder Writer AI runs on OpenRouter, and its use is also subject to{' '}
+            <Ext href="https://openrouter.ai/terms">OpenRouter’s terms</Ext>.
+          </li>
+          <li>
+            If a purchase goes wrong, or the service ends while you still have credit, contact the developer at{' '}
+            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          </li>
         </ul>
       </LegalSection>
 
       <LegalSection id="third-parties" title="Other services">
         <p>
-          Google Drive, Anthropic, OpenAI, OpenRouter, FormSubmit, Bookshop.org and Venmo are run by other companies under their own
+          Google Drive, Anthropic, OpenAI, OpenRouter, Stripe, FormSubmit, Bookshop.org and Venmo are run by other companies under their own
           terms. Thunder Writer connects to them only when you choose to use them, and the developer isn’t responsible for
           them.
         </p>
@@ -86,7 +117,8 @@ export function TermsPage() {
         <p>
           To the fullest extent the law allows, the developer isn’t liable for any indirect, incidental, special,
           consequential or punitive damages, or for lost work, data, profits or opportunities, arising from your use of
-          Thunder Writer. The developer’s total liability for any claim about Thunder Writer is limited to US$50.
+          Thunder Writer. The developer’s total liability for any claim about Thunder Writer is limited to the greater of
+          US$50 or what you paid for Thunder Writer AI credit in the 12 months before the claim.
         </p>
       </LegalSection>
 

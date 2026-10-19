@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useEditorContext } from '../../shell/EditorContext'
 import { useSession } from '../../store/session'
+import type { AIProvider } from '../../types'
 import { hasApiKey, useSettings } from '../../store/settings'
 import { ContextFilesControl } from './ContextFilesControl'
 import { BoltIcon, ChevronIcon } from './icons'
@@ -16,6 +17,12 @@ import './suggestions.css'
 
 const NOTICE_MS = 4_000
 const SETTINGS_FIXABLE = new Set<SuggestionErrorKind>(['auth', 'permission', 'bad_request', 'search_unavailable'])
+
+/** Where "Open Settings" goes for an error: the part of Settings that fixes it. */
+function settingsLinkFor(kind: SuggestionErrorKind, provider: AIProvider): string {
+  if (kind === 'search_unavailable') return '/settings#suggestions'
+  return provider === 'thunder' ? '/settings#thunder-ai' : '/settings'
+}
 
 /**
  * Right-hand "Suggestion Previews" pane. Mounts the suggestion engine, lists
@@ -122,13 +129,16 @@ export function SuggestionsPane() {
         {!keyReady ? (
           <div className="sg-empty">
             <BoltIcon size={28} />
-            <p className="sg-empty-title">Bring your own AI key</p>
+            <p className="sg-empty-title">Turn on AI suggestions</p>
             <p className="sg-muted">
-              Suggestions come from Claude, OpenAI or any model on OpenRouter, called straight from your browser with your
-              own key. Nothing goes through a Thunder Writer server — there isn't one.
+              Use Thunder Writer AI, paid as you go with a card, or bring your own Claude, OpenAI or OpenRouter key. Either
+              way, your writing goes straight from this browser to the AI.
             </p>
-            <Link to="/settings#ai" className="tw-btn tw-btn-primary sg-settings-link">
-              Add your AI key
+            <Link to="/settings#thunder-ai" className="tw-btn tw-btn-primary sg-settings-link">
+              Use Thunder Writer AI
+            </Link>
+            <Link to="/settings#ai" className="tw-btn sg-settings-link">
+              Add your own AI key
             </Link>
           </div>
         ) : (
@@ -138,8 +148,8 @@ export function SuggestionsPane() {
                 <p>{aiError}</p>
                 <div className="sg-error-actions">
                   {engine.errorKind !== null && SETTINGS_FIXABLE.has(engine.errorKind) && (
-                    <Link to={engine.errorKind === 'search_unavailable' ? '/settings#suggestions' : '/settings'} className="sg-link-btn">
-                      Open Settings
+                    <Link to={settingsLinkFor(engine.errorKind, provider)} className="sg-link-btn">
+                      {provider === 'thunder' && engine.errorKind === 'permission' ? 'Check balance' : 'Open Settings'}
                     </Link>
                   )}
                   <button type="button" className="sg-link-btn" onClick={() => setAiError(null)}>
