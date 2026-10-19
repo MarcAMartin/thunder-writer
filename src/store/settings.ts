@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AIProvider, ThemeMode } from '../types'
 import type { PageLayout } from '../features/editor/pageLayouts'
+import { parseThunderAiKey } from '../features/thunderAi/key'
+import { THUNDER_AI_MODEL } from '../features/thunderAi/plans'
 
 /**
  * User settings. Persisted to localStorage only; never sent anywhere except the
@@ -13,6 +15,11 @@ export interface SettingsState {
   claudeApiKey: string
   openaiApiKey: string
   openrouterApiKey: string
+  /**
+   * The Thunder Writer AI key ("twai.<hash>.<OpenRouter key>", see features/thunderAi/key),
+   * received after buying credit. Its model is fixed (THUNDER_AI_MODEL).
+   */
+  thunderAiKey: string
   /** Model ids. Defaults are the cheapest capable models per the design notes. */
   claudeModel: string
   openaiModel: string
@@ -125,6 +132,7 @@ export const useSettings = create<SettingsState>()(
       claudeApiKey: '',
       openaiApiKey: '',
       openrouterApiKey: '',
+      thunderAiKey: '',
       claudeModel: DEFAULT_CLAUDE_MODEL,
       openaiModel: DEFAULT_OPENAI_MODEL,
       openrouterModel: DEFAULT_OPENROUTER_MODEL,
@@ -151,10 +159,21 @@ export const useSettings = create<SettingsState>()(
   ),
 )
 
-type KeySettings = Pick<SettingsState, 'provider' | 'claudeApiKey' | 'openaiApiKey' | 'openrouterApiKey'>
+type KeySettings = Pick<SettingsState, 'provider' | 'claudeApiKey' | 'openaiApiKey' | 'openrouterApiKey' | 'thunderAiKey'>
 
-export const activeApiKey = (s: KeySettings) =>
-  s.provider === 'claude' ? s.claudeApiKey : s.provider === 'openrouter' ? s.openrouterApiKey : s.openaiApiKey
+/** The key the active provider is called with (for Thunder Writer AI, the OpenRouter key inside its key). */
+export function activeApiKey(s: KeySettings): string {
+  switch (s.provider) {
+    case 'claude':
+      return s.claudeApiKey
+    case 'openrouter':
+      return s.openrouterApiKey
+    case 'thunder':
+      return parseThunderAiKey(s.thunderAiKey ?? '')?.key ?? ''
+    default:
+      return s.openaiApiKey
+  }
+}
 
 export const hasApiKey = (s: KeySettings) => activeApiKey(s).trim().length > 0
 
@@ -162,6 +181,7 @@ type ModelSettings = Pick<SettingsState, 'provider' | 'claudeModel' | 'openaiMod
 
 /** The model suggestions use: the chosen one for the active provider, or its default when blank. */
 export function activeModel(s: ModelSettings): string {
+  if (s.provider === 'thunder') return THUNDER_AI_MODEL
   const [chosen, fallback] =
     s.provider === 'claude'
       ? [s.claudeModel, DEFAULT_CLAUDE_MODEL]

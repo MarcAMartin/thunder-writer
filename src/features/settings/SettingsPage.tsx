@@ -14,6 +14,10 @@ import { ClearDataButton } from '../storage/ClearDataButton'
 import { providerLabel } from '../suggestions/providers/types'
 import { describeOpenRouterPrice, loadOpenRouterModels, type OpenRouterModel } from '../suggestions/providers/openrouterModels'
 import { isDriveConfigured } from '../storage/driveSession'
+import { parseThunderAiKey } from '../thunderAi/key'
+import { requestsFor, THUNDER_AI_PACKS } from '../thunderAi/plans'
+import { startCheckout } from '../thunderAi/purchases'
+import { useThunderAiBalance, useThunderAiPurchases } from '../thunderAi/useThunderAi'
 import { parseNumberField } from './fields'
 import { testApiKey, type KeyTestResult } from './keyTest'
 import './settings.css'
@@ -55,8 +59,9 @@ export function SettingsPage() {
         <div className="st-intro">
           <h1>Settings</h1>
           <p>
-            Everything here is saved instantly, in this browser only. Thunder Writer has no server: your keys go straight
-            from this browser to the AI provider you pick, and your manuscripts stay here
+            Everything here is saved instantly, in this browser only. Your writing and keys go straight from this browser
+            to the AI provider you pick (with Thunder Writer AI, only the purchase goes through Thunder Writer), and your
+            manuscripts stay here
             {driveAvailable ? ' or in your own Google Drive.' : '.'}
           </p>
         </div>
@@ -67,6 +72,11 @@ export function SettingsPage() {
             value={s.provider}
             onChange={(provider) => save({ provider })}
             options={[
+              {
+                value: 'thunder',
+                label: 'Thunder Writer AI',
+                hint: `No AI account or key to set up: buy credit with a card. $${THUNDER_AI_PACKS[0].usd} pays for about ${requestsFor(THUNDER_AI_PACKS[0].usd).toLocaleString('en-US')} suggestion requests.`,
+              },
               { value: 'claude', label: 'Claude (Anthropic)', hint: 'Default. Haiku is fast and inexpensive.' },
               { value: 'openai', label: 'OpenAI (ChatGPT)', hint: 'Uses a low-cost model (gpt-6-luna) by default.' },
               {
@@ -75,6 +85,19 @@ export function SettingsPage() {
                 hint: 'One key for hundreds of models from Anthropic, OpenAI, Google, Meta, Mistral, DeepSeek and more.',
               },
             ]}
+          />
+        </Section>
+
+        <Section
+          id="thunder-ai"
+          title="Thunder Writer AI"
+          lede="Pay as you go for suggestions, with no AI account of your own. Used when Thunder Writer AI is the provider."
+        >
+          <ThunderAiFields
+            active={s.provider === 'thunder'}
+            token={s.thunderAiKey}
+            onToken={(thunderAiKey) => save({ thunderAiKey })}
+            onUse={() => save({ provider: 'thunder' })}
           />
         </Section>
 
@@ -668,6 +691,122 @@ function OpenRouterFields(props: {
       onModel={props.onModel}
       onModelFocus={() => setFocused(true)}
     />
+  )
+}
+
+const formatUsd = (usd: number) => `$${usd.toFixed(2)}`
+
+/**
+ * Thunder Writer AI: buy credit (Stripe Checkout), see what's left, and keep
+ * the key that holds it. Purchases are credited when Settings opens.
+ */
+function ThunderAiFields(props: { active: boolean; token: string; onToken: (v: string) => void; onUse: () => void }) {
+  const parsed = parseThunderAiKey(props.token)
+  const { state, refresh } = useThunderAiBalance(parsed?.key ?? null)
+  const notice = useThunderAiPurchases(refresh)
+  const [buying, setBuying] = useState<string | null>(null)
+  const [buyError, setBuyError] = useState<string | null>(null)
+
+  const buy = async (pack: string) => {
+    setBuying(pack)
+    setBuyError(null)
+    try {
+      await startCheckout(pack, parsed?.hash)
+    } catch (e) {
+      setBuyError(e instanceof Error ? e.message : 'Couldn’t start checkout. Try again in a moment.')
+      setBuying(null)
+    }
+  }
+
+  return (
+    <>
+      {props.active && parsed && <p className="st-badge">Active provider</p>}
+      {notice && (
+        <p className={`ta-notice ta-notice-${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
+          {notice.text}
+        </p>
+      )}
+
+      {parsed ? (
+        <div className="st-row ta-balance" role="status" aria-live="polite">
+          {state.status === 'loading' && <span className="st-hint">Checking your balance…</span>}
+          {state.status === 'ready' && (
+            <span>
+              <strong className="ta-balance-amount">{formatUsd(state.balance.remainingUsd)}</strong> left
+              <span className="st-hint">
+                {' '}
+                · about {requestsFor(state.balance.remainingUsd).toLocaleString('en-US')} more suggestion requests
+              </span>
+            </span>
+          )}
+          {state.status === 'rejected' && (
+            <span className="st-bad">
+              This key no longer works. It may have been replaced in another browser: paste your newest key below, or buy
+              credit to get a new one.
+            </span>
+          )}
+          {state.status === 'failed' && <span className="st-hint">Couldn’t check your balance right now.</span>}
+          {(state.status === 'ready' || state.status === 'failed') && (
+            <button type="button" className="st-link" onClick={refresh}>
+              Refresh
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="st-hint">
+          Buy credit with a card and suggestions just work: no account, no API key to find. Your writing still goes
+          straight from this browser to the AI (run through OpenRouter); only the purchase goes through Thunder Writer.
+        </p>
+      )}
+
+      <div className="ta-packs" role="group" aria-label={parsed ? 'Add credit' : 'Buy credit'}>
+        {THUNDER_AI_PACKS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className="tw-btn ta-pack"
+            onClick={() => void buy(p.id)}
+            disabled={buying !== null}
+            aria-label={`${parsed ? 'Add' : 'Buy'} $${p.usd} of credit, about ${requestsFor(p.usd).toLocaleString('en-US')} suggestion requests`}
+          >
+            <span className="ta-pack-price">{buying === p.id ? 'Opening…' : `$${p.usd}`}</span>
+            <span className="ta-pack-detail">about {requestsFor(p.usd).toLocaleString('en-US')} requests</span>
+          </button>
+        ))}
+      </div>
+      {buyError && (
+        <p className="st-bad st-test" role="alert">
+          {buyError}
+        </p>
+      )}
+      <p className="st-hint">
+        Secure checkout by Stripe. One-time payments, no subscription. A suggestion request costs a fraction of a cent;
+        long reference files make each one cost a little more.
+      </p>
+
+      {parsed && !props.active && (
+        <button type="button" className="tw-btn tw-btn-primary ta-use" onClick={props.onUse}>
+          Use Thunder Writer AI for suggestions
+        </button>
+      )}
+
+      <SecretField
+        label="Your Thunder Writer AI key"
+        value={props.token}
+        placeholder="twai.…"
+        onChange={props.onToken}
+        hint={
+          <>
+            {props.token && !parsed && (
+              <span className="st-bad">That isn’t a Thunder Writer AI key: they start with “twai.”. </span>
+            )}
+            {parsed || props.token
+              ? 'This key holds your credit and is stored only in this browser. Keep a copy somewhere safe; to use your credit in another browser, paste it into Settings there.'
+              : 'Arrives here when you buy credit. Bought credit in another browser? Paste that browser’s key here.'}
+          </>
+        }
+      />
+    </>
   )
 }
 

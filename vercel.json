@@ -3,7 +3,7 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!assets/|brand/|favicon|apple-touch-icon|icon-|manifest\\.webmanifest).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|assets/|brand/|favicon|apple-touch-icon|icon-|manifest\\.webmanifest).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",

@@ -24,4 +24,11 @@ describe('vercel.json', () => {
   it('keeps the SPA fallback for deep links', () => {
     expect(config.rewrites?.[0]).toMatchObject({ destination: '/index.html' })
   })
+
+  it('leaves /api to the serverless functions (Thunder Writer AI checkout)', () => {
+    const fallback = new RegExp(`^${config.rewrites?.[0].source}$`)
+    expect(fallback.test('/api/ai/checkout')).toBe(false)
+    expect(fallback.test('/settings')).toBe(true)
+    expect(fallback.test('/write')).toBe(true)
+  })
 })

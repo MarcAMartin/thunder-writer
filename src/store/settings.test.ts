@@ -12,6 +12,7 @@ import {
   SETTINGS_VERSION,
   useSettings,
 } from './settings'
+import { THUNDER_AI_MODEL } from '../features/thunderAi/plans'
 
 const KEY = 'thunder-writer:settings'
 
@@ -131,6 +132,7 @@ describe('OpenRouter settings', () => {
       claudeApiKey: 'sk-ant',
       openaiApiKey: 'sk-oa',
       openrouterApiKey: ' sk-or ',
+      thunderAiKey: '',
       claudeModel: 'claude-haiku-4-5',
       openaiModel: 'gpt-6-luna',
       openrouterModel: 'google/gemini-3.8-flash',
@@ -147,5 +149,34 @@ describe('OpenRouter settings', () => {
     const fresh = useSettings.getInitialState()
     expect(fresh.openrouterApiKey).toBe('')
     expect(fresh.openrouterModel).toBe(DEFAULT_OPENROUTER_MODEL)
+  })
+})
+
+describe('Thunder Writer AI settings', () => {
+  const hash = 'a'.repeat(64)
+  const base = {
+    provider: 'thunder' as const,
+    claudeApiKey: 'sk-ant',
+    openaiApiKey: 'sk-oa',
+    openrouterApiKey: 'sk-or-own',
+    thunderAiKey: `twai.${hash}.sk-or-v1-bought123`,
+    claudeModel: 'claude-haiku-4-5',
+    openaiModel: 'gpt-6-luna',
+    openrouterModel: 'google/gemini-3.8-flash',
+  }
+
+  it('calls OpenRouter with the key inside the Thunder Writer AI key, on the fixed model', () => {
+    expect(activeApiKey(base)).toBe('sk-or-v1-bought123')
+    expect(hasApiKey(base)).toBe(true)
+    expect(activeModel(base)).toBe(THUNDER_AI_MODEL)
+  })
+
+  it('has no key until a valid Thunder Writer AI key is stored', () => {
+    expect(hasApiKey({ ...base, thunderAiKey: '' })).toBe(false)
+    expect(hasApiKey({ ...base, thunderAiKey: 'sk-or-v1-bought123' })).toBe(false)
+  })
+
+  it('a browser that saved settings before Thunder Writer AI gets an empty key', () => {
+    expect(useSettings.getInitialState().thunderAiKey).toBe('')
   })
 })

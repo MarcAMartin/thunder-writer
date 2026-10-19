@@ -4,7 +4,8 @@
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 /** Where suggestions come from: Anthropic, OpenAI, or any model through OpenRouter. */
-export type AIProvider = 'claude' | 'openai' | 'openrouter'
+/** 'thunder' is Thunder Writer AI: prepaid credit, served through OpenRouter (api/_lib/plans.ts). */
+export type AIProvider = 'claude' | 'openai' | 'openrouter' | 'thunder'
 
 /** A physical book trim size with typesetting defaults so writers see real page breaks. */
 export interface BookPreset {

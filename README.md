@@ -174,12 +174,14 @@ book:
 
 ### Private by design
 
-- **No accounts, no servers.** Thunder Writer is a web page that runs on your
-  machine. There is no Thunder Writer server to send your writing to.
-- **You bring your own AI key**, from Anthropic (Claude), OpenAI, or
-  OpenRouter, which gives you hundreds of models (Gemini, Llama, Mistral,
-  DeepSeek and more) with one key. For suggestions, your words go from your browser directly to the provider you
-  choose. If you connect Google Drive, your manuscripts are saved there too.
+- **No accounts, and your writing never touches a Thunder Writer server.**
+  Thunder Writer is a web page that runs on your machine.
+- **Thunder Writer AI, or your own key.** Buy Thunder Writer AI credit with a
+  card and suggestions just work, or bring your own key from Anthropic
+  (Claude), OpenAI, or OpenRouter, which gives you hundreds of models (Gemini,
+  Llama, Mistral, DeepSeek and more) with one key. Either way, your words go
+  from your browser directly to the AI. If you connect Google Drive, your
+  manuscripts are saved there too.
 - **Current-events trivia (on by default) uses web search** with Claude or
   OpenAI (OpenRouter models answer from their own knowledge). The provider
   may run a web search based on your book's topics or setting, so short search
@@ -193,6 +195,8 @@ book:
 
 ### A tiny AI bill, shown live
 
+- **Thunder Writer AI** is prepaid credit: $5 pays for about 10,000
+  suggestion requests, with no subscription. Settings shows what's left.
 - The defaults are the cheapest suitable models: **Claude Haiku 4.5**,
   OpenAI's **GPT-6 Luna**, or Claude Haiku 5.5 on OpenRouter. On OpenRouter you
   can pick any model; Settings shows each one's price.
@@ -243,12 +247,13 @@ them from the File menu.
    which takes a developer setup (Node.js and a terminal): see the
    [technical notes](tech_notes.md#getting-started).
    <!-- TODO: link the hosted app here once the production URL is final. -->
-2. **Add your AI key** under **Settings → AI provider**: a
-   [Claude key](https://console.anthropic.com/), an
-   [OpenAI key](https://platform.openai.com/api-keys) or an
-   [OpenRouter key](https://openrouter.ai/settings/keys) for any model.
-   **Test key** checks it
-   without spending anything.
+2. **Turn on suggestions** in **Settings**: buy **Thunder Writer AI** credit
+   ($5, $10 or $25, paid securely through Stripe), or add your own
+   [Claude key](https://console.anthropic.com/),
+   [OpenAI key](https://platform.openai.com/api-keys) or
+   [OpenRouter key](https://openrouter.ai/settings/keys) under
+   **Settings → AI provider**. **Test key** checks a key without spending
+   anything.
 3. **Start Writing** for a fresh manuscript. When you come back, the home page
    leads with **Continue writing**: your latest manuscript, when you last
    edited it, its word count and its latest lines. On a computer you haven't written on before,
@@ -259,7 +264,7 @@ them from the File menu.
    (Hosting your own copy? It needs a one-time
    [Google setup](tech_notes.md#google-cloud-setup) by you, not your writers.)
 
-You can write without an AI key. The suggestion pane will just point you to
+You can write without AI. The suggestion pane will just point you to
 Settings.
 
 ## Questions
@@ -280,15 +285,21 @@ Read them before you start: Anthropic's
 With OpenRouter, the request goes on to the company that runs the model you
 picked; OpenRouter's [privacy settings](https://openrouter.ai/settings/privacy)
 let you exclude providers that may train on your data.
+With Thunder Writer AI, requests go straight from your browser to OpenRouter
+under Thunder Writer AI's account, which has prompt logging off and excludes
+providers that may train on your data. The developer sees how much your key
+has used, never what you sent.
 If you'd rather
 send nothing, leave the key blank. You can still write, import, preview and
 save.
 
 ### What does it cost?
 
-There is no Thunder Writer subscription or account. You pay your AI provider
-directly for what you use, at their published rates. The status bar shows the running total
-as you go. If a model's price isn't known to the app, the suggestion pane says
+There is no Thunder Writer subscription or account. Writing is free. For
+suggestions, either buy **Thunder Writer AI** credit ($5 pays for about 10,000
+suggestion requests; long reference files make each one cost a little more),
+or use your own key and pay your AI provider directly at their published
+rates. The status bar shows the running total as you go. If a model's price isn't known to the app, the suggestion pane says
 the cost is unknown.
 
 ### Does it work offline?
